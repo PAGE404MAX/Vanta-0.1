@@ -217,6 +217,48 @@ void testImportedState()
           "Malformed preset file leaves the current patch intact");
 }
 
+
+void testImportedEditorControls()
+{
+    VantaProcessor processor;
+    vanta::PresetResult preset; preset.ok = true; preset.name = "Imported editor controls";
+    preset.values = vanta::defaultValues(); preset.values[vanta::oscATable] = 1;
+    preset.values[vanta::oscDEnabled] = 1; preset.values[vanta::oscDSample] = 1;
+    preset.values[vanta::ottEnabled] = 1;
+    preset.waveTables = std::make_shared<vanta::WaveTableBank>();
+    preset.waveTables->tables[0].frameCount = 2; preset.waveTables->tables[0].positions[1] = 1.0f;
+    preset.waveTables->sample.slot = 3; preset.waveTables->sample.frames = 4; preset.waveTables->sample.channels = 1;
+    processor.applyPreset(preset);
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor()); editor->setVisible(true);
+    click(*editor, "tab-oscillator");
+    auto* wave = dynamic_cast<juce::ComboBox*>(findVisible(*editor, "parameter-wave"));
+    check(wave != nullptr && wave->getSelectedId() == 5, "Imported wavetable appears in OSC source selector");
+    checkLayout(*editor);
+    changeSlider(*editor, processor, vanta::oscATablePosition);
+    wave->setSelectedId(1, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::oscATable] == 0.0f, "Selecting a basic shape disables wavetable playback");
+    wave->setSelectedId(5, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::oscATable] == 1.0f, "Selecting an available wavetable enables playback");
+    click(*editor, "osc-tab-D");
+    auto* sample = dynamic_cast<juce::ComboBox*>(findVisible(*editor, "parameter-oscDWave"));
+    check(sample != nullptr && sample->getSelectedId() == 6, "Imported sample appears in OSC source selector");
+    sample->setSelectedId(1, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::oscDSample] == 0.0f, "Selecting a basic shape disables sample playback");
+    sample->setSelectedId(6, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::oscDSample] == 1.0f, "Selecting an available sample enables playback");
+    click(*editor, "tab-effects"); checkLayout(*editor);
+    auto* multiband = dynamic_cast<juce::TextButton*>(findVisible(*editor, "parameter-ottEnabled"));
+    check(multiband != nullptr && multiband->getToggleState(), "Imported multiband enable is visible on effects page");
+    multiband->setToggleState(false, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::ottEnabled] == 0.0f, "Multiband switch controls bypass");
+    changeSlider(*editor, processor, vanta::ottDepth); changeSlider(*editor, processor, vanta::ottMix);
+    click(*editor, "tab-mixer");
+    auto* first = dynamic_cast<juce::TextButton*>(findVisible(*editor, "mixer-osc-A-enabled"));
+    check(first != nullptr && first->getToggleState(), "Mixer exposes OSC A enable");
+    first->setToggleState(false, juce::sendNotificationSync);
+    check(processor.currentValues()[vanta::oscAEnabled] == 0.0f, "Mixer can disable OSC A for imported patches");
+}
+
 void testStandalone(const juce::File& previews)
 {
     juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Standalone);
@@ -391,7 +433,7 @@ int main(int argc, char** argv)
     const auto previewDirectory = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(argv[1])
                                            : juce::File::getCurrentWorkingDirectory().getChildFile("ui-preview");
     check(previewDirectory.createDirectory().wasOk(), "Preview directory created");
-    testHostState(); testImportedState(); testStandalone(previewDirectory); testVstEditor();
+    testHostState(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor();
     std::cout << "All VANTA editor checks passed.\n";
     return 0;
 }
