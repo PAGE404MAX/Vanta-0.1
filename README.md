@@ -1,18 +1,5 @@
-# Vanta Beta 0.1 — Windows installer project
+# Vanta Beta 0.3 — native UI test
 
-This project contains VST3 source and an Inno Setup installer script. **No compiled .exe or .vst3 is included:** the project and installer have not been built or tested in this environment. The synth is a basic prototype with JUCE's generic editor; the HTML UI is separate and not wired up. Preset compatibility and the additional UI controls do not yet function in the plugin.
+Build on GitHub Actions or on Windows using CMake and Inno Setup. This source has not been compiled or tested here. The native, flat red/black VANTA interface includes Main, OSC, Effects, Modulation, Settings and a demo preset browser. Only level, attack, release and sine/saw waveform affect the basic 16-voice engine. All other controls, settings, partials and preset names are visual mockups: they do not change sound or load preset files, and their state is not saved. External preset formats are not supported.
 
-## Build the installer with GitHub Actions
-1. Create a GitHub repository and upload the *contents* of this folder, including the hidden `.github` folder.
-2. Open the Actions tab, enable workflows if prompted, and run **Build Windows VST3 and Installer**.
-3. When the run succeeds, download the `Vanta-Beta-0.1-Windows` artifact. It contains the setup wizard and plugin bundle.
-4. Run `Vanta-Beta-0.1-Setup.exe` on Windows. It requests admin rights and installs to the system VST3 folder. Rescan plugins in FL Studio.
-
-## Build locally on Windows
-Install Visual Studio 2022 C++ tools, CMake, Git and Inno Setup 6. With internet access, run:
-```
-cmake -S . -B build -A x64
-cmake --build build --config Release --target VantaBeta_VST3 --parallel
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-```
-The setup executable will be in `installer-output` if the build succeeds. Review JUCE licensing before distribution. Unsigned executables may trigger Windows SmartScreen. Use low volume when testing the unverified synth.
+Upload the CONTENTS of this directory including .github to the repository, replacing Beta 0.2 files. Run the workflow and download the Vanta-Beta-0.3-Windows artifact. If build fails, share the error. The installer is unsigned. Back up FL Studio projects, uninstall the older beta before installing the new version to avoid duplicates, then rescan plugins. Use low volume. Review JUCE licensing before distributing.
