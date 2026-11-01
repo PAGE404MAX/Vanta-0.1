@@ -28,6 +28,24 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
 };
 
+class VantaKeyboard final : public juce::MidiKeyboardComponent
+{
+public:
+    explicit VantaKeyboard(juce::MidiKeyboardState&);
+    ~VantaKeyboard() override;
+    void drawBlackNote(int, juce::Graphics&, juce::Rectangle<float>, bool, bool, juce::Colour) override;
+    bool keyPressed(const juce::KeyPress&) override;
+    bool keyStateChanged(bool) override;
+    void focusLost(FocusChangeType) override;
+    // Converts a physical-key snapshot into MIDI transitions; also used by tests.
+    bool updateComputerKeys(const std::array<bool, 17>&, bool shortcutHeld);
+
+private:
+    void releaseComputerKeys();
+    juce::MidiKeyboardState& midiState;
+    std::array<bool, 17> computerKeysDown {};
+};
+
 class VantaEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
@@ -41,6 +59,8 @@ private:
     void configureButton(juce::TextButton&, const juce::String&, const juce::String& role = {});
     void selectPage(int);
     void refresh();
+    void setParameter(vanta::Parameter, float);
+    void setWaveform(int);
     void changePreset(int);
     void loadFactory(int);
     void openPreset();
@@ -49,22 +69,29 @@ private:
 
     VantaProcessor& processor;
     VantaLook look;
-    int page = 0, folder = 0, currentFactory = -1;
+    int page = 0, folder = 0, currentFactory = -1, selectedOsc = 0, lastOscMask = -1;
     bool browserOpen = false;
     juce::String lastPresetName;
 
     juce::TextButton previous, next, browserButton, writeButton, importButton;
-    std::array<juce::TextButton, 5> tabs;
+    std::array<juce::TextButton, 7> tabs;
     std::array<juce::TextButton, 4> folders;
     std::array<juce::TextButton, VantaProcessor::factoryPresetCount> presetButtons;
+    juce::TextEditor presetSearch;
     juce::Slider levelSlider;
     juce::ComboBox waveform;
+    std::array<juce::TextButton, vanta::oscillatorCount> oscillatorTabs;
+    juce::TextButton addOscillator, removeOscillator;
+    std::array<std::array<VantaKnob, 4>, vanta::oscillatorCount> oscillatorKnobs;
+    std::array<juce::TextButton, vanta::oscillatorCount> mixerEnabled;
+    std::array<juce::Slider, vanta::oscillatorCount> mixerLevel, mixerPan;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, vanta::oscillatorCount> mixerEnabledAttachments;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> mixerLevelAttachments, mixerPanAttachments;
     std::array<VantaKnob, 8> mainKnobs;
     std::array<VantaKnob, 9> effectKnobs;
     std::array<VantaKnob, 6> modulationKnobs;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveAttachment;
-    std::unique_ptr<juce::MidiKeyboardComponent> standaloneKeyboard;
+    std::unique_ptr<VantaKeyboard> standaloneKeyboard;
     std::unique_ptr<juce::FileChooser> chooser;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VantaEditor)
 };

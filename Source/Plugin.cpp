@@ -18,8 +18,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout VantaProcessor::makeLayout()
     {
         const auto& p = vanta::parameterSpecs[i];
         if (i == vanta::wave)
+        {
+            // Do not expand this choice: old host automation maps 0/1 to sine/saw.
             layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
                                                                    juce::StringArray { "Sine", "Saw" }, 0));
+        }
+        else if (i == vanta::oscAExtraWave)
+        {
+            layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
+                                                                   juce::StringArray { "Legacy waveform", "Square", "Triangle" }, 0));
+        }
+        else if (i >= vanta::oscBEnabled && (i - vanta::oscBEnabled) % vanta::oscillatorStride == 0)
+        {
+            layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { p.id, 1 }, p.name, false));
+        }
+        else if (i >= vanta::oscBEnabled && (i - vanta::oscBEnabled) % vanta::oscillatorStride == 1)
+        {
+            layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
+                                                                   juce::StringArray { "Sine", "Saw", "Square", "Triangle" }, 0));
+        }
         else
             layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { p.id, 1 }, p.name,
                 juce::NormalisableRange<float>(p.minValue, p.maxValue, p.step, p.skew), p.defaultValue));
@@ -112,7 +129,25 @@ void VantaProcessor::setStateInformation(const void* data, int size)
 {
     if (auto xml = getXmlFromBinary(data, size))
         if (xml->hasTagName(state.state.getType()))
-            state.replaceState(juce::ValueTree::fromXml(*xml));
+        {
+            auto restored = juce::ValueTree::fromXml(*xml);
+            // Earlier projects lack the newly added parameters. Explicitly insert
+            // defaults instead of retaining values from a previously loaded state.
+            for (const auto& spec : vanta::parameterSpecs)
+            {
+                bool found = false;
+                for (const auto& child : restored)
+                    if (child.hasType("PARAM") && child.getProperty("id").toString() == spec.id) { found = true; break; }
+                if (!found)
+                {
+                    juce::ValueTree child("PARAM");
+                    child.setProperty("id", spec.id, nullptr);
+                    child.setProperty("value", spec.defaultValue, nullptr);
+                    restored.addChild(child, -1, nullptr);
+                }
+            }
+            state.replaceState(restored);
+        }
 }
 juce::AudioProcessorEditor* VantaProcessor::createEditor() { return new VantaEditor(*this); }
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new VantaProcessor(); }

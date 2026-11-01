@@ -116,16 +116,131 @@ void testAudio()
     keyboardEngine.process(block, events, heldParams);
     check(rms(block, rate / 20, rate / 40) < 1.0e-6f, "Virtual keyboard note-off releases the note");
 }
+void testOscillators()
+{
+    constexpr int samples = 11025;
+    auto base = vanta::defaultValues(); base[vanta::attack] = 0.001f;
+    const auto sine = render(base, samples);
+    auto squareParams = base; squareParams[vanta::oscAExtraWave] = 1.0f;
+    auto triangleParams = base; triangleParams[vanta::oscAExtraWave] = 2.0f;
+    const auto square = render(squareParams, samples);
+    const auto triangle = render(triangleParams, samples);
+    auto difference = [](const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b)
+    {
+        double total = 0.0;
+        for (int i = 1000; i < a.getNumSamples(); ++i) total += std::abs(a.getSample(0, i) - b.getSample(0, i));
+        return total / static_cast<double>(a.getNumSamples() - 1000);
+    };
+    check(rms(square, 1000, samples - 1000) > 0.01f && rms(triangle, 1000, samples - 1000) > 0.01f
+          && difference(sine, square) > 0.01 && difference(square, triangle) > 0.01,
+          "OSC A sine, square and triangle are distinct audible shapes");
+    bool independent = true;
+    for (int layer = 1; layer < vanta::oscillatorCount; ++layer)
+    {
+        auto isolated = base;
+        isolated[vanta::oscALevel] = 0.0f;
+        isolated[vanta::oscillatorEnabled(layer)] = 1.0f;
+        isolated[vanta::oscillatorLevel(layer)] = 1.0f;
+        isolated[vanta::oscillatorWave(layer)] = static_cast<float>(layer % 4);
+        const auto sound = render(isolated, samples);
+        independent &= rms(sound, 1000, samples - 1000) > 0.01f;
+        isolated[vanta::oscillatorEnabled(layer)] = 0.0f;
+        const auto silent = render(isolated, samples);
+        independent &= rms(silent, 1000, samples - 1000) == 0.0f;
+    }
+    check(independent, "Each additional oscillator can independently produce and mute audio");
+    auto layered = base;
+    for (int layer = 1; layer < 4; ++layer)
+    {
+        layered[vanta::oscillatorEnabled(layer)] = 1.0f;
+        layered[vanta::oscillatorWave(layer)] = static_cast<float>(layer);
+        layered[vanta::oscillatorTune(layer)] = static_cast<float>(layer * 3);
+        layered[vanta::oscillatorFine(layer)] = static_cast<float>(layer * 7);
+    }
+    const auto fourLayers = render(layered, samples);
+    check(rms(fourLayers, 1000, samples - 1000) > 0.01f && difference(sine, fourLayers) > 0.01,
+          "Four independently shaped and tuned layers produce a different sound");
+    auto detuned = base; detuned[vanta::oscAFine] = 25.0f;
+    const auto detunedAudio = render(detuned, samples);
+    check(difference(sine, detunedAudio) > 0.01, "Fine tune changes oscillator pitch");
+    auto panned = base; panned[vanta::oscALevel] = 0.0f; panned[vanta::oscBEnabled] = 1.0f;
+    panned[vanta::oscBLevel] = 1.0f; panned[vanta::oscBPan] = -1.0f;
+    const auto left = render(panned, samples);
+    check(left.getRMSLevel(0, 1000, samples - 1000) > 0.01f && left.getRMSLevel(1, 1000, samples - 1000) < 1.0e-6f,
+          "Per-layer pan stays separated through the global filter");
+    for (int layer = 1; layer < vanta::oscillatorCount; ++layer)
+    {
+        layered[vanta::oscillatorEnabled(layer)] = 1.0f;
+        layered[vanta::oscillatorLevel(layer)] = 1.0f;
+        layered[vanta::oscillatorWave(layer)] = static_cast<float>(layer % 4);
+    }
+    const auto allLayers = render(layered, samples);
+    bool finite = true;
+    for (int channel = 0; channel < allLayers.getNumChannels(); ++channel)
+        for (int i = 0; i < allLayers.getNumSamples(); ++i)
+            finite &= std::isfinite(allLayers.getSample(channel, i)) && std::abs(allLayers.getSample(channel, i)) <= 1.0f;
+    check(finite, "Eight enabled layers render finite bounded audio");
+
+    // Pitch wheel should affect an isolated additional layer as well as OSC A.
+    auto bendParameters = base;
+    bendParameters[vanta::oscALevel] = 0.0f;
+    bendParameters[vanta::oscBEnabled] = 1.0f;
+    bendParameters[vanta::oscBLevel] = 1.0f;
+    auto renderBend = [&](int wheel)
+    {
+        vanta::SynthEngine engine; engine.prepare(44100.0, 512);
+        juce::AudioBuffer<float> buffer(2, 11025); juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::pitchWheel(1, wheel), 0);
+        midi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 1);
+        engine.process(buffer, midi, bendParameters);
+        return buffer;
+    };
+    auto crossings = [](const juce::AudioBuffer<float>& buffer)
+    {
+        int count = 0;
+        for (int i = 1501; i < buffer.getNumSamples(); ++i)
+            if (buffer.getSample(0, i - 1) <= 0.0f && buffer.getSample(0, i) > 0.0f) ++count;
+        return count;
+    };
+    const auto normalPitch = renderBend(8192);
+    const auto highPitch = renderBend(16383);
+    const auto ratio = static_cast<double>(crossings(highPitch)) / crossings(normalPitch);
+    check(ratio > 1.10 && ratio < 1.14, "Pitch bend moves an additional oscillator by approximately two semitones");
+
+    vanta::SynthEngine fullPolyphony; fullPolyphony.prepare(48000.0, 512);
+    juce::AudioBuffer<float> poly(2, 8192); juce::MidiBuffer notes;
+    for (int note = 48; note < 64; ++note)
+        notes.addEvent(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(127)), 0);
+    fullPolyphony.process(poly, notes, layered);
+    finite = true;
+    for (int channel = 0; channel < poly.getNumChannels(); ++channel)
+        for (int i = 0; i < poly.getNumSamples(); ++i)
+            finite &= std::isfinite(poly.getSample(channel, i)) && std::abs(poly.getSample(channel, i)) <= 1.0f;
+    check(finite && rms(poly, 1000, 7000) > 0.001f, "Sixteen voices with eight layers remain audible and bounded");
+
+    vanta::SynthEngine monoEngine; monoEngine.prepare(44100.0, 512);
+    juce::AudioBuffer<float> mono(1, samples); juce::MidiBuffer oneNote;
+    oneNote.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 0);
+    monoEngine.process(mono, oneNote, panned);
+    check(rms(mono, 1000, samples - 1000) > 0.005f, "Hard-panned layers remain audible through a mono host output");
+}
 void testPresets()
 {
     auto values = vanta::defaultValues();
     values[vanta::attack] = 0.234f; values[vanta::wave] = 1.0f; values[vanta::cutoff] = 1234.0f;
+    values[vanta::oscAExtraWave] = 2.0f; values[vanta::oscBEnabled] = 1.0f; values[vanta::oscBWave] = 2.0f;
+    values[vanta::oscBTune] = -12.0f; values[vanta::oscBFine] = 17.0f; values[vanta::oscBPan] = -0.75f;
+    values[vanta::oscDEnabled] = 1.0f; values[vanta::oscHEnabled] = 1.0f;
     const auto encoded = vanta::PresetCodec::encode("My patch", values);
     auto decoded = vanta::PresetCodec::decode(encoded, ".vanta");
     check(decoded.ok && decoded.name == "My patch", "Native preset round-trip loads name");
     bool matches = true;
     for (std::size_t i = 0; i < values.size(); ++i) matches &= std::abs(values[i] - decoded.values[i]) < 1.0e-3f;
     check(matches, "Native preset round-trip loads every parameter");
+    const auto legacy = vanta::PresetCodec::decode(R"({"format":"vanta-preset","version":1,"name":"Old","parameters":{"wave":1,"level":0.6}})", ".vanta");
+    check(legacy.ok && legacy.values[vanta::wave] == 1.0f && legacy.values[vanta::oscAExtraWave] == 0.0f
+          && legacy.values[vanta::oscALevel] == 1.0f && legacy.values[vanta::oscBEnabled] == 0.0f,
+          "Older VANTA presets retain the original saw and default new layers to off");
     check(!vanta::PresetCodec::decode("not json", ".vanta").ok, "Malformed JSON is rejected");
     check(!vanta::PresetCodec::decode("{}", ".vanta").ok, "Unrecognised VANTA schema is rejected");
     check(!vanta::PresetCodec::decode(encoded, ".fxp").ok && !vanta::PresetCodec::decode(encoded, ".SerumPreset").ok
@@ -146,6 +261,7 @@ void testPresets()
 int main()
 {
     testAudio();
+    testOscillators();
     testPresets();
     std::cout << "All VANTA tests passed.\n";
     return 0;

@@ -5,29 +5,38 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP -or $env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
     throw 'Installer smoke test requires an isolated GitHub-hosted Windows runner.'
 }
-$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.6.vst3').Path
-$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.6.exe').Path
-$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.6-Setup.exe').Path
-$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.6-installer-test'
-$installedBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.6.vst3'
-$installedApp = Join-Path $destination 'Vanta Beta 0.6.exe'
-$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.6.lnk'
+$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.7.vst3').Path
+$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.7.exe').Path
+$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.7-Setup.exe').Path
+$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.7-installer-test'
+$installedBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.7.vst3'
+$legacyBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.6.vst3'
+$legacyMarker = Join-Path $legacyBundle 'vanta-installer-test-marker.txt'
+$installedApp = Join-Path $destination 'Vanta Beta 0.7.exe'
+$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.7.lnk'
 $installLog = Join-Path $env:RUNNER_TEMP 'vanta-install.log'
 $uninstallLog = Join-Path $env:RUNNER_TEMP 'vanta-uninstall.log'
-foreach ($path in @($destination, $installedBundle, $shortcut)) {
+foreach ($path in @($destination, $installedBundle, $legacyBundle, $shortcut)) {
     if (Test-Path -LiteralPath $path) { throw "Installer test path already exists: $path" }
-}
-
-$arguments = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$destination`"", "/LOG=`"$installLog`"")
-$install = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
-if ($install.ExitCode -ne 0) {
-    if (Test-Path $installLog) { Get-Content $installLog }
-    throw "Installer failed with exit code $($install.ExitCode)"
 }
 
 $runningApp = $null
 try {
-    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.6.vst3'
+    # A test-only earlier bundle checks conflict detection without deleting user data.
+    New-Item -ItemType Directory -Path $legacyBundle -Force | Out-Null
+    Set-Content -LiteralPath $legacyMarker -Value 'do not remove'
+    $arguments = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$destination`"", "/LOG=`"$installLog`"")
+    $install = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
+    if ($install.ExitCode -ne 0) {
+        if (Test-Path $installLog) { Get-Content $installLog }
+        throw "Installer failed with exit code $($install.ExitCode)"
+    }
+    if (!(Select-String -LiteralPath $installLog -SimpleMatch 'Earlier VANTA VST3 detected' -Quiet)) {
+        throw 'Installer did not detect the older beta bundle.'
+    }
+    if (!(Test-Path -LiteralPath $legacyMarker -PathType Leaf)) { throw 'Installer removed the earlier beta bundle.' }
+
+    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.7.vst3'
     if (!(Test-Path -LiteralPath $pluginBinary -PathType Leaf)) { throw "Installed x64 VST3 binary is missing: $pluginBinary" }
     $files = @(Get-ChildItem -LiteralPath $sourceBundle -File -Recurse)
     if ($files.Count -eq 0) { throw 'The build produced an empty VST3 bundle.' }
@@ -76,11 +85,15 @@ try {
     foreach ($path in @($installedBundle, $installedApp, $shortcut)) {
         if (Test-Path -LiteralPath $path) { throw "File remains after uninstall: $path" }
     }
-    Write-Host 'Installer smoke test passed: VST3 and standalone match, standalone launched, shortcut works, and uninstall removed both.'
+    if (!(Test-Path -LiteralPath $legacyMarker -PathType Leaf)) { throw 'Uninstall removed the earlier beta bundle.' }
+    Write-Host 'Installer smoke test passed: previous beta detected and preserved; VST3 and standalone match; standalone launched; shortcut and uninstall work.'
 }
 finally {
     if ($null -ne $runningApp) {
         $runningApp.Refresh()
         if (!$runningApp.HasExited) { Stop-Process -Id $runningApp.Id -Force }
     }
+    # Safe only because the path was verified absent above, and this script is
+    # explicitly restricted to disposable GitHub-hosted runners.
+    if (Test-Path -LiteralPath $legacyBundle) { Remove-Item -LiteralPath $legacyBundle -Recurse -Force }
 }

@@ -17,6 +17,21 @@ double polyBlep(double t, double increment)
     if (t > 1.0 - increment) { t = (t - 1.0) / increment; return t * t + t + t + 1.0; }
     return 0.0;
 }
+
+double oscillatorSample(int shape, double phase, double increment)
+{
+    switch (shape)
+    {
+        case 1: return 2.0 * phase - 1.0 - polyBlep(phase, increment);
+        case 2:
+        {
+            const double secondEdge = phase < 0.5 ? phase + 0.5 : phase - 0.5;
+            return (phase < 0.5 ? 1.0 : -1.0) + polyBlep(phase, increment) - polyBlep(secondEdge, increment);
+        }
+        case 3: return 1.0 - 4.0 * std::abs(phase - 0.5);
+        default: return std::sin(phase * twoPi);
+    }
+}
 }
 
 class SynthEngine::Sound final : public juce::SynthesiserSound
@@ -34,8 +49,8 @@ public:
 
     void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int pitchWheel) override
     {
-        phase = lfoPhase = 0.0;
-        ic1 = ic2 = 0.0f;
+        phases.fill(0.0); lfoPhase = 0.0;
+        ic1.fill(0.0f); ic2.fill(0.0f);
         amplitude = juce::jlimit(0.0f, 1.0f, velocity) * 0.12f;
         note = midiNote;
         wheel = pitchWheel;
@@ -66,27 +81,59 @@ public:
         const auto a2 = g * a1;
         const auto a3 = g * a2;
         const auto lfoIncrement = twoPi * p[vibratoRate] / getSampleRate();
-
+        struct Layer { bool active = false; int shape = 0; double rate = 0.0; float left = 0.0f, right = 0.0f; };
+        std::array<Layer, oscillatorCount> layers {};
+        float totalLevel = 0.0f;
+        for (int layer = 0; layer < oscillatorCount; ++layer)
+        {
+            auto& entry = layers[static_cast<std::size_t>(layer)];
+            entry.active = oscillatorIsEnabled(p, layer);
+            if (!entry.active) continue;
+            entry.shape = juce::jlimit(0, 3, oscillatorShape(p, layer));
+            const auto level = juce::jlimit(0.0f, 1.0f, p[oscillatorLevel(layer)]);
+            const auto pan = juce::jlimit(-1.0f, 1.0f, p[oscillatorPan(layer)]);
+            const auto semitones = static_cast<double>(p[oscillatorTune(layer)] + p[oscillatorFine(layer)] * 0.01f);
+            entry.rate = baseFrequency * std::pow(2.0, semitones / 12.0) / getSampleRate();
+            entry.left = level * (pan > 0.0f ? 1.0f - pan : 1.0f);
+            entry.right = level * (pan < 0.0f ? 1.0f + pan : 1.0f);
+            totalLevel += level;
+        }
+        // Preserve the original single-oscillator level; prevent a stack of
+        // full-volume layers from multiplying its peak by eight.
+        const auto mixScale = 1.0 / static_cast<double>(juce::jmax(1.0f, totalLevel));
+        const int channels = juce::jmin(2, output.getNumChannels());
         for (int i = 0; i < count; ++i)
         {
             const double vibratoSemitones = std::sin(lfoPhase) * static_cast<double>(p[vibrato]);
-            const auto increment = juce::jlimit(0.0, 0.49, baseFrequency * std::pow(2.0, vibratoSemitones / 12.0) / getSampleRate());
-            double sample = (p[wave] < 0.5f) ? std::sin(phase * twoPi)
-                                             : (2.0 * phase - 1.0 - polyBlep(phase, increment));
-            phase += increment;
-            if (phase >= 1.0) phase -= 1.0;
+            const double pitchFactor = p[vibrato] == 0.0f ? 1.0 : std::pow(2.0, vibratoSemitones / 12.0);
+            double mixed[2] { 0.0, 0.0 };
+            for (int layer = 0; layer < oscillatorCount; ++layer)
+            {
+                const auto& entry = layers[static_cast<std::size_t>(layer)];
+                if (!entry.active) continue;
+                auto& phase = phases[static_cast<std::size_t>(layer)];
+                const auto increment = juce::jlimit(0.0, 0.49, entry.rate * pitchFactor);
+                const auto sample = oscillatorSample(entry.shape, phase, increment) * mixScale;
+                mixed[0] += sample * entry.left; mixed[1] += sample * entry.right;
+                phase += increment;
+                if (phase >= 1.0) phase -= 1.0;
+            }
             lfoPhase += lfoIncrement;
             if (lfoPhase >= twoPi) lfoPhase -= twoPi;
-
-            // Stable topology-preserving state-variable low-pass, one state per voice.
-            const double v3 = sample - ic2;
-            const double v1 = a1 * ic1 + a2 * v3;
-            const double v2 = ic2 + a2 * ic1 + a3 * v3;
-            ic1 = static_cast<float>(2.0 * v1 - ic1);
-            ic2 = static_cast<float>(2.0 * v2 - ic2);
-            const auto value = static_cast<float>(v2) * amplitude * envelope.getNextSample();
-            for (int channel = 0; channel < output.getNumChannels(); ++channel)
-                output.addSample(channel, start + i, value);
+            if (channels == 1) mixed[0] = 0.5 * (mixed[0] + mixed[1]);
+            const auto gain = amplitude * envelope.getNextSample();
+            // The same global low-pass follows the layer mixer, with separate
+            // left/right states so per-layer panning is preserved.
+            for (int channel = 0; channel < channels; ++channel)
+            {
+                const auto index = static_cast<std::size_t>(channel);
+                const double v3 = mixed[index] - ic2[index];
+                const double v1 = a1 * ic1[index] + a2 * v3;
+                const double v2 = ic2[index] + a2 * ic1[index] + a3 * v3;
+                ic1[index] = static_cast<float>(2.0 * v1 - ic1[index]);
+                ic2[index] = static_cast<float>(2.0 * v2 - ic2[index]);
+                output.addSample(channel, start + i, static_cast<float>(v2) * gain);
+            }
         }
         if (!envelope.isActive()) clearCurrentNote();
     }
@@ -115,8 +162,10 @@ private:
     juce::ADSR envelope;
     juce::ADSR::Parameters previousEnvelope;
     bool hasEnvelopeParameters = false;
-    double phase = 0.0, lfoPhase = 0.0, baseFrequency = 440.0;
-    float ic1 = 0.0f, ic2 = 0.0f, amplitude = 0.0f;
+    std::array<double, oscillatorCount> phases {};
+    std::array<float, 2> ic1 {}, ic2 {};
+    double lfoPhase = 0.0, baseFrequency = 440.0;
+    float amplitude = 0.0f;
     int note = 69, wheel = 8192;
 };
 

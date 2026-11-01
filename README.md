@@ -1,87 +1,43 @@
-# Vanta Beta 0.6
+# Vanta Beta 0.7
 
-VANTA is an experimental Windows x64 instrument available both as a VST3 for
-FL Studio and other hosts and as a standalone application that does not need a
-DAW. Beta 0.6 introduces a new native JUCE interface with a focused overview,
-dedicated sound-editing pages, and a factory preset browser. This beta is a
-fresh foundation, **not** a finished recreation of other synths.
+VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.7 begins implementing the approved red-and-black design and adds real, layered oscillators. It is **not** yet a complete implementation of the planned feature list.
 
-![VANTA Beta 0.6 standalone overview](docs/vanta-beta-0.6-overview.png)
+![Native Beta 0.7 standalone editor](docs/vanta-beta-0.7-overview.png)
 
-The screenshot is an off-screen rendering of the actual editor; system fonts and
-the application window frame may look slightly different on Windows.
+[View the oscillator page with four layers](docs/vanta-beta-0.7-oscillators.png). These are off-screen native-editor test snapshots; font rendering may differ on Windows.
 
-## Using the standalone application
+## Install and play
 
-After installing, launch **Vanta > Vanta Beta 0.6** from the Windows Start Menu.
-In the window's **Options > Audio/MIDI Settings...** menu, select an audio
-output and enable your MIDI input device. These are separate from FL Studio's
-audio and MIDI settings. Start with a low output volume.
+The Windows build produces `Vanta-Beta-0.7-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. Back up DAW projects and uninstall earlier VANTA betas before installing this one: the betas use the same VST3 ID and duplicate bundles can confuse a plugin scan. Rescan plugins in FL Studio after installation.
 
-You can also click the piano keys at the bottom of the standalone window. Click
-the keyboard to give it focus and play with your computer keys (starting with
-A, W, S, E, D, F, T, G, Y, H, U, J). Click it again if a control takes focus.
-The standalone and VST3 use the same synth and `.vanta` preset format. The JUCE
-standalone wrapper saves its own audio/MIDI settings and current sound on normal
-exit; it does not change a VST3 instance's settings or FL Studio projects.
+Launch **Vanta > Vanta Beta 0.7** from the Start Menu. In the standalone window choose **Options > Audio/MIDI Settings...** to select an audio output and enable a MIDI input. Start with a low output volume. You can click the on-screen keys, or focus the keyboard and play:
 
-## Finding your way around
+`Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P`
 
-- Click the current preset at the top to browse the five factory sounds. The
-  arrows step through them; **SAVE** writes `.vanta` files and **IMPORT** opens
-  supported files.
-- **Overview** brings together waveform, filter, amplitude envelope, vibrato,
-  and master output. The **Oscillator**, **Effects**, and **Modulation** pages
-  provide their dedicated controls; **Settings** describes device and preset
-  support. Drag a knob to change it, or double-click it to reset it.
-- The waveform and modulation graphs illustrate the current settings; they are
-  not live audio meters. The envelope graph uses an illustrative sustain length.
+These keys span C4–E5. The VST3 receives MIDI from the host; the standalone keyboard does not inject notes into a VST3 instance. Audio and MIDI device settings are controlled by your DAW when using the plugin.
 
-## What works
+## What's in Beta 0.7
 
-- 16-voice polyphony; sine and band-limited saw; MIDI velocity, sustain pedal,
-  and pitch bend (fixed at +/- 2 semitones).
-- Master level, low-pass cutoff/resonance, amplitude ADSR and vibrato.
-- Reverb, delay and distortion; their controls affect the audio.
-- Five small VANTA factory sounds, plus saving and opening `.vanta` preset files.
-- Saving and restoring plugin parameter state in the host. The Beta 0.3 plugin
-  ID and its four parameter IDs are retained, but migration has **not yet been
-  tested in FL Studio**. Back up your projects before trying it.
+- Up to **eight real oscillators** per note, with sine, saw, square or triangle shapes. OSC A is always present. On the **OSC** page, use **+ NEW TAB** to enable B–H, select a tab to change its waveform, level, semitone, fine tuning and pan, or **REMOVE** to disable a selected additional oscillator. Disabled layers retain their settings if re-enabled.
+- The **MIXER** page provides enable switches for B–H, plus per-layer level and pan. All enabled oscillators share one low-pass filter, amplitude envelope, pitch vibrato and fixed effects chain. The layer mix is normalised when the sum of layer levels exceeds one to limit gain buildup. This is layered polyphony, not unison or independent per-layer filters/envelopes.
+- Sixteen-voice polyphony, MIDI velocity, sustain pedal and pitch bend (fixed at ±2 semitones); master level, global low-pass cutoff/resonance, ADSR amplitude envelope and sine pitch vibrato.
+- Reverb, delay and distortion, in a fixed order. The **MAIN**, **OSC**, **EFFECTS** and **MOD** plots illustrate parameter settings; they are not live audio meters.
+- Five factory sounds with a searchable, category-filtered browser, plus native `.vanta` preset save/load and host-state restore. Oscillator settings are part of those presets and host state.
+- The **SEQ** page illustrates the planned 32-step arpeggiator and 64-step clip sequencer. It is **not playable** in this beta. Extra oscillator engines, unison, general modulation routing/matrix, macros, reorderable/additional effects and advanced filters are also not implemented. See [the roadmap](design/windows-feature-roadmap.md).
 
-The Oscillator page exposes one oscillator. Extra oscillators/partials, unison,
-legato, portamento, UI scale and advanced modulation routing are not implemented
-and are not presented as working controls.
+The existing `wave` parameter and its original two-choice sine/saw mapping are retained for older host automation. OSC A square/triangle use an additional parameter; while either is selected, the old sine/saw parameter does not determine the audible shape until sine or saw is selected again. Old `.vanta` presets default the new layers to off. Host migration has automated coverage, but **has not been tested in FL Studio**; keep project backups.
 
 ## Preset compatibility
 
-- **VANTA `.vanta`:** Native parameter presets can be written and opened with
-  the buttons in the plugin. These store the VANTA parameters, not audio files.
-- **Vital `.vital`:** Experimental, partial **approximation** only. It imports
-  available amplitude envelope attack/decay/sustain/release and filter-1 cutoff
-  when that filter is enabled, with values clamped to VANTA's ranges. VANTA uses
-  a saw oscillator; Vital wavetables, samples, additional oscillators, envelope
-  curves, modulation, filter models and effects are not imported. The resulting
-  sound will usually be different. The importer displays a warning each time.
-- **Serum 1 `.fxp`, Serum 2 `.SerumPreset`, and ZENOLOGY `.svz` / `.svd` /
-  `.bin`:** Not implemented. Selecting one reports that it is unsupported and
-  leaves the current sound unchanged. Their preset formats and synthesis engines
-  are different; future work needs format-specific research, legally obtained
-  example presets and comparison against the original instruments.
+- **VANTA `.vanta`:** Native parameters, including layer settings, can be saved and loaded. Presets do not store audio files.
+- **Vital `.vital`:** Experimental, partial **approximation**. Available amplitude envelope values and enabled filter-1 cutoff are mapped within VANTA's ranges, and a saw is substituted. Vital wavetables, samples, additional oscillators, envelope curves, modulation, filter models and effects are not imported; the sound will differ. A warning is shown.
+- **Serum 1 `.fxp`, Serum 2 `.SerumPreset`, ZENOLOGY `.svz` / `.svd` / `.bin`:** Not implemented. Selecting one reports that it is unsupported and does not change the current sound.
 
-Only import files you trust. VANTA does not modify imported files. Preset files
-larger than 32 MB are rejected. No third-party preset banks, wavetables or samples
-are included.
+Only import files you trust. Files larger than 32 MB are rejected. No third-party preset banks, wavetables or samples are included.
 
 ## Build and test on Windows
 
-The GitHub Actions workflow **Build Windows VST3 and Standalone** runs engine,
-preset and editor tests, builds both formats and the unsigned Inno Setup installer,
-and checks install, standalone window launch, shortcut, and uninstall on a
-disposable Windows runner. The artifact includes actual editor preview PNGs.
-The smoke test compares installed files with the build; it does **not** test real
-audio/MIDI hardware or FL Studio. Download the
-`Vanta-Beta-0.6-Windows` artifact from a successful run on the branch containing
-this version.
+The GitHub Actions workflow builds both Windows formats, runs engine/preset/editor tests, creates the Inno Setup installer, and smoke-tests install, standalone launch, shortcut and uninstall on a disposable Windows runner. The artifact includes editor preview PNGs. This does **not** test a real audio device, MIDI hardware or FL Studio.
 
 For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6:
 
@@ -95,15 +51,4 @@ cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The unsigned installer is `installer-output\Vanta-Beta-0.6-Setup.exe`. By default
-it installs the standalone application in `C:\Program Files\Vanta\Vanta Beta 0.6`,
-adds its Start Menu shortcut, and installs the complete VST3 bundle under
-`C:\Program Files\Common Files\VST3`. The app location can be changed in setup;
-the VST3 location stays the Windows standard. Uninstall removes both formats and
-the shortcut, not your saved preset files.
-
-Back up FL Studio projects first; uninstall older VANTA betas before installing
-this one to avoid two bundles with the same VST3 ID, then rescan plugins in FL
-Studio. Test the standalone output and MIDI devices, on-screen keyboard, preset
-round-trip, and your DAW's project save/reopen. Do not distribute before reviewing
-JUCE's licensing and any third-party licensing obligations.
+The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.7` for the app and the standard `C:\Program Files\Common Files\VST3` for the VST3 bundle. Uninstall removes the app, plugin and shortcut, not your saved presets. After installation, test audio/MIDI devices, keyboard, preset round-trip and DAW project save/reopen. Review JUCE and any third-party licensing obligations before distribution.
