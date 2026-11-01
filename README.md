@@ -20,7 +20,7 @@ These keys span C4–E5. The VST3 receives MIDI from the host; the standalone ke
 
 Click the **V** logo at the upper left to open the centred size menu. Choose **60%, 75%, 90%, 100%, 110%, 125% or 150%**, or **FIT SCREEN** to estimate a size for the current monitor. Escape, the close button, or a click outside dismisses the menu. The whole interface, including the standalone keyboard and mouse targets, scales together. The selection is stored in the host's project state and the standalone's saved state, not in individual presets; older projects default to 100%.
 
-VST3 resizing depends on the host accepting the requested window size. If the host does not accept it, VANTA returns to the available size and reopens the menu with a warning. The minimum is 60%; Fit Screen reserves some space for window borders but may not fit on very small displays. Actual resizing and display scaling in FL Studio have not yet been verified.
+VST3 resizing depends on the host accepting the requested window size. If the host does not accept it, VANTA returns to the available size and reopens the menu with a warning. If the window extends beyond a monitor, the menu tries to stay centred in the visible portion. The minimum is 60%; Fit Screen reserves some space for window borders but may not fit on very small displays. Actual resizing and display scaling in FL Studio have not yet been verified.
 
 ## Importing presets
 

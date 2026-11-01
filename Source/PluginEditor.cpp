@@ -523,6 +523,7 @@ public:
     }
     void resized() override
     {
+        dialog = calculateDialogBounds();
         const auto r = dialogBounds();
         close.setBounds(r.getRight() - 48, r.getY() + 15, 30, 25);
         for (std::size_t i = 0; i < sizes.size(); ++i)
@@ -538,9 +539,26 @@ public:
         if (key == juce::KeyPress::escapeKey) { owner.showResizeMenu(false); return true; }
         return false;
     }
+    void updatePlacement()
+    {
+        if (calculateDialogBounds() != dialog) { resized(); repaint(); }
+    }
 private:
-    juce::Rectangle<int> dialogBounds() const { return getLocalBounds().withSizeKeepingCentre(440, 228); }
+    juce::Rectangle<int> dialogBounds() const { return dialog; }
+    juce::Rectangle<int> calculateDialogBounds() const
+    {
+        auto visible = getLocalBounds();
+        if (getPeer() != nullptr)
+        {
+            const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
+            if (display != nullptr) visible = visible.getIntersection(getLocalArea(nullptr, display->userArea));
+        }
+        const auto position = vanta::resizePopupPosition(getWidth(), getHeight(), visible.getX(), visible.getY(),
+                                                         visible.getWidth(), visible.getHeight());
+        return { position.x, position.y, vanta::resizePopupWidth, vanta::resizePopupHeight };
+    }
     VantaEditor& owner;
+    juce::Rectangle<int> dialog;
     std::array<juce::TextButton, 7> sizes;
     juce::TextButton fit, close;
 };
@@ -811,6 +829,21 @@ void VantaEditor::reconcileHostResize()
         showResizeMenu(true);
     }
 }
+void VantaEditor::positionStandaloneWindowOnce()
+{
+    if (!needsStandalonePosition || processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone || getPeer() == nullptr) return;
+    auto* window = getTopLevelComponent();
+    if (window == nullptr || !window->isOnDesktop()) return;
+    const auto bounds = window->getScreenBounds();
+    const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(bounds);
+    if (display == nullptr || bounds.isEmpty()) return;
+    const auto area = display->userArea;
+    const auto position = vanta::standaloneWindowPosition(bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(),
+                                                           area.getX(), area.getY(), area.getWidth(), area.getHeight());
+    needsStandalonePosition = false;
+    if (position.x != bounds.getX() || position.y != bounds.getY())
+        window->setTopLeftPosition(window->getX() + position.x - bounds.getX(), window->getY() + position.y - bounds.getY());
+}
 void VantaEditor::showResizeMenu(bool show)
 {
     if (!resizeOverlay) return;
@@ -819,7 +852,7 @@ void VantaEditor::showResizeMenu(bool show)
         resizeOverlay->setBounds(canvas->getLocalBounds());
         resizeOverlay->updateSelection(currentScalePercent());
         resizeOverlay->setVisible(true); resizeOverlay->toFront(true);
-        resizeOverlay->grabKeyboardFocus();
+        resizeOverlay->updatePlacement(); resizeOverlay->grabKeyboardFocus();
     }
     else
     {
@@ -859,6 +892,8 @@ void VantaEditor::timerCallback()
     if (const int restoredScale = processor.editorScalePercent(); restoredScale != lastObservedScale)
         setUiScale(restoredScale, false);
     reconcileHostResize();
+    positionStandaloneWindowOnce();
+    if (resizeOverlay && resizeOverlay->isVisible()) resizeOverlay->updatePlacement();
     const auto name = processor.presetName();
     bool needsRefresh = false;
     if (name != lastPresetName)

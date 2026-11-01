@@ -64,6 +64,7 @@ private:
     int fitScalePercent() const;
     void setUiScale(int percent, bool notifyHost);
     void reconcileHostResize();
+    void positionStandaloneWindowOnce();
     void showResizeMenu(bool show);
     void paintCanvas(juce::Graphics&);
     void layoutCanvas();
@@ -86,6 +87,7 @@ private:
     juce::TextButton logoButton;
     int lastObservedScale = vanta::defaultEditorScale, lastObservedWidth = 0, lastObservedHeight = 0;
     bool awaitingHostResize = false, resizeRequestFromUser = false, hostResizeRejected = false;
+    bool needsStandalonePosition = true;
     juce::uint32 resizeRequestTime = 0;
     int page = 0, folder = 0, currentFactory = -1, selectedOsc = 0, lastOscMask = -1;
     bool browserOpen = false;

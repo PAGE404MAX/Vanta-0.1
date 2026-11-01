@@ -245,6 +245,22 @@ void testResizeMenu(juce::AudioProcessor::WrapperType type, const juce::File& pr
 }
 void testFitScreenCalculation()
 {
+    const auto normalWindow = vanta::standaloneWindowPosition(100, 80, 1000, 820, 0, 0, 1920, 1080);
+    check(normalWindow.x == 100 && normalWindow.y == 80, "A visible standalone window keeps its position");
+    const auto oversized = vanta::standaloneWindowPosition(-140, -200, 1500, 1230, 0, 0, 1280, 720);
+    check(oversized.x == 0 && oversized.y == 0, "An oversized standalone window keeps its logo on-screen at startup");
+    const auto moved = vanta::standaloneWindowPosition(2500, 800, 1000, 820, 1920, 0, 1920, 1080);
+    check(moved.x == 2500 && moved.y == 260, "Standalone startup respects the chosen monitor's work area");
+    const auto noDisplay = vanta::standaloneWindowPosition(200, 300, 1000, 820, 0, 0, 0, 0);
+    check(noDisplay.x == 200 && noDisplay.y == 300, "Standalone startup leaves position unchanged without display data");
+    const auto centre = vanta::resizePopupPosition(1000, 820, 0, 0, 1000, 820);
+    check(centre.x == 280 && centre.y == 296, "Resize popup is centred when the editor fits the screen");
+    const auto clipped = vanta::resizePopupPosition(1000, 820, 0, 0, 700, 500);
+    check(clipped.x == 130 && clipped.y == 136, "Resize popup centres on the visible part of an oversized editor");
+    const auto edge = vanta::resizePopupPosition(1000, 820, 900, 750, 100, 70);
+    check(edge.x == 560 && edge.y == 592, "Resize popup stays within the editor at screen edges");
+    const auto unknown = vanta::resizePopupPosition(1000, 820, 0, 0, 0, 0);
+    check(unknown.x == centre.x && unknown.y == centre.y, "Resize popup defaults to centre without display information");
     using vanta::fitEditorScaleToWorkArea;
     check(fitEditorScaleToWorkArea(720, 1920, 1080, 1.0) == 135, "Fit Screen chooses a bounded 1080p VST size");
     check(fitEditorScaleToWorkArea(820, 1920, 1080, 1.0) == 120, "Fit Screen accounts for the standalone keyboard");
