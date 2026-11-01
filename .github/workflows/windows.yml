@@ -28,8 +28,8 @@ jobs:
       - name: Upload installer and VST3
         uses: actions/upload-artifact@v4
         with:
-          name: Vanta-Beta-0.1-Windows
+          name: Vanta-Beta-0.3-Windows
           path: |
-            installer-output/Vanta-Beta-0.1-Setup.exe
+            installer-output/Vanta-Beta-0.3-Setup.exe
             build/VantaBeta_artefacts/Release/VST3/
           if-no-files-found: error
