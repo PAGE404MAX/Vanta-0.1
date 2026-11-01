@@ -54,8 +54,19 @@ public:
     ~VantaEditor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent&) override;
 
 private:
+    class Canvas;
+    class ResizeOverlay;
+    int baseHeight() const noexcept;
+    int currentScalePercent() const noexcept;
+    int fitScalePercent() const;
+    void setUiScale(int percent, bool notifyHost);
+    void reconcileHostResize();
+    void showResizeMenu(bool show);
+    void paintCanvas(juce::Graphics&);
+    void layoutCanvas();
     void timerCallback() override;
     void configureButton(juce::TextButton&, const juce::String&, const juce::String& role = {});
     void selectPage(int);
@@ -70,6 +81,12 @@ private:
 
     VantaProcessor& processor;
     VantaLook look;
+    std::unique_ptr<Canvas> canvas;
+    std::unique_ptr<ResizeOverlay> resizeOverlay;
+    juce::TextButton logoButton;
+    int lastObservedScale = vanta::defaultEditorScale, lastObservedWidth = 0, lastObservedHeight = 0;
+    bool awaitingHostResize = false, resizeRequestFromUser = false, hostResizeRejected = false;
+    juce::uint32 resizeRequestTime = 0;
     int page = 0, folder = 0, currentFactory = -1, selectedOsc = 0, lastOscMask = -1;
     bool browserOpen = false;
     juce::String lastPresetName;

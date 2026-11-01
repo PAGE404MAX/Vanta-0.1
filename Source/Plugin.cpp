@@ -206,6 +206,7 @@ void VantaProcessor::getStateInformation(juce::MemoryBlock& destination)
     try
     {
         auto snapshot = state.copyState();
+        snapshot.setProperty("vantaEditorScale", editorScalePercent(), nullptr);
         auto tables = engine.copyWaveTables();
         bool present = false;
         for (const auto& table : tables->tables) present |= table.frameCount > 0;
@@ -232,6 +233,16 @@ void VantaProcessor::setStateInformation(const void* data, int size)
         auto xml = getXmlFromBinary(data, size);
         if (xml == nullptr || !xml->hasTagName(state.state.getType())) return;
         auto restored = juce::ValueTree::fromXml(*xml);
+        // Host state is untrusted. Limit the text before converting it and use
+        // the default for missing/invalid values from old or malformed projects.
+        const auto scaleText = restored.getProperty("vantaEditorScale", juce::String(vanta::defaultEditorScale)).toString().trim();
+        int restoredScale = vanta::defaultEditorScale;
+        if (scaleText.isNotEmpty() && scaleText.length() <= 3 && scaleText.containsOnly("0123456789"))
+        {
+            const auto n = scaleText.getIntValue();
+            if (n >= vanta::minEditorScale && n <= vanta::maxEditorScale) restoredScale = n;
+        }
+        restored.removeProperty("vantaEditorScale", nullptr);
         std::shared_ptr<vanta::WaveTableBank> tables;
         if (restored.hasProperty("vantaWavetables"))
         {
@@ -270,6 +281,7 @@ void VantaProcessor::setStateInformation(const void* data, int size)
         if (tables == nullptr) tables = std::make_shared<vanta::WaveTableBank>();
         engine.publishWaveTables(*tables);
         state.replaceState(restored);
+        setEditorScalePercent(restoredScale);
     }
     catch (...) { /* Never let corrupt host state unwind through the host. */ }
 }

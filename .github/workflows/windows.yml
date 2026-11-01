@@ -23,7 +23,13 @@ jobs:
       - name: Build editor tests
         run: cmake --build build --config Release --target VantaEditorTests --parallel
 
-      - name: Run engine, preset, and editor tests
+      - name: Build VST3
+        run: cmake --build build --config Release --target VantaBeta_VST3 --parallel
+
+      - name: Build VST3 host-view tests
+        run: cmake --build build --config Release --target VantaVST3Tests --parallel
+
+      - name: Run engine, preset, editor, and VST3 view tests
         shell: pwsh
         run: |
           # Keep the failure in the check annotations as well as the full log.
@@ -37,9 +43,6 @@ jobs:
             Write-Output "::error title=CTest failed::$escaped"
             exit $code
           }
-
-      - name: Build VST3
-        run: cmake --build build --config Release --target VantaBeta_VST3 --parallel
 
       - name: Build standalone application
         run: cmake --build build --config Release --target VantaBeta_Standalone --parallel
@@ -78,9 +81,9 @@ jobs:
       - name: Upload installer, standalone and VST3
         uses: actions/upload-artifact@v7
         with:
-          name: VANTA 0.9 HERE
+          name: VANTA 0.10 HERE
           path: |
-            installer-output/Vanta-Beta-0.9-Setup.exe
+            installer-output/Vanta-Beta-0.10-Setup.exe
             build/VantaBeta_artefacts/Release/Standalone/
             build/VantaBeta_artefacts/Release/VST3/
             build/ui-preview/

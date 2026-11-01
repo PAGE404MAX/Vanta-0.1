@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VantaBeta VERSION 0.9.0 LANGUAGES C CXX)
+project(VantaBeta VERSION 0.10.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,7 +36,7 @@ juce_add_plugin(VantaBeta
     PLUGIN_MANUFACTURER_CODE Vnta
     PLUGIN_CODE Vntb
     FORMATS VST3 Standalone
-    PRODUCT_NAME "Vanta Beta 0.9"
+    PRODUCT_NAME "Vanta Beta 0.10"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
@@ -81,4 +81,18 @@ if(VANTA_BUILD_TESTS)
     target_compile_definitions(VantaEditorTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
     target_link_libraries(VantaEditorTests PRIVATE juce::juce_audio_utils juce::juce_dsp zlibstatic libzstd_static)
     add_test(NAME VantaEditorTests COMMAND VantaEditorTests "${CMAKE_BINARY_DIR}/ui-preview")
+
+    # Exercise the actual VST3 view API with a small host/frame, not just the
+    # editor component. Windows is the shipping platform. Other platforms can
+    # opt in when their VST3 bundle and GUI dependencies are available.
+    option(VANTA_TEST_VST3_WRAPPER "Test the built VST3 wrapper as a host" ${WIN32})
+    if(VANTA_TEST_VST3_WRAPPER)
+        add_executable(VantaVST3Tests tests/VantaVST3Tests.cpp)
+        target_include_directories(VantaVST3Tests PRIVATE "${JUCE_SOURCE_DIR}/modules/juce_audio_processors/format_types/VST3_SDK")
+        if(CMAKE_DL_LIBS)
+            target_link_libraries(VantaVST3Tests PRIVATE ${CMAKE_DL_LIBS})
+        endif()
+        add_dependencies(VantaVST3Tests VantaBeta_VST3)
+        add_test(NAME VantaVST3Tests COMMAND VantaVST3Tests "$<TARGET_FILE:VantaBeta_VST3>")
+    endif()
 endif()

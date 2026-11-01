@@ -10,7 +10,7 @@ const juce::Colour header(0xffa92227), surface(0xff170d0e);
 const juce::Colour surfaceDark(0xff0b0809), border(0xff48201f), textPrimary(0xfffce9df);
 const juce::Colour textSecondary(0xffdfb7aa), textMuted(0xff987973);
 const juce::Colour accent(0xffff5845), mint(0xff82e1cf);
-constexpr int editorWidth = 1000, vstHeight = 720, standaloneHeight = 820;
+constexpr int editorWidth = vanta::editorWidth, vstHeight = vanta::vstEditorHeight, standaloneHeight = vanta::standaloneEditorHeight;
 
 void text(juce::Graphics& g, const juce::String& value, int x, int y, int w, int h,
           float size, juce::Colour colour, int style = juce::Font::plain,
@@ -267,12 +267,17 @@ void VantaLook::drawButtonBackground(juce::Graphics& g, juce::Button& button, co
     const auto role = button.getProperties().getWithDefault("role", {}).toString();
     const auto area = button.getLocalBounds().toFloat().reduced(0.5f);
     const bool selected = button.getToggleState();
+    if (role == "logo")
+    {
+        if (hovered || button.hasKeyboardFocus(true)) { g.setColour(accent.withAlpha(0.7f)); g.drawRect(area, 1.0f); }
+        return;
+    }
     if (role == "preset" || role == "arrow" || role == "link")
     {
         if (hovered && button.isEnabled() && role != "link") { g.setColour(juce::Colour(0x443e1715)); g.fillRect(area); }
         return;
     }
-    if (role == "tab")
+    if (role == "tab" || role == "scale")
     {
         if (selected)
         {
@@ -298,6 +303,7 @@ void VantaLook::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool
     const auto role = button.getProperties().getWithDefault("role", {}).toString();
     const auto area = button.getLocalBounds();
     const bool enabled = button.isEnabled();
+    if (role == "logo") return;
     if (role == "preset")
     {
         const auto category = button.getProperties().getWithDefault("category", "USER").toString();
@@ -325,8 +331,9 @@ void VantaLook::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool
              button.getToggleState() ? accent : textSecondary, juce::Justification::centredRight);
         return;
     }
-    const auto colour = role == "tab" && button.getToggleState() ? juce::Colour(0xff35100c)
-                        : (role == "tab" ? textSecondary : role == "link" ? accent : textPrimary);
+    const bool tabLike = role == "tab" || role == "scale";
+    const auto colour = tabLike && button.getToggleState() ? juce::Colour(0xff35100c)
+                        : (tabLike ? textSecondary : role == "link" ? accent : textPrimary);
     text(g, button.getButtonText(), 4, 0, area.getWidth() - 8, area.getHeight(), role == "link" ? 9.0f : 10.0f,
          colour.withMultipliedAlpha(enabled ? 1.0f : 0.4f), juce::Font::bold, juce::Justification::centred);
 }
@@ -455,10 +462,102 @@ void VantaKeyboard::focusLost(FocusChangeType type)
     juce::MidiKeyboardComponent::focusLost(type);
 }
 
+// Keep the editor itself untransformed: JUCE uses its transform for host DPI.
+// Scaling a single child keeps painting, mouse coordinates and controls aligned.
+class VantaEditor::Canvas final : public juce::Component
+{
+public:
+    explicit Canvas(VantaEditor& editor) : owner(editor) { setComponentID("vanta-canvas"); }
+    void paint(juce::Graphics& g) override { owner.paintCanvas(g); }
+private:
+    VantaEditor& owner;
+};
+
+class VantaEditor::ResizeOverlay final : public juce::Component
+{
+public:
+    explicit ResizeOverlay(VantaEditor& editor) : owner(editor)
+    {
+        setComponentID("resize-overlay"); setName("VANTA interface size");
+        setWantsKeyboardFocus(true);
+        setFocusContainerType(juce::Component::FocusContainerType::keyboardFocusContainer);
+        const int choices[] = { 60, 75, 90, 100, 110, 125, 150 };
+        for (std::size_t i = 0; i < sizes.size(); ++i)
+        {
+            auto& button = sizes[i]; const int percent = choices[i];
+            button.setButtonText(juce::String(percent) + "%");
+            button.setComponentID("resize-" + juce::String(percent));
+            button.setTitle("Set interface size to " + juce::String(percent) + " percent");
+            button.getProperties().set("role", "scale");
+            button.onClick = [this, percent] { owner.showResizeMenu(false); owner.setUiScale(percent, true); };
+            addAndMakeVisible(button);
+        }
+        fit.setButtonText("FIT SCREEN"); fit.setComponentID("resize-fit");
+        fit.setTitle("Fit the interface to the current screen"); fit.getProperties().set("role", "scale");
+        fit.onClick = [this] { const int percent = owner.fitScalePercent(); owner.showResizeMenu(false); owner.setUiScale(percent, true); };
+        addAndMakeVisible(fit);
+        close.setButtonText("X"); close.setComponentID("resize-close"); close.setTitle("Close resize menu");
+        close.getProperties().set("role", "link"); close.onClick = [this] { owner.showResizeMenu(false); };
+        addAndMakeVisible(close);
+    }
+    void updateSelection(int percentage)
+    {
+        constexpr int choices[] = { 60, 75, 90, 100, 110, 125, 150 };
+        for (std::size_t i = 0; i < sizes.size(); ++i)
+            sizes[i].setToggleState(choices[i] == percentage, juce::dontSendNotification);
+        repaint();
+    }
+    void paint(juce::Graphics& g) override
+    {
+        g.setColour(juce::Colours::black.withAlpha(0.72f)); g.fillRect(getLocalBounds());
+        const auto r = dialogBounds();
+        screen(g, static_cast<float>(r.getX()), static_cast<float>(r.getY()), static_cast<float>(r.getWidth()), static_cast<float>(r.getHeight()));
+        g.setColour(juce::Colour(0xffd04038)); g.fillRect(r.getX() + 1, r.getY() + 1, r.getWidth() - 2, 3);
+        text(g, "VANTA / DISPLAY", r.getX() + 22, r.getY() + 20, 230, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "INTERFACE SIZE", r.getX() + 22, r.getY() + 41, 290, 26, 19.0f, textPrimary, juce::Font::bold);
+        mono(g, "CURRENT " + juce::String(owner.currentScalePercent()) + "%", r.getX() + 282, r.getY() + 46, 105, 18, 9.0f, textSecondary, juce::Justification::centredRight);
+        mono(g, owner.hostResizeRejected ? "Host did not accept that size. Try another." : "Choose a size or fit VANTA to your screen.",
+             r.getX() + 22, r.getY() + 75, r.getWidth() - 44, 15, 9.0f, owner.hostResizeRejected ? accent : textMuted);
+        separator(g, static_cast<float>(r.getX() + 22), static_cast<float>(r.getRight() - 22), static_cast<float>(r.getY() + 99));
+        mono(g, "ESC OR CLICK OUTSIDE TO CLOSE", r.getX() + 22, r.getBottom() - 30, r.getWidth() - 44, 14, 9.0f, textMuted);
+    }
+    void resized() override
+    {
+        const auto r = dialogBounds();
+        close.setBounds(r.getRight() - 48, r.getY() + 15, 30, 25);
+        for (std::size_t i = 0; i < sizes.size(); ++i)
+            sizes[i].setBounds(r.getX() + 24 + static_cast<int>(i % 4) * 100, r.getY() + 112 + static_cast<int>(i / 4) * 47, 92, 36);
+        fit.setBounds(r.getX() + 324, r.getY() + 159, 92, 36);
+    }
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        if (!dialogBounds().contains(event.getPosition())) owner.showResizeMenu(false);
+    }
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        if (key == juce::KeyPress::escapeKey) { owner.showResizeMenu(false); return true; }
+        return false;
+    }
+private:
+    juce::Rectangle<int> dialogBounds() const { return getLocalBounds().withSizeKeepingCentre(440, 228); }
+    VantaEditor& owner;
+    std::array<juce::TextButton, 7> sizes;
+    juce::TextButton fit, close;
+};
+
 VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), processor(owner)
 {
     setLookAndFeel(&look);
-    setSize(editorWidth, processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone ? standaloneHeight : vstHeight);
+    canvas = std::make_unique<Canvas>(*this); canvas->setSize(editorWidth, baseHeight()); addAndMakeVisible(*canvas);
+    lastObservedScale = processor.editorScalePercent();
+    setSize(juce::roundToInt(editorWidth * lastObservedScale / 100.0), juce::roundToInt(baseHeight() * lastObservedScale / 100.0));
+    setResizeLimits(editorWidth * vanta::minEditorScale / 100, juce::roundToInt(baseHeight() * vanta::minEditorScale / 100.0),
+                    editorWidth * vanta::maxEditorScale / 100, juce::roundToInt(baseHeight() * vanta::maxEditorScale / 100.0));
+    getConstrainer()->setFixedAspectRatio(static_cast<double>(editorWidth) / static_cast<double>(baseHeight()));
+    setResizable(true, false);
+    configureButton(logoButton, {}, "logo"); logoButton.setComponentID("resize-logo");
+    logoButton.setTitle("Resize VANTA interface"); logoButton.setTooltip("Open interface size options");
+    logoButton.onClick = [this] { showResizeMenu(true); };
     configureButton(previous, "^", "arrow"); previous.setComponentID("preset-previous"); previous.setTooltip("Previous factory preset"); previous.onClick = [this] { changePreset(-1); };
     configureButton(next, "v", "arrow"); next.setComponentID("preset-next"); next.setTooltip("Next factory preset"); next.onClick = [this] { changePreset(1); };
     configureButton(browserButton, "VANTA INIT", "preset"); browserButton.setComponentID("preset-browser"); browserButton.setTooltip("Browse and search factory sounds");
@@ -494,10 +593,10 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     presetSearch.setColour(juce::TextEditor::outlineColourId, border);
     presetSearch.setColour(juce::TextEditor::focusedOutlineColourId, accent);
     presetSearch.setFont(juce::FontOptions(12.0f));
-    presetSearch.onTextChange = [this] { refresh(); }; addAndMakeVisible(presetSearch);
+    presetSearch.onTextChange = [this] { refresh(); }; canvas->addAndMakeVisible(presetSearch);
 
     levelSlider.setSliderStyle(juce::Slider::LinearHorizontal); levelSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    levelSlider.setTitle("Master level"); levelSlider.setComponentID("parameter-level"); levelSlider.setTooltip("Master output level"); addAndMakeVisible(levelSlider);
+    levelSlider.setTitle("Master level"); levelSlider.setComponentID("parameter-level"); levelSlider.setTooltip("Master output level"); canvas->addAndMakeVisible(levelSlider);
     levelSlider.onValueChange = [this] { repaint(); };
     levelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "level", levelSlider);
     const vanta::Parameter miniIds[] = { vanta::decay, vanta::sustain, vanta::vibratoRate };
@@ -510,7 +609,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         slider.setTitle(vanta::parameterSpecs[parameter].name);
         slider.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[parameter].id));
         slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name));
-        slider.onValueChange = [this] { repaint(); }; addAndMakeVisible(slider);
+        slider.onValueChange = [this] { repaint(); }; canvas->addAndMakeVisible(slider);
         mainMiniAttachments[static_cast<std::size_t>(i)] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             processor.state, vanta::parameterSpecs[parameter].id, slider);
     }
@@ -520,7 +619,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     editVibrato.setTooltip("Open vibrato controls"); editVibrato.onClick = [this] { selectPage(3); };
     waveform.addItem("SINE", 1); waveform.addItem("SAW", 2); waveform.addItem("SQUARE", 3); waveform.addItem("TRIANGLE", 4); waveform.addItem("WAVETABLE", 5); waveform.addItem("SAMPLE", 6);
     waveform.setTitle("Selected oscillator waveform"); waveform.setComponentID("parameter-wave");
-    waveform.setTooltip("Choose the selected oscillator's waveform"); waveform.onChange = [this] { setWaveform(waveform.getSelectedId() - 1); }; addAndMakeVisible(waveform);
+    waveform.setTooltip("Choose the selected oscillator's waveform"); waveform.onChange = [this] { setWaveform(waveform.getSelectedId() - 1); }; canvas->addAndMakeVisible(waveform);
     const char* waveNames[] = { "SINE", "SAW", "SQUARE", "TRIANGLE" };
     const char* waveIds[] = { "wave-sine", "wave-saw", "wave-square", "wave-triangle" };
     for (int i = 0; i < 4; ++i)
@@ -543,7 +642,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         for (int k = 0; k < 4; ++k)
         {
             auto& knob = oscillatorKnobs[i][static_cast<std::size_t>(k)]; knob.configure(processor.state, ids[k], labels[k]);
-            knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
+            knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
         }
         auto& enabled = mixerEnabled[i]; configureButton(enabled, "ON", "filter");
         enabled.setComponentID("mixer-osc-" + letter + "-enabled"); enabled.setTooltip("Enable oscillator " + letter);
@@ -555,7 +654,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         position.setSliderStyle(juce::Slider::LinearHorizontal); position.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         position.setTitle("Oscillator " + letter + " wavetable position");
         position.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[vanta::oscillatorTablePosition(layer)].id));
-        position.setTooltip("Blend between imported wavetable frames"); addAndMakeVisible(position);
+        position.setTooltip("Blend between imported wavetable frames"); canvas->addAndMakeVisible(position);
         tablePositionAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,
                 vanta::parameterSpecs[vanta::oscillatorTablePosition(layer)].id, position);
         auto setupMixerSlider = [this, i, &letter](juce::Slider& slider, vanta::Parameter parameter, bool vertical)
@@ -565,7 +664,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
             slider.setTitle(vanta::parameterSpecs[parameter].name);
             slider.setComponentID("mixer-" + juce::String(vanta::parameterSpecs[parameter].id));
             slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name));
-            slider.onValueChange = [this] { repaint(); }; addAndMakeVisible(slider);
+            slider.onValueChange = [this] { repaint(); }; canvas->addAndMakeVisible(slider);
             auto attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, vanta::parameterSpecs[parameter].id, slider);
             if (vertical) mixerLevelAttachments[i] = std::move(attachment); else mixerPanAttachments[i] = std::move(attachment);
         };
@@ -593,7 +692,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     auto configureMultibandSlider = [this](juce::Slider& slider, const char* id, const char* title)
     {
         slider.setSliderStyle(juce::Slider::LinearHorizontal); slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-        slider.setTitle(title); slider.setComponentID("parameter-" + juce::String(id)); slider.setTooltip(title); addAndMakeVisible(slider);
+        slider.setTitle(title); slider.setComponentID("parameter-" + juce::String(id)); slider.setTooltip(title); canvas->addAndMakeVisible(slider);
     };
     configureMultibandSlider(multibandDepth, "ottDepth", "Master multiband depth");
     configureMultibandSlider(multibandMix, "ottMix", "Master multiband mix");
@@ -605,7 +704,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     for (int i = 0; i < 8; ++i)
     {
         auto& knob = mainKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, mainIds[i], mainNames[i]);
-        knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
+        knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
     }
     mainKnobs[0].setCaption("FILTER"); mainKnobs[1].setCaption("FILTER");
     mainKnobs[2].setCaption("ENVELOPE"); mainKnobs[5].setCaption("ENVELOPE"); mainKnobs[6].setCaption("PITCH");
@@ -614,21 +713,23 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     for (int i = 0; i < 9; ++i)
     {
         auto& knob = effectKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, fxIds[i], fxNames[i]);
-        knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
+        knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
     }
     const vanta::Parameter modIds[] = { vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
     const char* modNames[] = { "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
     for (int i = 0; i < 6; ++i)
     {
         auto& knob = modulationKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, modIds[i], modNames[i]);
-        knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
+        knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
     }
 
     if (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
         standaloneKeyboard = std::make_unique<VantaKeyboard>(processor.keyboardState);
-        addAndMakeVisible(*standaloneKeyboard);
+        canvas->addAndMakeVisible(*standaloneKeyboard);
     }
+    resizeOverlay = std::make_unique<ResizeOverlay>(*this);
+    canvas->addChildComponent(*resizeOverlay); resizeOverlay->setBounds(canvas->getLocalBounds());
     lastPresetName = processor.presetName();
     for (int i = 0; i < VantaProcessor::factoryPresetCount; ++i)
         if (lastPresetName == VantaProcessor::factoryPresetName(i)) currentFactory = i;
@@ -643,10 +744,121 @@ VantaEditor::~VantaEditor()
 }
 void VantaEditor::configureButton(juce::TextButton& button, const juce::String& label, const juce::String& role)
 {
-    button.setButtonText(label); button.getProperties().set("role", role); addAndMakeVisible(button);
+    button.setButtonText(label); button.getProperties().set("role", role); canvas->addAndMakeVisible(button);
+}
+int VantaEditor::baseHeight() const noexcept
+{
+    return processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone ? standaloneHeight : vstHeight;
+}
+int VantaEditor::currentScalePercent() const noexcept
+{
+    const auto scale = juce::jmin(static_cast<double>(getWidth()) / editorWidth,
+                                  static_cast<double>(getHeight()) / baseHeight());
+    return juce::roundToInt(scale * 100.0);
+}
+int VantaEditor::fitScalePercent() const
+{
+    // Display work areas are in logical coordinates. The root editor may have
+    // an additional host DPI transform; estimate that from its screen bounds.
+    if (getPeer() == nullptr || getWidth() <= 0) return vanta::defaultEditorScale;
+    const auto screenBounds = getScreenBounds();
+    const auto& displays = juce::Desktop::getInstance().getDisplays();
+    const auto* display = displays.getDisplayForRect(screenBounds);
+    if (display == nullptr || screenBounds.getWidth() <= 0) return vanta::defaultEditorScale;
+    const auto hostScale = static_cast<double>(screenBounds.getWidth()) / getWidth();
+    return vanta::fitEditorScaleToWorkArea(baseHeight(), display->userArea.getWidth(), display->userArea.getHeight(), hostScale);
+}
+void VantaEditor::setUiScale(int percent, bool notifyHost)
+{
+    percent = juce::jlimit(vanta::minEditorScale, vanta::maxEditorScale, percent);
+    const auto oldScale = processor.editorScalePercent();
+    const int width = juce::roundToInt(editorWidth * percent / 100.0);
+    const int height = juce::roundToInt(baseHeight() * percent / 100.0);
+    hostResizeRejected = false;
+    // A VST3 host owns the surrounding view and may refuse the request. Wait a
+    // little for onSize before checking the wrapper's actual bounds.
+    awaitingHostResize = (width != getWidth() || height != getHeight())
+                         && processor.wrapperType == juce::AudioProcessor::wrapperType_VST3
+                         && getParentComponent() != nullptr && (notifyHost || getPeer() != nullptr);
+    resizeRequestFromUser = notifyHost;
+    resizeRequestTime = juce::Time::getMillisecondCounter();
+    lastObservedScale = percent;
+    processor.setEditorScalePercent(percent);
+    // JUCE's VST3 wrapper forwards this size request to the host's plug frame;
+    // we never modify the root transform reserved for the host's DPI scale.
+    setSize(width, height);
+    if (notifyHost && oldScale != processor.editorScalePercent())
+        processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails{}.withNonParameterStateChanged(true));
+}
+void VantaEditor::reconcileHostResize()
+{
+    if (!awaitingHostResize || juce::Time::getMillisecondCounter() - resizeRequestTime < 1000) return;
+    awaitingHostResize = false;
+    auto* parent = getParentComponent();
+    if (parent == nullptr) return;
+    const auto actual = parent->getLocalBounds();
+    const auto requested = parent->getLocalArea(this, getLocalBounds());
+    if (std::abs(requested.getWidth() - actual.getWidth()) <= 2
+        && std::abs(requested.getHeight() - actual.getHeight()) <= 2) return;
+    // JUCE's VST3 content wrapper is the editor's immediate parent. Convert its
+    // bounds back through the host DPI transform and keep all controls visible.
+    const auto accepted = getLocalArea(parent, actual);
+    if (accepted.getWidth() <= 0 || accepted.getHeight() <= 0) return;
+    setSize(accepted.getWidth(), accepted.getHeight());
+    if (resizeRequestFromUser)
+    {
+        hostResizeRejected = true;
+        showResizeMenu(true);
+    }
+}
+void VantaEditor::showResizeMenu(bool show)
+{
+    if (!resizeOverlay) return;
+    if (show)
+    {
+        resizeOverlay->setBounds(canvas->getLocalBounds());
+        resizeOverlay->updateSelection(currentScalePercent());
+        resizeOverlay->setVisible(true); resizeOverlay->toFront(true);
+        resizeOverlay->grabKeyboardFocus();
+    }
+    else
+    {
+        resizeOverlay->setVisible(false);
+        if (logoButton.isShowing()) logoButton.grabKeyboardFocus();
+    }
+}
+void VantaEditor::paint(juce::Graphics& g) { g.fillAll(juce::Colour(0xff11090a)); }
+void VantaEditor::mouseDown(const juce::MouseEvent&)
+{
+    // A host that ignores the aspect ratio may leave letterbox space outside
+    // the canvas; treat clicks there like clicks outside the popup too.
+    if (resizeOverlay && resizeOverlay->isVisible()) showResizeMenu(false);
+}
+void VantaEditor::resized()
+{
+    if (!canvas) return;
+    const auto scale = juce::jmax(0.001f, juce::jmin(static_cast<float>(getWidth()) / editorWidth,
+                                                    static_cast<float>(getHeight()) / baseHeight()));
+    const auto x = (static_cast<float>(getWidth()) - editorWidth * scale) * 0.5f;
+    const auto y = (static_cast<float>(getHeight()) - baseHeight() * scale) * 0.5f;
+    canvas->setTransform(juce::AffineTransform::scale(scale).translated(x, y));
+    layoutCanvas();
+    // A host may resize the editor directly. Remember its actual size without
+    // adding an automatable parameter or writing anything from processBlock.
+    if (getWidth() != lastObservedWidth || getHeight() != lastObservedHeight)
+    {
+        lastObservedWidth = getWidth(); lastObservedHeight = getHeight();
+        processor.setEditorScalePercent(currentScalePercent());
+        lastObservedScale = processor.editorScalePercent();
+        if (resizeOverlay && resizeOverlay->isVisible()) resizeOverlay->updateSelection(currentScalePercent());
+    }
 }
 void VantaEditor::timerCallback()
 {
+    // A host can restore state while the editor is open. Apply on the message thread.
+    if (const int restoredScale = processor.editorScalePercent(); restoredScale != lastObservedScale)
+        setUiScale(restoredScale, false);
+    reconcileHostResize();
     const auto name = processor.presetName();
     bool needsRefresh = false;
     if (name != lastPresetName)
@@ -853,16 +1065,16 @@ void VantaEditor::savePreset()
         });
 }
 
-void VantaEditor::paint(juce::Graphics& g)
+void VantaEditor::paintCanvas(juce::Graphics& g)
 {
     // The HTML concept is the layout reference.  This is a native, functional
     // JUCE editor, so the preview's unimplemented mock controls stay labelled.
     g.setGradientFill(juce::ColourGradient(header, 0.0f, 0.0f, juce::Colour(0xff710a0e),
-                                          1000.0f, static_cast<float>(getHeight()), false));
+                                          1000.0f, static_cast<float>(baseHeight()), false));
     g.fillAll();
     g.setColour(juce::Colour(0xffdb5040)); g.fillRect(0, 0, editorWidth, 4);
-    g.setColour(juce::Colour(0xffd04038)); g.drawRect(getLocalBounds(), 1);
-    g.setColour(juce::Colour(0x28ffc4a3)); g.drawRect(getLocalBounds().reduced(3), 1);
+    g.setColour(juce::Colour(0xffd04038)); g.drawRect(canvas->getLocalBounds(), 1);
+    g.setColour(juce::Colour(0x28ffc4a3)); g.drawRect(canvas->getLocalBounds().reduced(3), 1);
 
     // Brand and the recessed seven-page navigation match the approved header.
     g.setColour(juce::Colour(0xff200d0e)); g.fillRoundedRectangle(20.0f, 24.0f, 36.0f, 36.0f, 2.0f);
@@ -873,7 +1085,7 @@ void VantaEditor::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xffffe0c4)); g.fillPath(mark);
     g.setColour(accent); g.fillRect(46, 51, 4, 2);
     text(g, "VANTA", 66, 19, 162, 29, 23.0f, textPrimary, juce::Font::bold);
-    mono(g, "SOFTWARE INSTRUMENT / 09", 67, 48, 210, 12, 8.5f, textSecondary);
+    mono(g, "SOFTWARE INSTRUMENT / 10", 67, 48, 210, 12, 8.5f, textSecondary);
     g.setColour(juce::Colour(0xff150b0c)); g.fillRoundedRectangle(500.0f, 17.0f, 480.0f, 37.0f, 3.0f);
     g.setColour(juce::Colour(0xff451417)); g.drawRoundedRectangle(500.5f, 17.5f, 479.0f, 36.0f, 3.0f, 1.0f);
     g.setColour(juce::Colour(0xff41090b)); g.fillRect(500, 63, 350, 2);
@@ -1069,7 +1281,7 @@ void VantaEditor::paint(juce::Graphics& g)
         mono(g, "POLY / 16 VOICES", 44, 390, 380, 20, 10.0f, textPrimary);
         mono(g, "VELOCITY / SUSTAIN / PITCH BEND +/-2", 44, 418, 400, 20, 10.0f, textMuted);
         mono(g, "UP TO 8 LAYERS / GLOBAL FILTER AND FX", 44, 446, 410, 20, 10.0f, textMuted);
-        mono(g, "VANTA BETA 0.9", 44, 622, 300, 18, 10.0f, textMuted);
+        mono(g, "VANTA BETA 0.10", 44, 622, 300, 18, 10.0f, textMuted);
         text(g, "02 / PRESET SUPPORT", 516, 307, 380, 20, 10.0f, textSecondary, juce::Font::bold);
         mono(g, ".VANTA  /  SAVE + LOAD", 516, 343, 380, 22, 10.0f, textPrimary);
         mono(g, ".VITAL  /  PARTIAL IMPORT", 516, 376, 380, 22, 10.0f, textSecondary);
@@ -1083,12 +1295,14 @@ void VantaEditor::paint(juce::Graphics& g)
         text(g, "PERFORMANCE KEYBOARD", 42, 688, 250, 16, 10.0f, textPrimary, juce::Font::bold);
         mono(g, "CLICK A KEY, THEN PLAY Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P", 340, 688, 644, 16, 9.0f, textSecondary, juce::Justification::centredRight);
     }
-    const int footerY = getHeight() - 23;
+    const int footerY = baseHeight() - 23;
     mono(g, "VANTA / SOFTWARE SYNTHESIZER", 18, footerY, 450, 16, 9.0f, textSecondary);
-    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.9" : "VST3 / BETA 0.9", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
+    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.10" : "VST3 / BETA 0.10", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
 }
-void VantaEditor::resized()
+void VantaEditor::layoutCanvas()
 {
+    logoButton.setBounds(20, 24, 36, 36);
+    if (resizeOverlay) resizeOverlay->setBounds(canvas->getLocalBounds());
     previous.setBounds(25, 93, 38, 38); next.setBounds(25, 143, 38, 38);
     browserButton.setBounds(74, 87, 700, 100); writeButton.setBounds(820, 96, 72, 28); importButton.setBounds(899, 96, 72, 28);
     levelSlider.setBounds(87, 203, 826, 20);

@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -27,21 +28,35 @@ void click(juce::Component& root, const char* id)
 }
 void checkLayout(juce::Component& editor)
 {
-    const auto children = editor.getChildren();
-    bool withinBounds = true, noOverlaps = true;
+    auto* canvas = findVisible(editor, "vanta-canvas");
+    check(canvas != nullptr, "Scaled editor canvas is visible");
+    const auto mapped = editor.getLocalArea(canvas, canvas->getLocalBounds());
+    bool withinBounds = editor.getLocalBounds().expanded(1).contains(mapped), noOverlaps = true;
+    const auto children = canvas->getChildren();
     for (int i = 0; i < children.size(); ++i)
     {
         const auto* a = children[i];
-        if (!a->isVisible()) continue;
-        withinBounds &= editor.getLocalBounds().contains(a->getBounds());
+        // The open overlay is intentionally in front of all of the controls.
+        if (!a->isVisible() || a->getComponentID() == "resize-overlay") continue;
+        withinBounds &= canvas->getLocalBounds().contains(a->getBounds());
         for (int j = i + 1; j < children.size(); ++j)
         {
             const auto* b = children[j];
-            if (b->isVisible() && a->getBounds().intersects(b->getBounds()))
+            if (b->isVisible() && b->getComponentID() != "resize-overlay" && a->getBounds().intersects(b->getBounds()))
             {
                 std::cerr << "Overlapping controls: " << a->getComponentID() << " and " << b->getComponentID() << '\n';
                 noOverlaps = false;
             }
+        }
+    }
+    if (auto* overlay = findVisible(editor, "resize-overlay"))
+    {
+        const auto buttons = overlay->getChildren();
+        for (int i = 0; i < buttons.size(); ++i)
+        {
+            withinBounds &= overlay->getLocalBounds().contains(buttons[i]->getBounds());
+            for (int j = i + 1; j < buttons.size(); ++j)
+                noOverlaps &= !buttons[i]->getBounds().intersects(buttons[j]->getBounds());
         }
     }
     check(withinBounds, "Visible controls stay within the editor");
@@ -76,6 +91,274 @@ void snapshot(juce::Component& editor, const juce::File& directory, const char* 
               && directory.getChildFile(name).replaceWithData(stream.getData(), stream.getDataSize()),
           "Editor preview PNG saved");
 }
+void checkHit(juce::Component& editor, const juce::String& id, const char* message)
+{
+    auto* target = findVisible(editor, id);
+    check(target != nullptr, message);
+    const auto point = editor.getLocalPoint(target, target->getLocalBounds().getCentre());
+    auto* hit = editor.getComponentAt(point);
+    check(hit == target || (hit != nullptr && target->isParentOf(hit)), message);
+}
+void snapshotResized(juce::Component& editor, const juce::File& directory, const char* name)
+{
+    const auto image = editor.createComponentSnapshot(editor.getLocalBounds());
+    check(image.isValid() && image.getWidth() == editor.getWidth() && image.getHeight() == editor.getHeight(),
+          "Scaled editor renders at the actual size");
+    juce::MemoryOutputStream stream;
+    check(juce::PNGImageFormat().writeImageToStream(image, stream)
+          && directory.getChildFile(name).replaceWithData(stream.getData(), stream.getDataSize()), "Scaled preview PNG saved");
+}
+void sendOutsideMouseDown(juce::Component& component, juce::Point<float> point)
+{
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), point,
+        juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        &component, &component, now, point, now, 1, false);
+    component.mouseDown(event);
+}
+struct UiScaleListener final : juce::AudioProcessorListener
+{
+    int changed = 0;
+    void audioProcessorParameterChanged(juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged(juce::AudioProcessor*, const ChangeDetails& details) override
+    { if (details.nonParameterStateChanged) ++changed; }
+};
+void testResizeMenu(juce::AudioProcessor::WrapperType type, const juce::File& previews)
+{
+    juce::AudioProcessor::setTypeOfNextNewPlugin(type);
+    VantaProcessor processor;
+    juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Undefined);
+    const bool standalone = type == juce::AudioProcessor::wrapperType_Standalone;
+    const int baseHeight = standalone ? 820 : 720;
+    const auto originalParameters = processor.currentValues();
+    const int originalParameterCount = processor.getParameters().size();
+    UiScaleListener listener; processor.addListener(&listener);
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor()); editor->setVisible(true);
+    check(editor->isResizable() && editor->getConstrainer() != nullptr
+          && std::abs(editor->getConstrainer()->getFixedAspectRatio() - 1000.0 / baseHeight) < 0.0001,
+          "Host resizing uses the correct fixed aspect ratio");
+    checkHit(*editor, "resize-logo", "The V logo is a clickable hit target");
+    click(*editor, "resize-logo");
+    auto* overlay = findVisible(*editor, "resize-overlay");
+    check(overlay != nullptr, "V logo opens the size overlay");
+    const auto* current = dynamic_cast<juce::TextButton*>(findVisible(*editor, "resize-100"));
+    check(current != nullptr && current->getToggleState(), "Current size is highlighted in the menu");
+    auto* first = findVisible(*editor, "resize-60"); auto* last = findVisible(*editor, "resize-fit");
+    check(first && last && (first->getBounds().getCentreX() + last->getBounds().getCentreX()) / 2 == 500,
+          "Resize choices are horizontally centred");
+    checkLayout(*editor);
+    checkHit(*editor, "resize-75", "Resize choices receive transformed hit testing");
+    auto* logoBehindOverlay = findVisible(*editor, "resize-logo");
+    const auto logoPoint = editor->getLocalPoint(logoBehindOverlay, logoBehindOverlay->getLocalBounds().getCentre());
+    check(editor->getComponentAt(logoPoint) == overlay, "Modal overlay intercepts background clicks");
+    if (!standalone) snapshotResized(*editor, previews, "vst-resize-menu.png");
+    check(overlay->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)), "Escape dismisses the resize menu");
+    check(findVisible(*editor, "resize-overlay") == nullptr, "Resize overlay is hidden after Escape");
+    click(*editor, "resize-logo"); overlay = findVisible(*editor, "resize-overlay");
+    sendOutsideMouseDown(*overlay, { 0.0f, 0.0f });
+    check(findVisible(*editor, "resize-overlay") == nullptr, "Clicking outside dismisses the resize menu");
+    click(*editor, "resize-logo"); click(*editor, "resize-close");
+    check(findVisible(*editor, "resize-overlay") == nullptr, "Close button dismisses the resize menu");
+    editor->setSize(1200, baseHeight); // A non-conforming host may leave letterbox margins.
+    click(*editor, "resize-logo");
+    check(editor->getComponentAt(5, 5) == editor.get(), "Letterbox belongs to the editor, not the canvas");
+    sendOutsideMouseDown(*editor, { 5.0f, 5.0f });
+    check(findVisible(*editor, "resize-overlay") == nullptr, "Clicking a letterbox margin dismisses the menu");
+    editor->setSize(1000, baseHeight);
+
+    constexpr int percentages[] = { 60, 75, 90, 100, 110, 125, 150 };
+    for (const int percent : percentages)
+    {
+        const auto parametersBeforeResize = processor.currentValues();
+        click(*editor, "resize-logo");
+        const auto id = "resize-" + juce::String(percent);
+        checkHit(*editor, id, "Scale button is clickable at the current scale");
+        auto* option = dynamic_cast<juce::TextButton*>(findVisible(*editor, id));
+        option->onClick();
+        check(findVisible(*editor, "resize-overlay") == nullptr, "Choosing a size closes the menu");
+        check(editor->getWidth() == juce::roundToInt(1000 * percent / 100.0)
+              && editor->getHeight() == juce::roundToInt(baseHeight * percent / 100.0)
+              && processor.editorScalePercent() == percent, "Selected size updates editor geometry and state");
+        check(parametersBeforeResize == processor.currentValues(), "Selecting a size leaves all synth parameters unchanged");
+        checkLayout(*editor);
+        checkHit(*editor, "resize-logo", "V logo remains clickable after resizing");
+        checkHit(*editor, "tab-oscillator", "Navigation remains clickable after resizing");
+        checkHit(*editor, "parameter-level", "Parameter slider hit target follows its scaled drawing");
+        if (percent == 60 || percent == 150)
+        {
+            for (const auto* page : { "tab-oscillator", "tab-effects", "tab-modulation", "tab-mixer", "tab-sequencer", "tab-settings", "tab-overview" })
+            {
+                checkHit(*editor, page, "Every navigation tab remains hittable at the minimum and maximum sizes");
+                click(*editor, page); checkLayout(*editor);
+            }
+        }
+        if (percent == 75)
+        {
+            click(*editor, "tab-oscillator"); checkLayout(*editor);
+            checkHit(*editor, "wave-saw", "Oscillator controls remain clickable at 75 percent");
+            click(*editor, "wave-saw");
+            check(processor.currentValues()[vanta::wave] == 1.0f, "Scaled oscillator button still changes its parameter");
+            click(*editor, "preset-browser"); checkLayout(*editor);
+            checkHit(*editor, "preset-search", "Preset browser search remains clickable at 75 percent");
+            click(*editor, "tab-overview");
+        }
+        if (percent == 125)
+        {
+            changeSlider(*editor, processor, vanta::cutoff);
+            if (standalone)
+            {
+                checkHit(*editor, "standalone-keyboard", "Standalone keyboard remains clickable at 125 percent");
+                auto* keyboard = dynamic_cast<VantaKeyboard*>(findVisible(*editor, "standalone-keyboard"));
+                const auto blackKey = keyboard->getRectangleForKey(61).reduced(2.0f);
+                const auto scaledBlackKey = editor->getLocalArea(keyboard, blackKey).toNearestInt();
+                check(editor->getComponentAt(scaledBlackKey.getCentre()) == keyboard,
+                      "Black-key hit target follows its scaled drawing");
+                std::array<bool, 17> held {}; held[1] = true; keyboard->updateComputerKeys(held, false);
+                const auto pressed = editor->createComponentSnapshot(editor->getLocalBounds());
+                check(processor.keyboardState.isNoteOn(1, 61)
+                      && pressed.getPixelAt(scaledBlackKey.getX(), scaledBlackKey.getY()) == juce::Colour(0xffb73929)
+                      && pressed.getPixelAt(scaledBlackKey.getCentreX(), scaledBlackKey.getCentreY()) == juce::Colour(0xffb73929)
+                      && pressed.getPixelAt(scaledBlackKey.getRight() - 1, scaledBlackKey.getBottom() - 1) == juce::Colour(0xffb73929),
+                      "Scaled standalone black key plays and is fully red");
+                held[1] = false; keyboard->updateComputerKeys(held, false);
+                snapshotResized(*editor, previews, "standalone-resize-125.png");
+            }
+            else snapshotResized(*editor, previews, "vst-resize-125.png");
+        }
+    }
+    check(processor.getParameters().size() == originalParameterCount && listener.changed > 0,
+          "UI size is non-automatable state and tells the host to save changes");
+    check(originalParameters[vanta::level] == processor.currentValues()[vanta::level], "Resizing preserves synth controls");
+    processor.loadFactoryPreset(0);
+    check(processor.editorScalePercent() == 150, "Changing presets does not reset the UI size");
+    click(*editor, "resize-logo"); click(*editor, "resize-fit");
+    check(editor->getWidth() == 1000 && editor->getHeight() == baseHeight && processor.editorScalePercent() == 100,
+          "Fit Screen has a safe 100 percent fallback without a desktop peer");
+    // JUCE uses the root transform for host DPI: changing UI size must not replace it.
+    const auto hostDpi = juce::AffineTransform::scale(1.25f);
+    editor->setTransform(hostDpi);
+    click(*editor, "resize-logo"); click(*editor, "resize-75");
+    check(editor->getTransform() == hostDpi && editor->getWidth() == 750,
+          "UI scaling preserves the separate host DPI transform");
+    checkHit(*editor, "resize-logo", "Logo remains clickable with UI and host scaling");
+    processor.removeListener(&listener);
+}
+void testFitScreenCalculation()
+{
+    using vanta::fitEditorScaleToWorkArea;
+    check(fitEditorScaleToWorkArea(720, 1920, 1080, 1.0) == 135, "Fit Screen chooses a bounded 1080p VST size");
+    check(fitEditorScaleToWorkArea(820, 1920, 1080, 1.0) == 120, "Fit Screen accounts for the standalone keyboard");
+    check(fitEditorScaleToWorkArea(720, 1366, 768, 1.0) == 90
+          && fitEditorScaleToWorkArea(820, 1366, 768, 1.0) == 80, "Fit Screen fits a smaller display");
+    check(fitEditorScaleToWorkArea(720, 3840, 2160, 2.0) == 140, "Fit Screen accounts for host DPI scaling");
+    check(fitEditorScaleToWorkArea(720, 640, 480, 1.0) == 60
+          && fitEditorScaleToWorkArea(820, 8000, 8000, 1.0) == 150, "Fit Screen respects minimum and maximum sizes");
+    check(fitEditorScaleToWorkArea(720, 0, 1080, 1.0) == 100
+          && fitEditorScaleToWorkArea(720, 1920, 1080, 0.0) == 100
+          && fitEditorScaleToWorkArea(720, 1920, 1080, std::numeric_limits<double>::quiet_NaN()) == 100
+          && fitEditorScaleToWorkArea(720, 1920, 1080, std::numeric_limits<double>::infinity()) == 100,
+          "Fit Screen falls back safely for invalid display information");
+}
+void testResizeState()
+{
+    VantaProcessor processor;
+    processor.setEditorScalePercent(125);
+    juce::MemoryBlock saved; processor.getStateInformation(saved);
+    processor.setEditorScalePercent(60);
+    processor.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    check(processor.editorScalePercent() == 125, "Host state saves and restores UI scale");
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor()); editor->setVisible(true);
+    check(editor->getWidth() == 1250 && editor->getHeight() == 900, "Reopened editor uses the saved size");
+
+    auto tree = processor.state.copyState();
+    auto applyScaleProperty = [&](const juce::String& value)
+    {
+        auto copy = tree.createCopy(); copy.setProperty("vantaEditorScale", value, nullptr);
+        auto xml = copy.createXml(); juce::MemoryBlock data; juce::AudioProcessor::copyXmlToBinary(*xml, data);
+        processor.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
+    };
+    for (const auto& bad : { "", "0", "59", "151", "999", "-1", "1e9", "1000000000000000000000000", "abc" })
+    {
+        processor.setEditorScalePercent(75); applyScaleProperty(bad);
+        check(processor.editorScalePercent() == 100, "Invalid saved sizes fall back to 100 percent");
+    }
+    auto oldXml = tree.createXml(); juce::MemoryBlock old; juce::AudioProcessor::copyXmlToBinary(*oldXml, old);
+    processor.setEditorScalePercent(150);
+    processor.setStateInformation(old.getData(), static_cast<int>(old.getSize()));
+    check(processor.editorScalePercent() == 100, "Old projects without UI scale open at 100 percent");
+
+    // A rejected asset must not partially apply a scale from the same state.
+    auto malformed = tree.createCopy(); malformed.setProperty("vantaEditorScale", "150", nullptr);
+    malformed.setProperty("vantaWavetables", "not valid JSON", nullptr);
+    auto badXml = malformed.createXml(); juce::MemoryBlock bad; juce::AudioProcessor::copyXmlToBinary(*badXml, bad);
+    processor.setEditorScalePercent(90); processor.setStateInformation(bad.getData(), static_cast<int>(bad.getSize()));
+    check(processor.editorScalePercent() == 90, "Malformed host state cannot partially change UI scale");
+
+    applyScaleProperty("75");
+    click(*editor, "tab-oscillator"); // Refresh before the timer must not overwrite restored state.
+    check(processor.editorScalePercent() == 75, "Layout refresh preserves a pending restored size");
+    for (int i = 0; i < 30 && editor->getWidth() != 750; ++i)
+    {
+        juce::Thread::sleep(20); juce::Timer::callPendingTimersSynchronously();
+    }
+    check(editor->getWidth() == 750 && editor->getHeight() == 540 && processor.editorScalePercent() == 75,
+          "Open editor applies a restored size on the message-thread timer");
+}
+
+struct FakeVstFrame final : juce::Component
+{
+    bool acceptResize = false;
+    void childBoundsChanged(juce::Component* child) override
+    {
+        if (acceptResize)
+        {
+            const auto bounds = getLocalArea(child, child->getLocalBounds());
+            setSize(bounds.getWidth(), bounds.getHeight());
+        }
+    }
+};
+void dispatchTimersFor(int milliseconds)
+{
+    const auto deadline = juce::Time::getMillisecondCounter() + static_cast<juce::uint32>(milliseconds);
+    while (static_cast<juce::int32>(deadline - juce::Time::getMillisecondCounter()) > 0)
+    {
+        juce::Thread::sleep(20);
+        juce::Timer::callPendingTimersSynchronously();
+    }
+}
+void testHostResizeNegotiation()
+{
+    juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_VST3);
+    VantaProcessor processor;
+    juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Undefined);
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    FakeVstFrame frame; frame.setVisible(true); frame.setSize(1000, 720); frame.addAndMakeVisible(editor.get());
+    // Model a host that ignores a request: the component grows, but its parent
+    // does not. The editor must revert and expose the warning instead of clipping.
+    click(*editor, "resize-logo"); click(*editor, "resize-125");
+    check(editor->getWidth() == 1250 && frame.getWidth() == 1000, "Simulated VST3 host refuses resize");
+    dispatchTimersFor(1250);
+    check(editor->getWidth() == 1000 && editor->getHeight() == 720 && processor.editorScalePercent() == 100,
+          "Rejected host resize rolls back to the visible view");
+    check(findVisible(*editor, "resize-overlay") != nullptr, "Rejected resize reopens the options with a warning");
+    auto* active = dynamic_cast<juce::TextButton*>(findVisible(*editor, "resize-100"));
+    check(active != nullptr && active->getToggleState(), "Rejected resize highlights the actual size");
+    // Model a cooperating host, including a separate 125% host DPI transform.
+    frame.acceptResize = true; editor->setTransform(juce::AffineTransform::scale(1.25f));
+    frame.setSize(1250, 900);
+    click(*editor, "resize-125"); dispatchTimersFor(1250);
+    check(std::abs(frame.getWidth() - juce::roundToInt(1250 * 1.25)) <= 1
+          && std::abs(frame.getHeight() - juce::roundToInt(900 * 1.25)) <= 1
+          && editor->getWidth() == 1250 && editor->getHeight() == 900
+          && processor.editorScalePercent() == 125 && findVisible(*editor, "resize-overlay") == nullptr,
+          "Accepted host resize and host DPI scaling remain separate");
+    frame.acceptResize = false;
+    click(*editor, "resize-logo"); click(*editor, "resize-60"); dispatchTimersFor(1250);
+    check(std::abs(editor->getWidth() - 1250) <= 1 && std::abs(editor->getHeight() - 900) <= 1
+          && processor.editorScalePercent() == 125 && findVisible(*editor, "resize-overlay") != nullptr,
+          "Rejected resize falls back correctly with host DPI scaling");
+}
+
 void testHostState()
 {
     VantaProcessor processor;
@@ -466,6 +749,9 @@ int main(int argc, char** argv)
                                            : juce::File::getCurrentWorkingDirectory().getChildFile("ui-preview");
     check(previewDirectory.createDirectory().wasOk(), "Preview directory created");
     testHostState(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor(previewDirectory);
+    testFitScreenCalculation(); testResizeState(); testHostResizeNegotiation();
+    testResizeMenu(juce::AudioProcessor::wrapperType_VST3, previewDirectory);
+    testResizeMenu(juce::AudioProcessor::wrapperType_Standalone, previewDirectory);
     std::cout << "All VANTA editor checks passed.\n";
     return 0;
 }
