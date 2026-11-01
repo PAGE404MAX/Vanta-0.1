@@ -172,10 +172,20 @@ void testStandalone(const juce::File& previews)
     correctNotes &= !processor.keyboardState.isNoteOn(1, 60) && !processor.keyboardState.isNoteOn(1, 61);
     check(correctNotes, "All 17 keys, chords, releases, shortcuts and focus loss produce correct MIDI transitions");
     juce::MidiBuffer discarded; processor.keyboardState.processNextMidiBuffer(discarded, 0, 4096, true);
-    juce::Image pressedKey(juce::Image::ARGB, 30, 30, true); juce::Graphics keyGraphics(pressedKey);
-    keyboard->drawBlackNote(61, keyGraphics, { 0.0f, 0.0f, 30.0f, 30.0f }, true, true, juce::Colours::black);
-    check(pressedKey.getPixelAt(0, 0) == juce::Colour(0xffb73929) && pressedKey.getPixelAt(15, 15) == juce::Colour(0xffb73929)
-          && pressedKey.getPixelAt(29, 29) == juce::Colour(0xffb73929), "Pressed black key is fully red, including edges");
+    juce::Image pressedKey(juce::Image::ARGB, 30, 30, true);
+    {
+        // End the graphics context before reading pixels. Windows may defer
+        // drawing until its Direct2D image context has been flushed.
+        juce::Graphics keyGraphics(pressedKey);
+        keyboard->drawBlackNote(61, keyGraphics, { 0.0f, 0.0f, 30.0f, 30.0f }, true, true, juce::Colours::black);
+    }
+    const auto topLeft = pressedKey.getPixelAt(0, 0);
+    const auto centre = pressedKey.getPixelAt(15, 15);
+    const auto bottomRight = pressedKey.getPixelAt(29, 29);
+    if (topLeft != juce::Colour(0xffb73929) || centre != juce::Colour(0xffb73929) || bottomRight != juce::Colour(0xffb73929))
+        std::cerr << "Black-key pixels: " << topLeft.toString() << ", " << centre.toString() << ", " << bottomRight.toString() << '\n';
+    check(topLeft == juce::Colour(0xffb73929) && centre == juce::Colour(0xffb73929) && bottomRight == juce::Colour(0xffb73929),
+          "Pressed black key is fully red, including edges");
     checkLayout(*editor); snapshot(*editor, previews, "overview.png");
     for (const auto parameter : { vanta::level, vanta::cutoff, vanta::resonance, vanta::attack, vanta::decay,
                                   vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })

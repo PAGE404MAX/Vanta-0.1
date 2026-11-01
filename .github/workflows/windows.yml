@@ -50,11 +50,27 @@ jobs:
 
       - name: Build setup wizard
         shell: pwsh
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss'
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Installer compilation failed::$escaped"
+            exit $code
+          }
 
       - name: Smoke-test install, launch, and uninstall
         shell: pwsh
-        run: ./scripts/test-installer.ps1
+        run: |
+          try {
+            ./scripts/test-installer.ps1
+          } catch {
+            $message = ($_ | Out-String).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Installer smoke test failed::$message"
+            exit 1
+          }
 
       - name: Upload installer, standalone and VST3
         uses: actions/upload-artifact@v7
