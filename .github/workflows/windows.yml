@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure
         run: cmake -S . -B build -A x64
@@ -42,7 +42,7 @@ jobs:
         run: ./scripts/test-installer.ps1
 
       - name: Upload installer, standalone and VST3
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Vanta-Beta-0.5-Windows
           path: |
