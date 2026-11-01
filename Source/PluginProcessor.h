@@ -11,7 +11,7 @@ public:
     VantaProcessor();
     ~VantaProcessor() override = default;
 
-    const juce::String getName() const override { return "Vanta Beta 0.4"; }
+    const juce::String getName() const override { return "Vanta Beta 0.5"; }
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -42,6 +42,9 @@ public:
     static const char* factoryPresetCategory(int index);
 
     juce::AudioProcessorValueTreeState state;
+    // The standalone editor injects notes from its on-screen/computer keyboard.
+    // VST3 instances continue to use the host's MIDI input unchanged.
+    juce::MidiKeyboardState keyboardState;
 
 private:
     vanta::SynthEngine engine;

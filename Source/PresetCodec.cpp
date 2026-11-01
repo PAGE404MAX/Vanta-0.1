@@ -134,7 +134,7 @@ PresetResult PresetCodec::decode(const juce::String& text, const juce::String& e
 {
     const auto ext = extension.toLowerCase();
     if (ext != ".vanta" && ext != ".vital")
-        return { false, defaultValues(), {}, "Serum, Serum 2 and ZENOLOGY presets are not supported in Beta 0.4. Your current sound was not changed." };
+        return { false, defaultValues(), {}, "Serum, Serum 2 and ZENOLOGY presets are not supported yet. Your current sound was not changed." };
     juce::var document;
     auto parsed = juce::JSON::parse(text, document);
     if (parsed.failed()) return { false, defaultValues(), {}, "Could not parse preset JSON: " + parsed.getErrorMessage() };

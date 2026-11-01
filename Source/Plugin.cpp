@@ -37,6 +37,8 @@ bool VantaProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
 void VantaProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
+    if (wrapperType == wrapperType_Standalone)
+        keyboardState.processNextMidiBuffer(midi, 0, buffer.getNumSamples(), true);
     engine.process(buffer, midi, currentValues());
 }
 vanta::ParameterValues VantaProcessor::currentValues() const

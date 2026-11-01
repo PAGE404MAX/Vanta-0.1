@@ -1,4 +1,4 @@
-name: Build Windows VST3 and Installer
+name: Build Windows VST3 and Standalone
 
 on: [push, workflow_dispatch]
 
@@ -23,6 +23,9 @@ jobs:
       - name: Build VST3
         run: cmake --build build --config Release --target VantaBeta_VST3 --parallel
 
+      - name: Build standalone application
+        run: cmake --build build --config Release --target VantaBeta_Standalone --parallel
+
       - name: Install Inno Setup if needed
         shell: pwsh
         run: |
@@ -34,15 +37,16 @@ jobs:
         shell: pwsh
         run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss'
 
-      - name: Smoke-test install and uninstall
+      - name: Smoke-test install, launch, and uninstall
         shell: pwsh
         run: ./scripts/test-installer.ps1
 
-      - name: Upload installer and VST3
+      - name: Upload installer, standalone and VST3
         uses: actions/upload-artifact@v4
         with:
-          name: Vanta-Beta-0.4-Windows
+          name: Vanta-Beta-0.5-Windows
           path: |
-            installer-output/Vanta-Beta-0.4-Setup.exe
+            installer-output/Vanta-Beta-0.5-Setup.exe
+            build/VantaBeta_artefacts/Release/Standalone/
             build/VantaBeta_artefacts/Release/VST3/
           if-no-files-found: error

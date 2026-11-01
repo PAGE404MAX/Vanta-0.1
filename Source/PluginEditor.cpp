@@ -156,6 +156,21 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     const vanta::Parameter modIds[] = { vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
     const char* modNames[] = { "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
     for (int i = 0; i < 6; ++i) { modulationKnobs[static_cast<std::size_t>(i)].configure(processor.state, modIds[i], modNames[i]); addAndMakeVisible(modulationKnobs[static_cast<std::size_t>(i)]); }
+
+    if (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    {
+        standaloneKeyboard = std::make_unique<juce::MidiKeyboardComponent>(processor.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard);
+        standaloneKeyboard->setName("On-screen MIDI keyboard");
+        standaloneKeyboard->setAvailableRange(48, 84);
+        standaloneKeyboard->setKeyWidth(44.0f);
+        standaloneKeyboard->setKeyPressBaseOctave(5);
+        standaloneKeyboard->setScrollButtonsVisible(false);
+        standaloneKeyboard->setColour(juce::MidiKeyboardComponent::whiteNoteColourId, juce::Colour(0xfff4eeee));
+        standaloneKeyboard->setColour(juce::MidiKeyboardComponent::blackNoteColourId, juce::Colour(0xff191011));
+        standaloneKeyboard->setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId, red.withAlpha(0.7f));
+        standaloneKeyboard->setColour(juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, red.withAlpha(0.3f));
+        addAndMakeVisible(*standaloneKeyboard);
+    }
     lastPresetName = processor.presetName();
     currentFactory = -1;
     for (int i = 0; i < VantaProcessor::factoryPresetCount; ++i)
@@ -261,11 +276,11 @@ void VantaEditor::paint(juce::Graphics& g)
     mark.lineTo(45.0f, 22.0f); mark.lineTo(53.0f, 22.0f); mark.lineTo(42.0f, 49.0f); mark.lineTo(36.0f, 49.0f); mark.closeSubPath();
     g.setColour(juce::Colours::white); g.fillPath(mark);
     text(g, "VANTA", 64, 18, 215, 31, 25.0f, juce::Colours::white, juce::Font::bold);
-    text(g, "SOFTWARE SYNTHESIZER  /  BETA 0.4", 66, 48, 370, 14, 9.0f, softRed, juce::Font::bold);
+    text(g, "SOFTWARE SYNTHESIZER  /  BETA 0.5", 66, 48, 370, 14, 9.0f, softRed, juce::Font::bold);
     g.setColour(juce::Colour(0xff11090a)); g.fillRoundedRectangle(710.0f, 18.0f, 270.0f, 35.0f, 5.0f);
     text(g, "INSTRUMENT", 724, 20, 92, 29, 10.0f, juce::Colours::white, juce::Font::bold, juce::Justification::centred);
     text(g, "STEREO", 817, 20, 65, 29, 10.0f, softRed, juce::Font::bold, juce::Justification::centred);
-    text(g, "ENGINE READY", 884, 20, 90, 29, 9.0f, juce::Colour(0xffd2bbbb), juce::Font::plain, juce::Justification::centred);
+    text(g, standaloneKeyboard ? "STANDALONE" : "ENGINE READY", 884, 20, 90, 29, 9.0f, juce::Colour(0xffd2bbbb), juce::Font::plain, juce::Justification::centred);
 
     panel(g, 15.0f, 72.0f, 970.0f, 125.0f);
     text(g, "PRESET  /  VANTA COLLECTION", 86, 82, 600, 21, 10.0f, red, juce::Font::bold);
@@ -280,7 +295,7 @@ void VantaEditor::paint(juce::Graphics& g)
     {
         text(g, "LEVEL", 27, 207, 60, 27, 11.0f, juce::Colours::white, juce::Font::bold);
         text(g, juce::String(levelSlider.getValue() * 100.0, 0) + "%", 924, 207, 50, 27, 10.0f, juce::Colours::white, juce::Font::bold, juce::Justification::centredRight);
-        panel(g, 15.0f, 300.0f, 970.0f, 330.0f);
+        panel(g, 15.0f, 300.0f, 970.0f, standaloneKeyboard ? 310.0f : 330.0f);
         if (page == 0)
         {
             text(g, "PERFORMANCE & SOUND", 32, 310, 360, 24, 12.0f, juce::Colours::white, juce::Font::bold);
@@ -292,7 +307,7 @@ void VantaEditor::paint(juce::Graphics& g)
         else if (page == 1)
         {
             text(g, "STRUCTURE  /  PARTIAL", 32, 310, 260, 20, 10.0f, softRed, juce::Font::bold);
-            text(g, "ONE OSCILLATOR IN BETA 0.4", 680, 310, 270, 20, 10.0f, softRed, juce::Font::bold, juce::Justification::centredRight);
+            text(g, "ONE OSCILLATOR IN BETA 0.5", 680, 310, 270, 20, 10.0f, softRed, juce::Font::bold, juce::Justification::centredRight);
             for (int i = 0; i < 3; ++i)
             {
                 const float x = static_cast<float>(31 + i * 314);
@@ -329,7 +344,9 @@ void VantaEditor::paint(juce::Graphics& g)
         {
             text(g, "VANTA PREFERENCES  /  SETTINGS", 32, 310, 550, 24, 12.0f, juce::Colours::white, juce::Font::bold);
             text(g, "01   AUDIO & MIDI", 40, 365, 280, 23, 11.0f, softRed, juce::Font::bold);
-            text(g, "FL Studio controls the device, sample rate and buffer size.", 40, 392, 850, 22, 11.0f, juce::Colours::white);
+            text(g, standaloneKeyboard ? "Use the window Options menu for audio and MIDI device settings."
+                                      : "FL Studio controls the device, sample rate and buffer size.",
+                 40, 392, 850, 22, 11.0f, juce::Colours::white);
             text(g, "16 voices  /  MIDI velocity  /  sustain pedal  /  pitch bend +/- 2 semitones", 40, 416, 850, 22, 11.0f, juce::Colour(0xffcdbbbd));
             text(g, "02   PRESETS & COMPATIBILITY", 40, 466, 450, 23, 11.0f, softRed, juce::Font::bold);
             text(g, "VANTA .vanta: save and load    /    Vital .vital: partial, approximate import", 40, 493, 850, 22, 11.0f, juce::Colours::white);
@@ -339,17 +356,27 @@ void VantaEditor::paint(juce::Graphics& g)
     }
     else
     {
-        panel(g, 15.0f, 215.0f, 970.0f, 415.0f);
+        panel(g, 15.0f, 215.0f, 970.0f, standaloneKeyboard ? 395.0f : 415.0f);
         text(g, "PRESET BROWSER  /  FACTORY SOUNDS", 32, 230, 500, 24, 12.0f, juce::Colours::white, juce::Font::bold);
         text(g, "Select a sound, or use IMPORT PRESET above", 224, 257, 650, 22, 10.0f, softRed);
         g.setColour(juce::Colour(0xff6c2228)); g.drawVerticalLine(207, 270.0f, 600.0f);
     }
-    g.setColour(juce::Colour(0xff43070a)); g.fillRect(15, 649, 970, 35);
-    text(g, "VANTA  /  BETA 0.4", 29, 651, 250, 30, 9.0f, juce::Colours::white, juce::Font::bold);
-    text(g, "NATIVE PRESETS + PARTIAL VITAL IMPORT  /  OTHER FORMATS NOT YET SUPPORTED", 278, 651, 683, 30, 9.0f, softRed, juce::Font::plain, juce::Justification::centredRight);
+    if (standaloneKeyboard)
+    {
+        text(g, "CLICK THE KEYS OR FOCUS THE KEYBOARD TO PLAY:  A W S E D F T G Y H U J",
+             20, 611, 700, 18, 9.0f, juce::Colours::white, juce::Font::bold);
+        text(g, "AUDIO / MIDI: WINDOW OPTIONS", 700, 611, 270, 18, 9.0f, softRed, juce::Font::bold, juce::Justification::centredRight);
+    }
+    else
+    {
+        g.setColour(juce::Colour(0xff43070a)); g.fillRect(15, 649, 970, 35);
+        text(g, "VANTA  /  BETA 0.5", 29, 651, 250, 30, 9.0f, juce::Colours::white, juce::Font::bold);
+        text(g, "NATIVE PRESETS + PARTIAL VITAL IMPORT  /  OTHER FORMATS NOT YET SUPPORTED", 278, 651, 683, 30, 9.0f, softRed, juce::Font::plain, juce::Justification::centredRight);
+    }
 }
 void VantaEditor::resized()
 {
+    if (standaloneKeyboard) standaloneKeyboard->setBounds(16, 631, 968, 54);
     previous.setBounds(26, 80, 42, 31); browserButton.setBounds(26, 117, 42, 31); next.setBounds(26, 154, 42, 31);
     writeButton.setBounds(817, 85, 142, 30); importButton.setBounds(817, 124, 142, 30);
     levelSlider.setBounds(91, 207, 814, 27);

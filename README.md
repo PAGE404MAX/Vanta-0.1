@@ -1,8 +1,23 @@
-# Vanta Beta 0.4
+# Vanta Beta 0.5
 
-VANTA is an experimental Windows x64 VST3 instrument for FL Studio and other
-VST3 hosts. Its native JUCE interface is based on the included `UI prototype.html`.
-This beta is a fresh foundation, **not** a finished recreation of other synths.
+VANTA is an experimental Windows x64 instrument available both as a VST3 for
+FL Studio and other hosts and as a standalone application that does not need a
+DAW. Its native JUCE interface is based on `UI prototype.html`. This beta is a
+fresh foundation, **not** a finished recreation of other synths.
+
+## Using the standalone application
+
+After installing, launch **Vanta > Vanta Beta 0.5** from the Windows Start Menu.
+In the window's **Options > Audio/MIDI Settings...** menu, select an audio
+output and enable your MIDI input device. These are separate from FL Studio's
+audio and MIDI settings. Start with a low output volume.
+
+You can also click the piano keys at the bottom of the standalone window. Click
+the keyboard to give it focus and play with your computer keys (starting with
+A, W, S, E, D, F, T, G, Y, H, U, J). Click it again if a control takes focus.
+The standalone and VST3 use the same synth and `.vanta` preset format. The JUCE
+standalone wrapper saves its own audio/MIDI settings and current sound on normal
+exit; it does not change a VST3 instance's settings or FL Studio projects.
 
 ## What works
 
@@ -41,12 +56,13 @@ are included.
 
 ## Build and test on Windows
 
-The GitHub Actions workflow **Build Windows VST3 and Installer** runs the engine
-and preset tests, builds the VST3 and unsigned Inno Setup installer, and performs
-a silent install/uninstall smoke test in the runner's temporary directory. It
-compares the installed VST3 files with the build; it does **not** test FL Studio
-or confirm audio/UI behavior in a DAW. Download the `Vanta-Beta-0.4-Windows`
-artifact from a successful run on the branch containing this version.
+The GitHub Actions workflow **Build Windows VST3 and Standalone** runs the engine
+and preset tests, builds both formats and the unsigned Inno Setup installer,
+and checks install, standalone window launch, shortcut, and uninstall on a
+disposable Windows runner. It compares installed files with the build; it does
+**not** test real audio/MIDI hardware or FL Studio. Download the
+`Vanta-Beta-0.5-Windows` artifact from a successful run on the branch containing
+this version.
 
 For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6:
 
@@ -55,13 +71,19 @@ cmake -S . -B build -A x64
 cmake --build build --config Release --target VantaTests --parallel
 ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target VantaBeta_VST3 --parallel
+cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The installer is `installer-output\Vanta-Beta-0.4-Setup.exe` and installs the
-complete VST3 bundle under `C:\Program Files\Common Files\VST3`. It is unsigned.
+The unsigned installer is `installer-output\Vanta-Beta-0.5-Setup.exe`. By default
+it installs the standalone application in `C:\Program Files\Vanta\Vanta Beta 0.5`,
+adds its Start Menu shortcut, and installs the complete VST3 bundle under
+`C:\Program Files\Common Files\VST3`. The app location can be changed in setup;
+the VST3 location stays the Windows standard. Uninstall removes both formats and
+the shortcut, not your saved preset files.
+
 Back up FL Studio projects first; uninstall older VANTA betas before installing
 this one to avoid two bundles with the same VST3 ID, then rescan plugins in FL
-Studio. Start with low volume. Test the UI, MIDI, controls, preset round-trip,
-and project save/reopen in your host. Do not distribute before reviewing JUCE's
-licensing and any third-party licensing obligations.
+Studio. Test the standalone output and MIDI devices, on-screen keyboard, preset
+round-trip, and your DAW's project save/reopen. Do not distribute before reviewing
+JUCE's licensing and any third-party licensing obligations.

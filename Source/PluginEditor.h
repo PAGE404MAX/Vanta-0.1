@@ -59,6 +59,7 @@ private:
     std::array<VantaKnob, 6> modulationKnobs;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveAttachment;
+    std::unique_ptr<juce::MidiKeyboardComponent> standaloneKeyboard;
     std::unique_ptr<juce::FileChooser> chooser;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VantaEditor)
 };

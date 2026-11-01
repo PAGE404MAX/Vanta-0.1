@@ -100,6 +100,21 @@ void testAudio()
     events.clear(); events.addEvent(juce::MidiMessage::controllerEvent(1, 64, 0), 0);
     pedal.process(block, events, heldParams);
     check(rms(block, rate / 20, rate / 40) < 1.0e-6f, "Releasing the sustain pedal releases the note");
+
+    // Standalone on-screen/computer keyboard -> MIDI buffer -> synth engine.
+    vanta::SynthEngine keyboardEngine;
+    keyboardEngine.prepare(rate, 512);
+    juce::MidiKeyboardState keyboard;
+    events.clear();
+    keyboard.noteOn(1, 60, 0.8f);
+    keyboard.processNextMidiBuffer(events, 0, block.getNumSamples(), true);
+    keyboardEngine.process(block, events, heldParams);
+    check(rms(block, rate / 20, rate / 40) > 0.005f, "Virtual keyboard MIDI plays the synth");
+    events.clear();
+    keyboard.noteOff(1, 60, 0.0f);
+    keyboard.processNextMidiBuffer(events, 0, block.getNumSamples(), true);
+    keyboardEngine.process(block, events, heldParams);
+    check(rms(block, rate / 20, rate / 40) < 1.0e-6f, "Virtual keyboard note-off releases the note");
 }
 void testPresets()
 {
