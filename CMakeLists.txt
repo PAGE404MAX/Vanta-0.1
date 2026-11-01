@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VantaBeta VERSION 0.5.0 LANGUAGES C CXX)
+project(VantaBeta VERSION 0.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,7 @@ juce_add_plugin(VantaBeta
     PLUGIN_MANUFACTURER_CODE Vnta
     PLUGIN_CODE Vntb
     FORMATS VST3 Standalone
-    PRODUCT_NAME "Vanta Beta 0.5"
+    PRODUCT_NAME "Vanta Beta 0.6"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
@@ -34,7 +34,7 @@ target_compile_definitions(VantaBeta PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 J
 target_link_libraries(VantaBeta PRIVATE juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
-option(VANTA_BUILD_TESTS "Build VANTA's engine and preset tests" ON)
+option(VANTA_BUILD_TESTS "Build VANTA's engine, preset and editor tests" ON)
 if(VANTA_BUILD_TESTS)
     enable_testing()
     juce_add_console_app(VantaTests PRODUCT_NAME "VantaTests")
@@ -43,4 +43,15 @@ if(VANTA_BUILD_TESTS)
     target_compile_definitions(VantaTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(VantaTests PRIVATE juce::juce_audio_basics juce::juce_core)
     add_test(NAME VantaTests COMMAND VantaTests)
+
+    # Exercise the actual editor and processor in both wrapper modes, render
+    # previews, and check that the controls remain connected to parameters.
+    juce_add_console_app(VantaEditorTests PRODUCT_NAME "VantaEditorTests")
+    juce_generate_juce_header(VantaEditorTests)
+    target_sources(VantaEditorTests PRIVATE tests/VantaEditorTests.cpp
+        Source/Plugin.cpp Source/PluginEditor.cpp Source/PresetCodec.cpp Source/SynthEngine.cpp)
+    target_include_directories(VantaEditorTests PRIVATE Source)
+    target_compile_definitions(VantaEditorTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+    target_link_libraries(VantaEditorTests PRIVATE juce::juce_audio_utils juce::juce_dsp)
+    add_test(NAME VantaEditorTests COMMAND VantaEditorTests "${CMAKE_BINARY_DIR}/ui-preview")
 endif()

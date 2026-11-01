@@ -1,13 +1,19 @@
-# Vanta Beta 0.5
+# Vanta Beta 0.6
 
 VANTA is an experimental Windows x64 instrument available both as a VST3 for
 FL Studio and other hosts and as a standalone application that does not need a
-DAW. Its native JUCE interface is based on `UI prototype.html`. This beta is a
+DAW. Beta 0.6 introduces a new native JUCE interface with a focused overview,
+dedicated sound-editing pages, and a factory preset browser. This beta is a
 fresh foundation, **not** a finished recreation of other synths.
+
+![VANTA Beta 0.6 standalone overview](docs/vanta-beta-0.6-overview.png)
+
+The screenshot is an off-screen rendering of the actual editor; system fonts and
+the application window frame may look slightly different on Windows.
 
 ## Using the standalone application
 
-After installing, launch **Vanta > Vanta Beta 0.5** from the Windows Start Menu.
+After installing, launch **Vanta > Vanta Beta 0.6** from the Windows Start Menu.
 In the window's **Options > Audio/MIDI Settings...** menu, select an audio
 output and enable your MIDI input device. These are separate from FL Studio's
 audio and MIDI settings. Start with a low output volume.
@@ -18,6 +24,18 @@ A, W, S, E, D, F, T, G, Y, H, U, J). Click it again if a control takes focus.
 The standalone and VST3 use the same synth and `.vanta` preset format. The JUCE
 standalone wrapper saves its own audio/MIDI settings and current sound on normal
 exit; it does not change a VST3 instance's settings or FL Studio projects.
+
+## Finding your way around
+
+- Click the current preset at the top to browse the five factory sounds. The
+  arrows step through them; **SAVE** writes `.vanta` files and **IMPORT** opens
+  supported files.
+- **Overview** brings together waveform, filter, amplitude envelope, vibrato,
+  and master output. The **Oscillator**, **Effects**, and **Modulation** pages
+  provide their dedicated controls; **Settings** describes device and preset
+  support. Drag a knob to change it, or double-click it to reset it.
+- The waveform and modulation graphs illustrate the current settings; they are
+  not live audio meters. The envelope graph uses an illustrative sustain length.
 
 ## What works
 
@@ -30,9 +48,9 @@ exit; it does not change a VST3 instance's settings or FL Studio projects.
   ID and its four parameter IDs are retained, but migration has **not yet been
   tested in FL Studio**. Back up your projects before trying it.
 
-The OSC page exposes one oscillator. The other oscillator slots, extra partials,
-unison, legato, portamento, UI scale and advanced modulation routing are not
-implemented and are labelled/disabled rather than pretending to work.
+The Oscillator page exposes one oscillator. Extra oscillators/partials, unison,
+legato, portamento, UI scale and advanced modulation routing are not implemented
+and are not presented as working controls.
 
 ## Preset compatibility
 
@@ -56,12 +74,13 @@ are included.
 
 ## Build and test on Windows
 
-The GitHub Actions workflow **Build Windows VST3 and Standalone** runs the engine
-and preset tests, builds both formats and the unsigned Inno Setup installer,
+The GitHub Actions workflow **Build Windows VST3 and Standalone** runs engine,
+preset and editor tests, builds both formats and the unsigned Inno Setup installer,
 and checks install, standalone window launch, shortcut, and uninstall on a
-disposable Windows runner. It compares installed files with the build; it does
-**not** test real audio/MIDI hardware or FL Studio. Download the
-`Vanta-Beta-0.5-Windows` artifact from a successful run on the branch containing
+disposable Windows runner. The artifact includes actual editor preview PNGs.
+The smoke test compares installed files with the build; it does **not** test real
+audio/MIDI hardware or FL Studio. Download the
+`Vanta-Beta-0.6-Windows` artifact from a successful run on the branch containing
 this version.
 
 For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6:
@@ -69,14 +88,15 @@ For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release --target VantaTests --parallel
+cmake --build build --config Release --target VantaEditorTests --parallel
 ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target VantaBeta_VST3 --parallel
 cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The unsigned installer is `installer-output\Vanta-Beta-0.5-Setup.exe`. By default
-it installs the standalone application in `C:\Program Files\Vanta\Vanta Beta 0.5`,
+The unsigned installer is `installer-output\Vanta-Beta-0.6-Setup.exe`. By default
+it installs the standalone application in `C:\Program Files\Vanta\Vanta Beta 0.6`,
 adds its Start Menu shortcut, and installs the complete VST3 bundle under
 `C:\Program Files\Common Files\VST3`. The app location can be changed in setup;
 the VST3 location stays the Windows standard. Uninstall removes both formats and
