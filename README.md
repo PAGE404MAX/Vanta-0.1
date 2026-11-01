@@ -1,49 +1,54 @@
-# Vanta Beta 0.7
+# Vanta Beta 0.8
 
-VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.7 begins implementing the approved red-and-black design and adds real, layered oscillators. It is **not** yet a complete implementation of the planned feature list.
+VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.8 adds **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2, imported audio sources and a three-band dynamics effect. Converted sounds are approximations, not sound-for-sound reproductions.
 
-![Native Beta 0.7 standalone editor](docs/vanta-beta-0.7-overview.png)
+![Native Beta 0.8 standalone editor](docs/vanta-beta-0.8-overview.png)
 
-[View the oscillator page with four layers](docs/vanta-beta-0.7-oscillators.png). These are off-screen native-editor test snapshots; font rendering may differ on Windows.
+[View the oscillator page with four layers](docs/vanta-beta-0.8-oscillators.png). These are off-screen native-editor test snapshots; font rendering may differ on Windows.
 
 ## Install and play
 
-The Windows build produces `Vanta-Beta-0.7-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. Back up DAW projects and uninstall earlier VANTA betas before installing this one: the betas use the same VST3 ID and duplicate bundles can confuse a plugin scan. Rescan plugins in FL Studio after installation.
+The Windows build produces `Vanta-Beta-0.8-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. **Back up DAW projects and uninstall earlier VANTA betas before installing:** the betas share a VST3 ID, and duplicate bundles can confuse a plugin scan. Rescan plugins in FL Studio after installation.
 
-Launch **Vanta > Vanta Beta 0.7** from the Start Menu. In the standalone window choose **Options > Audio/MIDI Settings...** to select an audio output and enable a MIDI input. Start with a low output volume. You can click the on-screen keys, or focus the keyboard and play:
+Launch **Vanta > Vanta Beta 0.8** from the Start Menu. In the standalone window choose **Options > Audio/MIDI Settings...** to select an audio output and enable a MIDI input. Start with a low output volume. Click the on-screen keys, or focus the keyboard and play:
 
 `Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P`
 
-These keys span C4–E5. The VST3 receives MIDI from the host; the standalone keyboard does not inject notes into a VST3 instance. Audio and MIDI device settings are controlled by your DAW when using the plugin.
+These keys span C4–E5. The VST3 receives MIDI from the host; the standalone keyboard does not inject notes into a VST3 instance.
 
-## What's in Beta 0.7
+## Importing presets
 
-- Up to **eight real oscillators** per note, with sine, saw, square or triangle shapes. OSC A is always present. On the **OSC** page, use **+ NEW TAB** to enable B–H, select a tab to change its waveform, level, semitone, fine tuning and pan, or **REMOVE** to disable a selected additional oscillator. Disabled layers retain their settings if re-enabled.
-- The **MIXER** page provides enable switches for B–H, plus per-layer level and pan. All enabled oscillators share one low-pass filter, amplitude envelope, pitch vibrato and fixed effects chain. The layer mix is normalised when the sum of layer levels exceeds one to limit gain buildup. This is layered polyphony, not unison or independent per-layer filters/envelopes.
-- Sixteen-voice polyphony, MIDI velocity, sustain pedal and pitch bend (fixed at ±2 semitones); master level, global low-pass cutoff/resonance, ADSR amplitude envelope and sine pitch vibrato.
-- Reverb, delay and distortion, in a fixed order. The **MAIN**, **OSC**, **EFFECTS** and **MOD** plots illustrate parameter settings; they are not live audio meters.
-- Five factory sounds with a searchable, category-filtered browser, plus native `.vanta` preset save/load and host-state restore. Oscillator settings are part of those presets and host state.
-- The **SEQ** page illustrates the planned 32-step arpeggiator and 64-step clip sequencer. It is **not playable** in this beta. Extra oscillator engines, unison, general modulation routing/matrix, macros, reorderable/additional effects and advanced filters are also not implemented. See [the roadmap](design/windows-feature-roadmap.md).
+Click **IMPORT** above the editor and choose a `.vanta`, `.vital`, Serum 1 `.fxp` or Serum 2 `.SerumPreset` file. VANTA decodes the file on a worker thread and applies a successful result on the message thread. Read the conversion warnings: features that cannot be translated may be substituted, disabled or omitted. A rejected file leaves the current patch unchanged. Use **WRITE** to save an imported result as a `.vanta` file; supported tables, the sample and imported modulation are stored in the preset and host state.
 
-The existing `wave` parameter and its original two-choice sine/saw mapping are retained for older host automation. OSC A square/triangle use an additional parameter; while either is selected, the old sine/saw parameter does not determine the audible shape until sine or saw is selected again. Old `.vanta` presets default the new layers to off. Host migration has automated coverage, but **has not been tested in FL Studio**; keep project backups.
+- **Vital:** Imports a subset of oscillator settings and embedded Wave Source keyframes, one embedded sample, amplitude ADSR, filter-1 cutoff and selected LFO-to-oscillator routes.
+- **Serum 1:** Reads supported VST2 `CcnK`/`FPCh` Serum preset containers, selected parameter layouts, embedded wavetable/noise data, amplitude ADSR and selected LFO routes. Other FXP formats and unrecognised Serum versions are rejected. Testing includes synthetic files and a few real presets, not a broad library of commercial presets.
+- **Serum 2:** Reads supported `XferJson`/zstd/CBOR containers, selected oscillator and envelope parameters, supported embedded wavetable/noise arrays and LFO routes. External tables or samples are **not loaded**: VANTA substitutes a basic oscillator or disables the missing sample and warns. Granular, spectral and multisample engines are not implemented. Testing includes synthetic files and one real init preset, not a broad preset library.
+- **ZENOLOGY `.svz` / `.svd` / `.bin`:** Not supported.
 
-## Preset compatibility
+There are important limits: eight oscillator slots, 16 stored frames per table, one sample of at most 262,144 frames, four imported LFOs and 32 routes per patch. Oversized source tables/samples are reduced with warnings; unsupported routes and warps are dropped with warnings. Imported table playback is not band-limited and may alias at high notes. LFO timing, curves and modulation amounts are approximate; the editor does not yet edit imported LFO routes. Non-multiband effects, filter models, unison and many other source-specific features are not translated. The source and converted presets can therefore sound substantially different; some patches may be silent if an unsupported envelope or other source controls all layer levels. In that case VANTA warns and you can raise a layer level manually.
 
-- **VANTA `.vanta`:** Native parameters, including layer settings, can be saved and loaded. Presets do not store audio files.
-- **Vital `.vital`:** Experimental, partial **approximation**. Available amplitude envelope values and enabled filter-1 cutoff are mapped within VANTA's ranges, and a saw is substituted. Vital wavetables, samples, additional oscillators, envelope curves, modulation, filter models and effects are not imported; the sound will differ. A warning is shown.
-- **Serum 1 `.fxp`, Serum 2 `.SerumPreset`, ZENOLOGY `.svz` / `.svd` / `.bin`:** Not implemented. Selecting one reports that it is unsupported and does not change the current sound.
+When a supported source multiband compressor is active, VANTA enables its **own** three-band upward/downward dynamics approximation, with +3 dB high-band compensation and approximate depth/mix. It is not an exact Xfer or Vital OTT emulation; inactive or unrecognised compression stays bypassed. Control it on the **EFFECTS** page. Use the **OSC** page to select an available imported wavetable/sample and adjust table position. **MIXER** can enable or disable OSC A–H, including A for imported patches.
 
-Only import files you trust. Files larger than 32 MB are rejected. No third-party preset banks, wavetables or samples are included.
+Only import files you trust. Files over 32 MB and malformed/unsupported structures are rejected; decompression, nesting and asset sizes are bounded. The importer does not resolve external file paths. No third-party preset banks, wavetables or samples are included. File reading and conversion are outside the audio callback; host state serialization/restoration is synchronous when requested by the host.
+
+## Other features and limits
+
+- Up to eight layered sine, saw, square or triangle oscillators per note, with level, tuning and pan. The OSC page's **+ NEW TAB** enables layers. Imported wavetable frames and one PCM sample can also play through these layers. All layers share one low-pass filter, amplitude envelope and effects chain.
+- Sixteen-voice polyphony, MIDI velocity, sustain and ±2-semitone pitch bend; shared ADSR, sine pitch vibrato, reverb, delay and distortion. The **MAIN**, **OSC**, **EFFECTS** and **MOD** plots illustrate settings, not live audio.
+- Five factory sounds, a searchable browser and native `.vanta` save/load. The **SEQ** page is a non-playable design preview. Editable general modulation, macros, per-layer filters/envelopes, unison and many planned effects remain unimplemented. See [the roadmap](design/windows-feature-roadmap.md).
+
+Existing plugin and parameter IDs are retained. OSC A's original two-choice `wave` parameter remains compatible with earlier automation; newer features use appended IDs. Old presets and host state default new layers off. Automated migration checks pass, but **FL Studio project migration and physical audio/MIDI testing remain unverified**; keep backups.
 
 ## Build and test on Windows
 
-The GitHub Actions workflow builds both Windows formats, runs engine/preset/editor tests, creates the Inno Setup installer, and smoke-tests install, standalone launch, shortcut and uninstall on a disposable Windows runner. The artifact includes editor preview PNGs. This does **not** test a real audio device, MIDI hardware or FL Studio.
+The GitHub Actions workflow builds the VST3 and standalone, runs engine/importer/editor tests, creates the installer, and smoke-tests install, standalone launch, shortcut and uninstall on a disposable Windows runner. It does **not** test a real audio device, MIDI hardware or FL Studio.
 
-For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6:
+For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6. Configuration fetches pinned JUCE 8.0.6, zlib 1.3.1 and Zstandard 1.5.6 sources.
 
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release --target VantaTests --parallel
+cmake --build build --config Release --target VantaImporterTests --parallel
 cmake --build build --config Release --target VantaEditorTests --parallel
 ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target VantaBeta_VST3 --parallel
@@ -51,4 +56,4 @@ cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.7` for the app and the standard `C:\Program Files\Common Files\VST3` for the VST3 bundle. Uninstall removes the app, plugin and shortcut, not your saved presets. After installation, test audio/MIDI devices, keyboard, preset round-trip and DAW project save/reopen. Review JUCE and any third-party licensing obligations before distribution.
+The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.8` and the standard `C:\Program Files\Common Files\VST3` folder. Uninstall removes this beta's app, plugin and shortcut, not saved presets. After installing, test audio/MIDI devices, import/save/reopen and DAW project restoration at low volume. See [third-party notices](THIRD_PARTY_NOTICES.md) and review JUCE licensing obligations before distribution.

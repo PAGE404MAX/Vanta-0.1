@@ -422,7 +422,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     configureButton(browserButton, "VANTA INIT", "preset"); browserButton.setComponentID("preset-browser"); browserButton.setTooltip("Browse and search factory sounds");
     browserButton.onClick = [this] { browserOpen = !browserOpen; refresh(); };
     configureButton(writeButton, "WRITE"); writeButton.setComponentID("preset-save"); writeButton.setTooltip("Save a VANTA preset"); writeButton.onClick = [this] { savePreset(); };
-    configureButton(importButton, "IMPORT"); importButton.setComponentID("preset-import"); importButton.setTooltip("Open a VANTA or Vital preset"); importButton.onClick = [this] { openPreset(); };
+    configureButton(importButton, "IMPORT"); importButton.setComponentID("preset-import"); importButton.setTooltip("Open a VANTA, Vital, Serum or Serum 2 preset"); importButton.onClick = [this] { openPreset(); };
 
     const char* tabNames[] = { "MAIN", "OSC", "EFFECTS", "MOD", "MIXER", "SEQ", "SYSTEM" };
     const char* tabIds[] = { "tab-overview", "tab-oscillator", "tab-effects", "tab-modulation", "tab-mixer", "tab-sequencer", "tab-settings" };
@@ -458,7 +458,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     levelSlider.setTitle("Master level"); levelSlider.setComponentID("parameter-level"); levelSlider.setTooltip("Master output level"); addAndMakeVisible(levelSlider);
     levelSlider.onValueChange = [this] { repaint(); };
     levelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "level", levelSlider);
-    waveform.addItem("SINE", 1); waveform.addItem("SAW", 2); waveform.addItem("SQUARE", 3); waveform.addItem("TRIANGLE", 4);
+    waveform.addItem("SINE", 1); waveform.addItem("SAW", 2); waveform.addItem("SQUARE", 3); waveform.addItem("TRIANGLE", 4); waveform.addItem("WAVETABLE", 5); waveform.addItem("SAMPLE", 6);
     waveform.setTitle("Selected oscillator waveform"); waveform.setComponentID("parameter-wave");
     waveform.setTooltip("Choose the selected oscillator's waveform"); waveform.onChange = [this] { setWaveform(waveform.getSelectedId() - 1); }; addAndMakeVisible(waveform);
 
@@ -478,14 +478,17 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         }
         auto& enabled = mixerEnabled[i]; configureButton(enabled, "ON", "filter");
         enabled.setComponentID("mixer-osc-" + letter + "-enabled"); enabled.setTooltip("Enable oscillator " + letter);
-        if (layer == 0) { enabled.setToggleState(true, juce::dontSendNotification); enabled.setEnabled(false); }
-        else
-        {
-            enabled.setClickingTogglesState(true);
-            mixerEnabledAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,
-                    vanta::parameterSpecs[vanta::oscillatorEnabled(layer)].id, enabled);
-            enabled.onClick = [this] { refresh(); };
-        }
+        enabled.setClickingTogglesState(true);
+        mixerEnabledAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,
+                vanta::parameterSpecs[vanta::oscillatorEnabled(layer)].id, enabled);
+        enabled.onClick = [this] { refresh(); };
+        auto& position = tablePositions[i];
+        position.setSliderStyle(juce::Slider::LinearHorizontal); position.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        position.setTitle("Oscillator " + letter + " wavetable position");
+        position.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[vanta::oscillatorTablePosition(layer)].id));
+        position.setTooltip("Blend between imported wavetable frames"); addAndMakeVisible(position);
+        tablePositionAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,
+                vanta::parameterSpecs[vanta::oscillatorTablePosition(layer)].id, position);
         auto setupMixerSlider = [this, i, &letter](juce::Slider& slider, vanta::Parameter parameter, bool vertical)
         {
             slider.setSliderStyle(vertical ? juce::Slider::LinearVertical : juce::Slider::LinearHorizontal);
@@ -503,7 +506,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     addOscillator.setTooltip("Enable the next oscillator"); addOscillator.onClick = [this]
     {
         const auto values = processor.currentValues();
-        for (int layer = 1; layer < vanta::oscillatorCount; ++layer)
+        for (int layer = 0; layer < vanta::oscillatorCount; ++layer)
             if (!vanta::oscillatorIsEnabled(values, layer)) { setParameter(vanta::oscillatorEnabled(layer), 1.0f); selectedOsc = layer; break; }
         refresh();
     };
@@ -513,6 +516,20 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         if (selectedOsc > 0) { setParameter(vanta::oscillatorEnabled(selectedOsc), 0.0f); selectedOsc = 0; }
         refresh();
     };
+
+    configureButton(multibandEnabled, "MULTIBAND", "filter");
+    multibandEnabled.setComponentID("parameter-ottEnabled"); multibandEnabled.setTooltip("Enable VANTA's three-band dynamics");
+    multibandEnabled.setClickingTogglesState(true);
+    multibandEnabledAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state, "ottEnabled", multibandEnabled);
+    auto configureMultibandSlider = [this](juce::Slider& slider, const char* id, const char* title)
+    {
+        slider.setSliderStyle(juce::Slider::LinearHorizontal); slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        slider.setTitle(title); slider.setComponentID("parameter-" + juce::String(id)); slider.setTooltip(title); addAndMakeVisible(slider);
+    };
+    configureMultibandSlider(multibandDepth, "ottDepth", "Master multiband depth");
+    configureMultibandSlider(multibandMix, "ottMix", "Master multiband mix");
+    multibandDepthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "ottDepth", multibandDepth);
+    multibandMixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "ottMix", multibandMix);
 
     const vanta::Parameter mainIds[] = { vanta::cutoff, vanta::resonance, vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
     const char* mainNames[] = { "CUTOFF", "RESONANCE", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DEPTH", "RATE" };
@@ -547,7 +564,12 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     startTimerHz(10);
     refresh();
 }
-VantaEditor::~VantaEditor() { stopTimer(); setLookAndFeel(nullptr); }
+VantaEditor::~VantaEditor()
+{
+    // Don't allow a background parser to outlive the plugin/editor DLL.
+    importWorkers.removeAllJobs(false, -1);
+    stopTimer(); setLookAndFeel(nullptr);
+}
 void VantaEditor::configureButton(juce::TextButton& button, const juce::String& label, const juce::String& role)
 {
     button.setButtonText(label); button.getProperties().set("role", role); addAndMakeVisible(button);
@@ -566,7 +588,7 @@ void VantaEditor::timerCallback()
     const auto values = processor.currentValues();
     int mask = 0;
     for (int i = 0; i < vanta::oscillatorCount; ++i) if (vanta::oscillatorIsEnabled(values, i)) mask |= 1 << i;
-    if (mask != lastOscMask || waveform.getSelectedId() != vanta::oscillatorShape(values, selectedOsc) + 1) needsRefresh = true;
+    if (mask != lastOscMask || waveform.getSelectedId() != (values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? 6 : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? 5 : vanta::oscillatorShape(values, selectedOsc) + 1)) needsRefresh = true;
     if (needsRefresh) refresh(); else repaint();
 }
 void VantaEditor::selectPage(int p) { page = p; browserOpen = false; refresh(); }
@@ -581,7 +603,29 @@ void VantaEditor::setParameter(vanta::Parameter id, float value)
 }
 void VantaEditor::setWaveform(int shape)
 {
-    if (shape < 0 || shape > 3) return;
+    if (shape < 0 || shape > 5) return;
+    if (shape == 5)
+    {
+        if (!processor.hasSample(selectedOsc))
+        {
+            showMessage("No sample", "Import a preset with an embedded sample for this oscillator first.", true);
+            refresh(); return;
+        }
+        setParameter(vanta::oscillatorTable(selectedOsc), 0.0f);
+        setParameter(vanta::oscillatorSample(selectedOsc), 1.0f); refresh(); return;
+    }
+    if (shape == 4)
+    {
+        if (!processor.hasWaveTable(selectedOsc))
+        {
+            showMessage("No wavetable", "Import a preset with an embedded wavetable for this oscillator first.", true);
+            refresh(); return;
+        }
+        setParameter(vanta::oscillatorSample(selectedOsc), 0.0f);
+        setParameter(vanta::oscillatorTable(selectedOsc), 1.0f); refresh(); return;
+    }
+    setParameter(vanta::oscillatorTable(selectedOsc), 0.0f);
+    setParameter(vanta::oscillatorSample(selectedOsc), 0.0f);
     if (selectedOsc == 0)
     {
         // The original two-choice parameter remains unchanged for old automation.
@@ -594,7 +638,9 @@ void VantaEditor::setWaveform(int shape)
 void VantaEditor::refresh()
 {
     const auto values = processor.currentValues();
-    if (!vanta::oscillatorIsEnabled(values, selectedOsc)) selectedOsc = 0;
+    if (!vanta::oscillatorIsEnabled(values, selectedOsc))
+        for (int i = 0; i < vanta::oscillatorCount; ++i)
+            if (vanta::oscillatorIsEnabled(values, i)) { selectedOsc = i; break; }
     int mask = 0, activeCount = 0;
     for (int i = 0; i < vanta::oscillatorCount; ++i)
         if (vanta::oscillatorIsEnabled(values, i)) { mask |= 1 << i; ++activeCount; }
@@ -604,9 +650,11 @@ void VantaEditor::refresh()
     for (int i = 0; i < 7; ++i) tabs[static_cast<std::size_t>(i)].setToggleState(!browserOpen && i == page, juce::dontSendNotification);
     waveform.setVisible(!browserOpen && page == 1);
     waveform.setComponentID(selectedOsc == 0 ? "parameter-wave" : "parameter-" + juce::String(vanta::parameterSpecs[vanta::oscillatorWave(selectedOsc)].id));
-    waveform.setSelectedId(vanta::oscillatorShape(values, selectedOsc) + 1, juce::dontSendNotification);
+    waveform.setSelectedId(values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? 6 : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? 5 : vanta::oscillatorShape(values, selectedOsc) + 1, juce::dontSendNotification);
     for (int i = 0; i < 8; ++i) mainKnobs[static_cast<std::size_t>(i)].setVisible(!browserOpen && (page == 0 || (page == 1 && i < 2)));
     for (auto& knob : effectKnobs) knob.setVisible(!browserOpen && page == 2);
+    multibandEnabled.setVisible(!browserOpen && page == 2);
+    multibandDepth.setVisible(!browserOpen && page == 2); multibandMix.setVisible(!browserOpen && page == 2);
     for (auto& knob : modulationKnobs) knob.setVisible(!browserOpen && page == 3);
     addOscillator.setVisible(!browserOpen && page == 1); addOscillator.setEnabled(activeCount < vanta::oscillatorCount);
     removeOscillator.setVisible(!browserOpen && page == 1 && selectedOsc > 0);
@@ -617,6 +665,7 @@ void VantaEditor::refresh()
         oscillatorTabs[index].setVisible(!browserOpen && page == 1 && enabled);
         oscillatorTabs[index].setToggleState(layer == selectedOsc, juce::dontSendNotification);
         for (auto& knob : oscillatorKnobs[index]) knob.setVisible(!browserOpen && page == 1 && layer == selectedOsc);
+        tablePositions[index].setVisible(!browserOpen && page == 1 && layer == selectedOsc && values[vanta::oscillatorTable(layer)] >= 0.5f);
         mixerEnabled[index].setVisible(!browserOpen && page == 4);
         mixerEnabled[index].setButtonText(enabled ? "ON" : "OFF");
         mixerLevel[index].setVisible(!browserOpen && page == 4); mixerLevel[index].setEnabled(enabled);
@@ -656,7 +705,7 @@ void VantaEditor::showMessage(const juce::String& title, const juce::String& mes
 }
 void VantaEditor::openPreset()
 {
-    chooser = std::make_unique<juce::FileChooser>("Open a VANTA or Vital preset", juce::File(), "*.vanta;*.vital;*.fxp;*.SerumPreset;*.svz;*.svd;*.bin");
+    chooser = std::make_unique<juce::FileChooser>("Open a VANTA, Vital, Serum or Serum 2 preset", juce::File(), "*.vanta;*.vital;*.fxp;*.SerumPreset");
     juce::Component::SafePointer<VantaEditor> safe(this);
     chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
         [safe](const juce::FileChooser& selected)
@@ -664,9 +713,38 @@ void VantaEditor::openPreset()
             if (safe == nullptr) return;
             const auto file = selected.getResult();
             if (file == juce::File()) return;
-            const auto result = safe->processor.loadPresetFile(file);
-            if (result.ok) { safe->currentFactory = -1; safe->browserOpen = false; safe->refresh(); }
-            if (!result.ok || file.hasFileExtension(".vital")) safe->showMessage(result.ok ? "Vital import - approximation" : "Preset not loaded", result.message, true);
+            safe->importButton.setEnabled(false);
+            safe->importWorkers.addJob([safe, file]
+            {
+                try
+                {
+                    auto result = std::make_shared<vanta::PresetResult>(vanta::PresetCodec::loadFile(file));
+                    juce::MessageManager::callAsync([safe, file, result]
+                    {
+                        if (safe == nullptr) return;
+                        safe->importButton.setEnabled(true);
+                        if (result->ok)
+                        {
+                            safe->processor.applyPreset(*result);
+                            safe->currentFactory = -1; safe->browserOpen = false; safe->refresh();
+                        }
+                        if (!result->ok || !file.hasFileExtension(".vanta"))
+                            safe->showMessage(result->ok ? "Preset import - approximation" : "Preset not loaded", result->message, true);
+                    });
+                }
+                catch (...)
+                {
+                    // Best effort if even constructing/queuing the result ran out of memory.
+                    try { juce::MessageManager::callAsync([safe]
+                    {
+                        if (safe != nullptr)
+                        {
+                            safe->importButton.setEnabled(true);
+                            safe->showMessage("Preset not loaded", "The preset could not be decoded safely. Your current sound was not changed.", true);
+                        }
+                    }); } catch (...) {}
+                }
+            });
         });
 }
 void VantaEditor::savePreset()
@@ -701,7 +779,7 @@ void VantaEditor::paint(juce::Graphics& g)
     g.setColour(surfaceDark); g.fillRoundedRectangle(24.0f, 17.0f, 34.0f, 34.0f, 3.0f);
     text(g, "V.", 27, 16, 29, 35, 24.0f, textPrimary, juce::Font::bold, juce::Justification::centred);
     text(g, "VANTA", 69, 12, 160, 29, 22.0f, textPrimary, juce::Font::bold);
-    text(g, "SOFTWARE INSTRUMENT / 07", 70, 41, 210, 14, 9.0f, textSecondary, juce::Font::bold);
+    text(g, "SOFTWARE INSTRUMENT / 08", 70, 41, 210, 14, 9.0f, textSecondary, juce::Font::bold);
     text(g, standaloneKeyboard ? "STANDALONE  /  16 VOICES" : "VST3  /  16 VOICES", 784, 52, 180, 12, 9.0f, textSecondary, juce::Font::plain, juce::Justification::centredRight);
     panel(g, 24.0f, 66.0f, 952.0f, 72.0f);
     text(g, "A = 440 Hz", 847, 113, 98, 14, 9.0f, textSecondary, juce::Font::plain, juce::Justification::centredRight);
@@ -720,7 +798,7 @@ void VantaEditor::paint(juce::Graphics& g)
         const bool hasMatch = std::any_of(presetButtons.begin(), presetButtons.end(), [](const auto& button) { return button.isVisible(); });
         if (!hasMatch) text(g, "No factory presets match this search.", 264, 278, 640, 24, 11.0f, textSecondary);
         text(g, "Search applies to factory names and categories.", 264, 535, 640, 19, 10.0f, textMuted);
-        text(g, "Import VANTA or an approximate Vital conversion above.", 264, 557, 640, 18, 10.0f, textMuted);
+        text(g, "Import VANTA, Vital or Serum presets above (third-party imports are approximate).", 264, 557, 640, 18, 10.0f, textMuted);
     }
     else if (page == 0)
     {
@@ -745,7 +823,8 @@ void VantaEditor::paint(juce::Graphics& g)
         text(g, "OSCILLATOR " + letter, 54, 271, 305, 18, 11.0f, textPrimary, juce::Font::bold);
         text(g, "WAVE", 386, 270, 48, 22, 9.0f, textMuted, juce::Font::bold);
         drawWave(g, { 54.0f, 304.0f, 532.0f, 105.0f }, vanta::oscillatorShape(values, selectedOsc));
-        text(g, "WAVE SHAPE / ILLUSTRATIVE", 55, 413, 400, 15, 9.0f, textMuted);
+        text(g, values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? "SAMPLE / SCHEMATIC PREVIEW" : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? "WAVETABLE / SCHEMATIC PREVIEW" : "WAVE SHAPE / ILLUSTRATIVE", 55, 413, 400, 15, 9.0f, textMuted);
+        if (values[vanta::oscillatorTable(selectedOsc)] >= 0.5f) text(g, "TABLE POSITION", 55, 579, 102, 20, 9.0f, textMuted);
         text(g, "GLOBAL LOW-PASS", 632, 271, 285, 18, 11.0f, textPrimary, juce::Font::bold);
         drawFilter(g, { 632.0f, 305.0f, 308.0f, 88.0f }, values);
         text(g, "ALL ENABLED OSCILLATORS SHARE THIS FILTER", 632, 548, 307, 16, 9.0f, textMuted);
@@ -753,7 +832,7 @@ void VantaEditor::paint(juce::Graphics& g)
     else if (page == 2)
     {
         text(g, "03  EFFECTS / SIGNAL CHAIN", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "REVERB  >  DELAY  >  DISTORTION", 650, 187, 308, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
+        text(g, "REVERB  >  DELAY  >  DISTORTION  >  MULTIBAND", 600, 187, 358, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
         separator(g, 42.0f, 958.0f, 210.0f);
         const char* titles[] = { "01 / REVERB", "02 / DELAY", "03 / DISTORTION" };
         for (int i = 0; i < 3; ++i)
@@ -764,7 +843,8 @@ void VantaEditor::paint(juce::Graphics& g)
             effectIllustration(g, i, { static_cast<float>(x + 14), 273.0f, 268.0f, 135.0f }, values);
             text(g, "ILLUSTRATIVE RESPONSE", x + 14, 414, 260, 14, 9.0f, textMuted);
         }
-        text(g, "MORE PROCESSORS AND REORDERING ARE PLANNED", 42, 578, 600, 14, 9.0f, textMuted);
+        text(g, "DEPTH", 200, 581, 58, 20, 9.0f, textMuted);
+        text(g, "MIX", 542, 581, 40, 20, 9.0f, textMuted);
     }
     else if (page == 3)
     {
@@ -777,7 +857,7 @@ void VantaEditor::paint(juce::Graphics& g)
         drawEnvelope(g, { 54.0f, 272.0f, 532.0f, 120.0f }, values);
         drawLfo(g, { 632.0f, 272.0f, 308.0f, 120.0f }, values);
         text(g, "MORE ENVELOPES AND THE MOD MATRIX ARE PLANNED", 54, 550, 520, 15, 9.0f, textMuted);
-        text(g, "GENERAL-PURPOSE LFOS ARE PLANNED", 632, 550, 308, 15, 9.0f, textMuted);
+        text(g, "IMPORTED LFO ROUTES PLAY; EDITING PLANNED", 632, 550, 308, 15, 9.0f, textMuted);
     }
     else if (page == 4)
     {
@@ -792,7 +872,7 @@ void VantaEditor::paint(juce::Graphics& g)
             text(g, "OSC " + letter, x + 9, 237, 88, 18, 10.0f, textPrimary, juce::Font::bold, juce::Justification::centred);
             text(g, juce::String(values[vanta::oscillatorLevel(layer)] * 100.0f, 0) + "%", x + 9, 464, 88, 18, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centred);
             text(g, "PAN", x + 9, 490, 88, 15, 9.0f, textMuted, juce::Font::bold, juce::Justification::centred);
-            text(g, layer == 0 ? "ALWAYS ON" : "LAYER", x + 9, 553, 88, 14, 8.0f, textMuted, juce::Font::plain, juce::Justification::centred);
+            text(g, "LAYER", x + 9, 553, 88, 14, 8.0f, textMuted, juce::Font::plain, juce::Justification::centred);
         }
     }
     else if (page == 5)
@@ -831,7 +911,7 @@ void VantaEditor::paint(juce::Graphics& g)
         text(g, "16 voices  /  velocity  /  sustain  /  pitch bend", 54, 315, 520, 23, 12.0f, textPrimary);
         text(g, "Up to 8 analog oscillators  /  shared filter and effects", 54, 344, 520, 23, 11.0f, textSecondary);
         text(g, "More synthesis, modulation and effects are planned.", 54, 373, 520, 23, 11.0f, textSecondary);
-        text(g, "VANTA BETA 0.7", 54, 538, 300, 18, 10.0f, textMuted, juce::Font::bold);
+        text(g, "VANTA BETA 0.8", 54, 538, 300, 18, 10.0f, textMuted, juce::Font::bold);
         text(g, "02 / PRESET SUPPORT", 632, 242, 300, 20, 11.0f, textPrimary, juce::Font::bold);
         text(g, ".VANTA  /  SAVE + LOAD", 632, 278, 300, 22, 11.0f, textPrimary);
         text(g, ".VITAL  /  PARTIAL IMPORT", 632, 311, 300, 22, 11.0f, textSecondary);
@@ -846,7 +926,7 @@ void VantaEditor::paint(juce::Graphics& g)
     else
     {
         text(g, "VANTA  /  SOFTWARE SYNTHESIZER", 25, 617, 450, 20, 10.0f, textSecondary, juce::Font::bold);
-        text(g, "VST3  /  BETA 0.7", 770, 617, 200, 20, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centredRight);
+        text(g, "VST3  /  BETA 0.8", 770, 617, 200, 20, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centredRight);
     }
 }
 void VantaEditor::resized()
@@ -872,12 +952,14 @@ void VantaEditor::resized()
         const auto i = static_cast<std::size_t>(layer);
         if (oscillatorTabs[i].isVisible()) oscillatorTabs[i].setBounds(42 + shown++ * 62, 220, 58, 27);
         for (int k = 0; k < 4; ++k) oscillatorKnobs[i][static_cast<std::size_t>(k)].setBounds(55 + k * 130, 428, 120, 120);
+        tablePositions[i].setBounds(160, 578, 425, 22);
         const int x = 38 + layer * 115;
         mixerEnabled[i].setBounds(x + 20, 260, 66, 26);
         mixerLevel[i].setBounds(x + 33, 297, 40, 160);
         mixerPan[i].setBounds(x + 12, 510, 82, 22);
     }
     addOscillator.setBounds(565, 220, 112, 27); removeOscillator.setBounds(684, 220, 84, 27);
+    multibandEnabled.setBounds(42, 578, 130, 26); multibandDepth.setBounds(257, 578, 245, 24); multibandMix.setBounds(580, 578, 245, 24);
     for (int i = 0; i < 9; ++i)
         effectKnobs[static_cast<std::size_t>(i)].setBounds(52 + (i / 3) * 306 + (i % 3) * 92, 434, 88, 110);
     for (int i = 0; i < 4; ++i) modulationKnobs[static_cast<std::size_t>(i)].setBounds(55 + i * 130, 422, 120, 122);

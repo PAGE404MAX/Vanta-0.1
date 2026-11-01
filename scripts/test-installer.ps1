@@ -5,15 +5,15 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP -or $env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
     throw 'Installer smoke test requires an isolated GitHub-hosted Windows runner.'
 }
-$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.7.vst3').Path
-$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.7.exe').Path
-$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.7-Setup.exe').Path
-$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.7-installer-test'
-$installedBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.7.vst3'
-$legacyBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.6.vst3'
+$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.8.vst3').Path
+$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.8.exe').Path
+$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.8-Setup.exe').Path
+$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.8-installer-test'
+$installedBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.8.vst3'
+$legacyBundle = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3\Vanta Beta 0.7.vst3'
 $legacyMarker = Join-Path $legacyBundle 'vanta-installer-test-marker.txt'
-$installedApp = Join-Path $destination 'Vanta Beta 0.7.exe'
-$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.7.lnk'
+$installedApp = Join-Path $destination 'Vanta Beta 0.8.exe'
+$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.8.lnk'
 $installLog = Join-Path $env:RUNNER_TEMP 'vanta-install.log'
 $uninstallLog = Join-Path $env:RUNNER_TEMP 'vanta-uninstall.log'
 foreach ($path in @($destination, $installedBundle, $legacyBundle, $shortcut)) {
@@ -36,7 +36,7 @@ try {
     }
     if (!(Test-Path -LiteralPath $legacyMarker -PathType Leaf)) { throw 'Installer removed the earlier beta bundle.' }
 
-    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.7.vst3'
+    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.8.vst3'
     if (!(Test-Path -LiteralPath $pluginBinary -PathType Leaf)) { throw "Installed x64 VST3 binary is missing: $pluginBinary" }
     $files = @(Get-ChildItem -LiteralPath $sourceBundle -File -Recurse)
     if ($files.Count -eq 0) { throw 'The build produced an empty VST3 bundle.' }
@@ -49,6 +49,7 @@ try {
         }
     }
     if (!(Test-Path -LiteralPath $installedApp -PathType Leaf)) { throw 'The standalone application was not installed.' }
+    if (!(Test-Path -LiteralPath (Join-Path $destination 'THIRD_PARTY_NOTICES.md') -PathType Leaf)) { throw 'Third-party notices were not installed.' }
     if ((Get-FileHash -LiteralPath $sourceApp -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $installedApp -Algorithm SHA256).Hash) {
         throw 'Installed standalone application differs from the build.'
     }

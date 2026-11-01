@@ -244,13 +244,13 @@ void testPresets()
     check(!vanta::PresetCodec::decode("not json", ".vanta").ok, "Malformed JSON is rejected");
     check(!vanta::PresetCodec::decode("{}", ".vanta").ok, "Unrecognised VANTA schema is rejected");
     check(!vanta::PresetCodec::decode(encoded, ".fxp").ok && !vanta::PresetCodec::decode(encoded, ".SerumPreset").ok
-          && !vanta::PresetCodec::decode(encoded, ".svz").ok, "Unsupported formats are rejected");
+          && !vanta::PresetCodec::decode(encoded, ".svz").ok, "Mislabelled and unsupported formats are rejected");
     const juce::String vital = R"({"synth_version":"1.0.7","preset_name":"Example","settings":{"env_1_attack":0.5,"env_1_decay":1.0,"env_1_sustain":0.25,"env_1_release":0.75,"filter_1_on":1,"filter_1_cutoff":69}})";
     auto converted = vanta::PresetCodec::decode(vital, ".vital");
     check(converted.ok && converted.name == "Example" && std::abs(converted.values[vanta::attack] - 0.0625f) < 0.0001f
           && std::abs(converted.values[vanta::release] - 0.31640625f) < 0.0001f
           && std::abs(converted.values[vanta::cutoff] - 440.0f) < 0.1f, "Vital envelope and cutoff mapping");
-    check(converted.message.containsIgnoreCase("approximate") && converted.message.containsIgnoreCase("not imported"), "Vital conversion warns about unsupported sound features");
+    check(converted.message.containsIgnoreCase("approximate") && converted.message.containsIgnoreCase("substituted"), "Vital conversion warns about unsupported sound features");
     auto temp = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("vanta-test-" + juce::Uuid().toString() + ".vanta");
     auto save = vanta::PresetCodec::saveFile(temp, "Disk test", values);
     auto disk = vanta::PresetCodec::loadFile(temp);

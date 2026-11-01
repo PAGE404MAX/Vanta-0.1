@@ -134,6 +134,89 @@ void testHostState()
           && processor.presetName() == "VANTA INIT",
           "Beta 0.3-style host state restores four parameters and defaults all later additions");
 }
+
+void testImportedState()
+{
+    VantaProcessor processor;
+    vanta::PresetResult preset; preset.ok = true; preset.name = "State with imported assets";
+    preset.values = vanta::defaultValues(); preset.values[vanta::attack] = 0.001f;
+    preset.values[vanta::oscATable] = 1; preset.values[vanta::oscDEnabled] = 1;
+    preset.values[vanta::oscDSample] = 1; preset.values[vanta::oscDLevel] = 0.4f;
+    preset.values[vanta::ottEnabled] = 1; preset.values[vanta::ottMix] = 0.4f;
+    preset.waveTables = std::make_shared<vanta::WaveTableBank>();
+    auto& bank = *preset.waveTables;
+    bank.tables[0].frameCount = 1;
+    for (int i = 0; i < vanta::wavetableFrameSize; ++i) bank.tables[0].samples[static_cast<std::size_t>(i)] = i < 1024 ? 0.7f : -0.7f;
+    bank.sample.slot = 3; bank.sample.channels = 2; bank.sample.frames = 4096; bank.sample.sampleRate = 44100; bank.sample.loop = true;
+    for (int i = 0; i < bank.sample.frames; ++i)
+    {
+        bank.sample.left[static_cast<std::size_t>(i)] = static_cast<float>(0.3 * std::sin(i * 0.03));
+        bank.sample.right[static_cast<std::size_t>(i)] = -bank.sample.left[static_cast<std::size_t>(i)];
+    }
+    auto& mod = bank.modulation; mod.routeCount = 1; mod.routes[0] = { 0, 0, vanta::ModTarget::level, -0.5f, false };
+    mod.lfos[0].rateHz = 0.01f; // exercise the lowest representable serialized rate
+    for (auto& lfo : mod.lfos)
+        for (int i = 0; i < vanta::importedLfoPoints; ++i) lfo.shape[static_cast<std::size_t>(i)] = static_cast<float>(i) / vanta::importedLfoPoints;
+    processor.applyPreset(preset);
+    auto render = [](VantaProcessor& synth)
+    {
+        synth.prepareToPlay(44100, 4096);
+        juce::AudioBuffer<float> out(2, 4096); juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 0);
+        synth.processBlock(out, midi); return out;
+    };
+    const auto before = render(processor);
+    juce::MemoryBlock stateBytes; processor.getStateInformation(stateBytes);
+    const auto temporary = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("vanta-state-" + juce::Uuid().toString() + ".vanta");
+    check(processor.savePresetFile(temporary).wasOk(), "Processor saves imported assets to a VANTA preset");
+    const auto native = vanta::PresetCodec::loadFile(temporary);
+    check(native.ok && native.waveTables != nullptr && native.waveTables->sample.frames == 4096 && native.waveTables->modulation.routeCount == 1,
+          "Processor-saved VANTA file contains sample and modulation");
+    temporary.deleteFile();
+    processor.loadFactoryPreset(0);
+    check(!processor.hasWaveTable(0) && !processor.hasSample(3), "Factory patch clears previous imported audio assets");
+    processor.setStateInformation(stateBytes.getData(), static_cast<int>(stateBytes.getSize()));
+    check(processor.hasWaveTable(0) && processor.hasSample(3) && processor.currentValues()[vanta::ottEnabled] == 1,
+          "Host state restores imported wavetable, sample and multiband state");
+    // A fresh instance avoids comparing the reverb's parameter-smoothing
+    // startup transient before/after reusing an already-running engine.
+    VantaProcessor fresh;
+    fresh.setStateInformation(stateBytes.getData(), static_cast<int>(stateBytes.getSize()));
+    const auto after = render(fresh);
+    double delta = 0;
+    for (int c = 0; c < 2; ++c) for (int i = 0; i < 4096; ++i) delta += std::abs(before.getSample(c, i) - after.getSample(c, i));
+    if (delta >= 0.05) std::cerr << "Host audio delta: " << delta << "\n";
+    check(delta < 0.05, "Host state restores the same rendered imported sound");
+
+    auto broken = processor.state.copyState(); broken.setProperty("vantaSample", "{\"frames\":-1}", nullptr);
+    if (auto xml = broken.createXml())
+    {
+        juce::MemoryBlock badState; juce::AudioProcessor::copyXmlToBinary(*xml, badState);
+        const auto oldName = processor.presetName(); const auto oldValues = processor.currentValues();
+        processor.setStateInformation(badState.getData(), static_cast<int>(badState.getSize()));
+        check(processor.presetName() == oldName && processor.currentValues() == oldValues && processor.hasWaveTable(0) && processor.hasSample(3),
+              "Malformed host asset data leaves the current patch intact");
+    }
+    const auto preservedName = processor.presetName(); const auto preservedValues = processor.currentValues();
+    auto invalidXml = stateBytes;
+    static_cast<std::uint8_t*>(invalidXml.getData())[8] = 0xff;
+    processor.setStateInformation(invalidXml.getData(), static_cast<int>(invalidXml.getSize()));
+    check(processor.presetName() == preservedName && processor.currentValues() == preservedValues && processor.hasWaveTable(0),
+          "Invalid UTF-8 host state is rejected without changing the patch");
+    const auto deepXml = juce::String::repeatedString("<a>", 100) + juce::String::repeatedString("</a>", 100);
+    juce::MemoryOutputStream rawState;
+    rawState.writeInt(0x21324356); rawState.writeInt(static_cast<int>(deepXml.getNumBytesAsUTF8()));
+    rawState.write(deepXml.toRawUTF8(), deepXml.getNumBytesAsUTF8()); rawState.writeByte(0);
+    processor.setStateInformation(rawState.getData(), static_cast<int>(rawState.getDataSize()));
+    check(processor.presetName() == preservedName && processor.currentValues() == preservedValues && processor.hasWaveTable(0),
+          "Excessively nested host XML is rejected without changing the patch");
+    const auto invalid = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("vanta-bad-" + juce::Uuid().toString() + ".fxp");
+    invalid.replaceWithText("broken"); const auto oldName = processor.presetName(); const auto oldValues = processor.currentValues();
+    const auto error = processor.loadPresetFile(invalid); invalid.deleteFile();
+    check(!error.ok && processor.presetName() == oldName && processor.currentValues() == oldValues && processor.hasWaveTable(0),
+          "Malformed preset file leaves the current patch intact");
+}
+
 void testStandalone(const juce::File& previews)
 {
     juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Standalone);
@@ -308,7 +391,7 @@ int main(int argc, char** argv)
     const auto previewDirectory = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(argv[1])
                                            : juce::File::getCurrentWorkingDirectory().getChildFile("ui-preview");
     check(previewDirectory.createDirectory().wasOk(), "Preview directory created");
-    testHostState(); testStandalone(previewDirectory); testVstEditor();
+    testHostState(); testImportedState(); testStandalone(previewDirectory); testVstEditor();
     std::cout << "All VANTA editor checks passed.\n";
     return 0;
 }

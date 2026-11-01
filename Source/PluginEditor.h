@@ -80,6 +80,12 @@ private:
     juce::TextEditor presetSearch;
     juce::Slider levelSlider;
     juce::ComboBox waveform;
+    std::array<juce::Slider, vanta::oscillatorCount> tablePositions;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> tablePositionAttachments;
+    juce::TextButton multibandEnabled;
+    juce::Slider multibandDepth, multibandMix;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> multibandEnabledAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> multibandDepthAttachment, multibandMixAttachment;
     std::array<juce::TextButton, vanta::oscillatorCount> oscillatorTabs;
     juce::TextButton addOscillator, removeOscillator;
     std::array<std::array<VantaKnob, 4>, vanta::oscillatorCount> oscillatorKnobs;
@@ -93,5 +99,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
     std::unique_ptr<VantaKeyboard> standaloneKeyboard;
     std::unique_ptr<juce::FileChooser> chooser;
+    juce::ThreadPool importWorkers { 1 };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VantaEditor)
 };

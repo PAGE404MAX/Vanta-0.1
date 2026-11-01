@@ -20,6 +20,13 @@ enum Parameter : std::size_t
     oscFEnabled, oscFWave, oscFLevel, oscFTune, oscFFine, oscFPan,
     oscGEnabled, oscGWave, oscGLevel, oscGTune, oscGFine, oscGPan,
     oscHEnabled, oscHWave, oscHLevel, oscHTune, oscHFine, oscHPan,
+    // Append-only IDs: preserve all 0.7 indices/IDs for automation and old projects.
+    oscAEnabled,
+    oscATable, oscBTable, oscCTable, oscDTable, oscETable, oscFTable, oscGTable, oscHTable,
+    oscATablePosition, oscBTablePosition, oscCTablePosition, oscDTablePosition,
+    oscETablePosition, oscFTablePosition, oscGTablePosition, oscHTablePosition,
+    ottEnabled, ottDepth, ottMix,
+    oscASample, oscBSample, oscCSample, oscDSample, oscESample, oscFSample, oscGSample, oscHSample,
     parameterCount
 };
 
@@ -98,20 +105,51 @@ inline constexpr std::array<ParameterSpec, parameterCount> parameterSpecs {{
     { "oscHLevel",   "Osc H Level",      0.0f,    1.0f,    0.5f,   0.001f, 1.0f },
     { "oscHTune",    "Osc H Semitones",-24.0f,   24.0f,    0.0f,   1.0f,   1.0f },
     { "oscHFine",    "Osc H Fine",    -100.0f,  100.0f,    0.0f,   1.0f,   1.0f },
-    { "oscHPan",     "Osc H Pan",       -1.0f,    1.0f,    0.0f,   0.001f, 1.0f }
+    { "oscHPan",     "Osc H Pan",       -1.0f,    1.0f,    0.0f,   0.001f, 1.0f },
+    { "oscAEnabled", "Osc A Enabled", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    { "oscATable", "Osc A Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscBTable", "Osc B Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscCTable", "Osc C Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscDTable", "Osc D Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscETable", "Osc E Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscFTable", "Osc F Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscGTable", "Osc G Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscHTable", "Osc H Wavetable", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscATablePosition", "Osc A Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscBTablePosition", "Osc B Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscCTablePosition", "Osc C Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscDTablePosition", "Osc D Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscETablePosition", "Osc E Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscFTablePosition", "Osc F Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscGTablePosition", "Osc G Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscHTablePosition", "Osc H Table Position", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "ottEnabled", "Master Multiband Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "ottDepth", "Master Multiband Depth", 0.0f, 1.0f, 0.5f, 0.001f, 1.0f },
+    { "ottMix", "Master Multiband Mix", 0.0f, 1.0f, 1.0f, 0.001f, 1.0f },
+    { "oscASample", "Osc A Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscBSample", "Osc B Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscCSample", "Osc C Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscDSample", "Osc D Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscESample", "Osc E Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscFSample", "Osc F Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscGSample", "Osc G Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "oscHSample", "Osc H Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f }
 }};
 
 using ParameterValues = std::array<float, parameterCount>;
 inline constexpr int oscillatorCount = 8;
 inline constexpr int oscillatorStride = 6;
-// A is always enabled and retains the original two-choice wave parameter.
-inline constexpr Parameter oscillatorEnabled(int index) { return static_cast<Parameter>(oscBEnabled + (index - 1) * oscillatorStride); }
+// A retains the original two-choice wave parameter.
+inline constexpr Parameter oscillatorEnabled(int index) { return index == 0 ? oscAEnabled : static_cast<Parameter>(oscBEnabled + (index - 1) * oscillatorStride); }
 inline constexpr Parameter oscillatorWave(int index) { return static_cast<Parameter>(oscBWave + (index - 1) * oscillatorStride); }
 inline constexpr Parameter oscillatorLevel(int index) { return index == 0 ? oscALevel : static_cast<Parameter>(oscBLevel + (index - 1) * oscillatorStride); }
 inline constexpr Parameter oscillatorTune(int index) { return index == 0 ? oscATune : static_cast<Parameter>(oscBTune + (index - 1) * oscillatorStride); }
 inline constexpr Parameter oscillatorFine(int index) { return index == 0 ? oscAFine : static_cast<Parameter>(oscBFine + (index - 1) * oscillatorStride); }
 inline constexpr Parameter oscillatorPan(int index) { return index == 0 ? oscAPan : static_cast<Parameter>(oscBPan + (index - 1) * oscillatorStride); }
-inline bool oscillatorIsEnabled(const ParameterValues& values, int index) { return index == 0 || values[oscillatorEnabled(index)] >= 0.5f; }
+inline constexpr Parameter oscillatorTable(int index) { return static_cast<Parameter>(oscATable + index); }
+inline constexpr Parameter oscillatorSample(int index) { return static_cast<Parameter>(oscASample + index); }
+inline constexpr Parameter oscillatorTablePosition(int index) { return static_cast<Parameter>(oscATablePosition + index); }
+inline bool oscillatorIsEnabled(const ParameterValues& values, int index) { return values[oscillatorEnabled(index)] >= 0.5f; }
 inline int oscillatorShape(const ParameterValues& values, int index)
 {
     if (index != 0) return static_cast<int>(values[oscillatorWave(index)] + 0.5f);

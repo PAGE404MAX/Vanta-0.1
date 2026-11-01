@@ -11,7 +11,7 @@ public:
     VantaProcessor();
     ~VantaProcessor() override = default;
 
-    const juce::String getName() const override { return "Vanta Beta 0.7"; }
+    const juce::String getName() const override { return "Vanta Beta 0.8"; }
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -34,6 +34,9 @@ public:
     vanta::ParameterValues currentValues() const;
     void applyValues(const vanta::ParameterValues&, const juce::String& name);
     void loadFactoryPreset(int index);
+    void applyPreset(const vanta::PresetResult&);
+    bool hasWaveTable(int oscillator) const;
+    bool hasSample(int oscillator) const;
     vanta::PresetResult loadPresetFile(const juce::File&);
     juce::Result savePresetFile(const juce::File&);
     juce::String presetName() const;
