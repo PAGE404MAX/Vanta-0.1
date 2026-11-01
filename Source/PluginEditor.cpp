@@ -6,10 +6,11 @@ namespace
 {
 // Red-and-black instrument shell based on the approved HTML study. The graphs
 // illustrate settings; they are not live audio or spectrum measurements.
-const juce::Colour background(0xff851018), header(0xffa31c24), surface(0xff120c0d);
-const juce::Colour surfaceDark(0xff0b0909), border(0xff572b27), textPrimary(0xffffe5d1);
-const juce::Colour textSecondary(0xffd0a89b), textMuted(0xffa0796f);
-const juce::Colour accent(0xffff634b), mint(0xff82e1cf);
+const juce::Colour header(0xffa92227), surface(0xff170d0e);
+const juce::Colour surfaceDark(0xff0b0809), border(0xff48201f), textPrimary(0xfffce9df);
+const juce::Colour textSecondary(0xffdfb7aa), textMuted(0xff987973);
+const juce::Colour accent(0xffff5845), mint(0xff82e1cf);
+constexpr int editorWidth = 1000, vstHeight = 720, standaloneHeight = 820;
 
 void text(juce::Graphics& g, const juce::String& value, int x, int y, int w, int h,
           float size, juce::Colour colour, int style = juce::Font::plain,
@@ -19,32 +20,37 @@ void text(juce::Graphics& g, const juce::String& value, int x, int y, int w, int
     g.setFont(juce::FontOptions(size, style));
     g.drawFittedText(value, x, y, w, h, justification, 1);
 }
+void mono(juce::Graphics& g, const juce::String& value, int x, int y, int w, int h,
+          float size, juce::Colour colour, juce::Justification justification = juce::Justification::centredLeft)
+{
+    g.setColour(colour);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), size, juce::Font::plain)));
+    g.drawFittedText(value, x, y, w, h, justification, 1);
+}
 void panel(juce::Graphics& g, float x, float y, float w, float h)
 {
     const auto area = juce::Rectangle<float>(x, y, w, h);
-    g.setGradientFill(juce::ColourGradient(surface, x, y, juce::Colour(0xff180d0e), x, y + h, false));
+    g.setColour(surface); g.fillRect(area);
+    g.setColour(border); g.drawRect(area.reduced(0.5f), 1.0f);
+}
+void screen(juce::Graphics& g, float x, float y, float w, float h)
+{
+    const auto area = juce::Rectangle<float>(x, y, w, h);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff120e0e), x, y,
+                                          juce::Colour(0xff080707), x + w, y + h, false));
     g.fillRoundedRectangle(area, 4.0f);
-    g.setColour(border.withAlpha(0.82f));
-    g.drawRoundedRectangle(area.reduced(0.5f), 4.0f, 1.0f);
-    g.setColour(juce::Colours::white.withAlpha(0.035f));
-    g.drawLine(x + 12.0f, y + 1.0f, x + w - 12.0f, y + 1.0f);
+    g.setColour(juce::Colour(0xffb64135)); g.drawRoundedRectangle(area.reduced(0.5f), 4.0f, 1.0f);
+    g.setColour(juce::Colour(0x22ffae9a)); g.drawRoundedRectangle(area.reduced(3.0f), 2.0f, 0.5f);
 }
 void separator(juce::Graphics& g, float x1, float x2, float y)
 {
     g.setColour(border.withAlpha(0.7f));
     g.drawLine(x1, y, x2, y, 1.0f);
 }
-void sectionHeader(juce::Graphics& g, const juce::String& number, const juce::String& title,
-                   const juce::String& detail, int x, int y, int width)
-{
-    text(g, number, x, y, 27, 18, 10.0f, accent, juce::Font::bold);
-    text(g, title, x + 31, y, width - 31, 18, 12.0f, textPrimary, juce::Font::bold);
-    text(g, detail, x + 31, y + 22, width - 31, 18, 11.0f, textSecondary);
-}
 void graphBackground(juce::Graphics& g, juce::Rectangle<float> area)
 {
-    g.setColour(surfaceDark); g.fillRoundedRectangle(area, 6.0f);
-    g.setColour(border.withAlpha(0.52f)); g.drawRoundedRectangle(area.reduced(0.5f), 6.0f, 1.0f);
+    g.setColour(surfaceDark); g.fillRect(area);
+    g.setColour(border.withAlpha(0.80f)); g.drawRect(area.reduced(0.5f), 1.0f);
     g.saveState();
     g.reduceClipRegion(area.reduced(1.0f).toNearestInt());
     g.setColour(juce::Colour(0xff512725).withAlpha(0.55f));
@@ -106,16 +112,24 @@ void drawLfo(juce::Graphics& g, juce::Rectangle<float> area, const vanta::Parame
     graphBackground(g, area);
     auto r = area.reduced(12.0f, 15.0f);
     juce::Path line;
-    // This shows the selected depth/rate, not an oscilloscope of the audio.
+    // Draw a faint full-depth guide like the approved preview, plus the actual
+    // parameter curve. Neither is a live oscilloscope.
     const auto cycles = juce::jmap(p[vanta::vibratoRate], 0.1f, 12.0f, 1.0f, 5.0f);
     const auto depth = p[vanta::vibrato];
+    juce::Path guide;
     for (int i = 0; i <= 180; ++i)
     {
         const float t = static_cast<float>(i) / 180.0f;
         const float x = r.getX() + t * r.getWidth();
-        const float y = r.getCentreY() - std::sin(t * cycles * juce::MathConstants<float>::twoPi) * r.getHeight() * 0.43f * depth;
-        if (i == 0) line.startNewSubPath(x, y); else line.lineTo(x, y);
+        const float fullY = r.getCentreY() - std::sin(t * cycles * juce::MathConstants<float>::twoPi) * r.getHeight() * 0.43f;
+        const float y = r.getCentreY() + (fullY - r.getCentreY()) * depth;
+        if (i == 0) { line.startNewSubPath(x, y); guide.startNewSubPath(x, fullY); }
+        else { line.lineTo(x, y); guide.lineTo(x, fullY); }
     }
+    juce::Path dashed;
+    const float lengths[] = { 3.0f, 5.0f };
+    juce::PathStrokeType(0.8f).createDashedStroke(dashed, guide, lengths, 2);
+    g.setColour(mint.withAlpha(0.28f)); g.fillPath(dashed);
     g.setColour(mint); g.strokePath(line, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 void drawFilter(juce::Graphics& g, juce::Rectangle<float> area, const vanta::ParameterValues& p)
@@ -139,32 +153,37 @@ void drawFilter(juce::Graphics& g, juce::Rectangle<float> area, const vanta::Par
 void effectIllustration(juce::Graphics& g, int effect, juce::Rectangle<float> area, const vanta::ParameterValues& p)
 {
     graphBackground(g, area);
-    const auto c = area.getCentre();
+    const auto r = area.reduced(8.0f, 8.0f);
+    juce::Path line;
     if (effect == 0)
     {
-        for (int i = 5; i >= 1; --i)
+        // A bounded, illustrative decaying reverb response, not a measurement.
+        for (int i = 0; i <= 160; ++i)
         {
-            const float radius = 9.0f + static_cast<float>(i) * 12.0f;
-            g.setColour(accent.withAlpha(0.10f + (5.0f - static_cast<float>(i)) * 0.055f));
-            g.drawEllipse(c.x - radius, c.y - radius, radius * 2.0f, radius * 2.0f, 1.5f);
+            const float t = static_cast<float>(i) / 160.0f;
+            const float decay = 2.0f + 3.0f * (1.0f - p[vanta::reverbDecay]);
+            const float sample = std::abs(std::sin(t * 9.0f * juce::MathConstants<float>::pi)) * std::exp(-decay * t);
+            const float x = r.getX() + t * r.getWidth();
+            const float y = r.getBottom() - sample * r.getHeight() * 0.82f;
+            if (i == 0) line.startNewSubPath(x, y); else line.lineTo(x, y);
         }
-        g.setColour(accent); g.fillEllipse(c.x - 3.0f, c.y - 3.0f, 6.0f, 6.0f);
+        g.setColour(accent); g.strokePath(line, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
     else if (effect == 1)
     {
+        const float baseline = r.getBottom();
+        g.setColour(accent.withAlpha(0.65f)); g.drawLine(r.getX(), baseline, r.getRight(), baseline, 1.0f);
         for (int i = 0; i < 6; ++i)
         {
-            const float h = 60.0f * std::pow(0.69f, static_cast<float>(i));
-            g.setColour(mint.withAlpha(0.95f - static_cast<float>(i) * 0.13f));
-            g.fillRoundedRectangle(area.getX() + 42.0f + static_cast<float>(i) * 35.0f, c.y - h * 0.5f, 5.0f, h, 2.5f);
+            const float x = r.getX() + static_cast<float>(i) * (r.getWidth() / 6.0f);
+            const float h = r.getHeight() * 0.8f * std::pow(0.25f + 0.7f * p[vanta::delayFeedback], static_cast<float>(i));
+            g.setColour(accent.withAlpha(0.95f - static_cast<float>(i) * 0.10f));
+            g.drawLine(x, baseline, x, baseline - h, 1.8f);
         }
     }
     else
     {
-        auto r = area.reduced(32.0f, 25.0f);
-        juce::Path line;
-        const float drive = p[vanta::distortionDrive];
-        const float norm = std::tanh(drive);
+        const float drive = p[vanta::distortionDrive], norm = std::tanh(drive);
         for (int i = 0; i <= 100; ++i)
         {
             const float t = static_cast<float>(i) / 100.0f;
@@ -172,7 +191,7 @@ void effectIllustration(juce::Graphics& g, int effect, juce::Rectangle<float> ar
             if (i == 0) line.startNewSubPath(r.getX(), r.getCentreY() - y * r.getHeight() * 0.5f);
             else line.lineTo(r.getX() + t * r.getWidth(), r.getCentreY() - y * r.getHeight() * 0.5f);
         }
-        g.setColour(accent); g.strokePath(line, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour(accent); g.strokePath(line, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 }
 }
@@ -191,77 +210,88 @@ VantaLook::VantaLook()
 void VantaLook::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
                                  float position, float start, float end, juce::Slider& slider)
 {
-    const float size = juce::jmax(10.0f, static_cast<float>(juce::jmin(width, height)) - 12.0f);
+    const float size = juce::jmax(10.0f, static_cast<float>(juce::jmin(width, height)) - 6.0f);
     const auto bounds = juce::Rectangle<float>(static_cast<float>(x) + (static_cast<float>(width) - size) * 0.5f,
                                               static_cast<float>(y) + (static_cast<float>(height) - size) * 0.5f, size, size);
     const auto centre = bounds.getCentre();
-    const float radius = size * 0.45f;
+    const float radius = size * 0.42f;
     juce::Path track; track.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, start, end, true);
-    g.setColour(juce::Colour(0xff572725));
-    g.strokePath(track, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour(juce::Colour(0xff632325));
+    g.strokePath(track, juce::PathStrokeType(2.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     juce::Path progress; progress.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, start, start + position * (end - start), true);
+    g.setColour(accent.withAlpha(0.20f));
+    g.strokePath(progress, juce::PathStrokeType(6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour(accent);
     g.strokePath(progress, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    auto inner = bounds.reduced(size * 0.17f);
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff542722), inner.getX(), inner.getY(), juce::Colour(0xff1a1010), inner.getX(), inner.getBottom(), false));
+    const auto inner = bounds.reduced(size * 0.17f);
+    g.setColour(juce::Colour(0xff250e0f)); g.fillEllipse(inner.expanded(3.0f));
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff332323), centre.x, inner.getY(),
+                                          juce::Colour(0xff0a0808), centre.x, inner.getBottom(), false));
     g.fillEllipse(inner);
-    g.setColour(juce::Colour(0xff8f4436)); g.drawEllipse(inner, 1.0f);
+    g.setColour(juce::Colour(0xffbd3932)); g.drawEllipse(inner, 1.0f);
     const auto angle = start + position * (end - start);
-    g.setColour(textPrimary);
-    g.drawLine(centre.x + std::sin(angle) * radius * 0.58f, centre.y - std::cos(angle) * radius * 0.58f,
-               centre.x + std::sin(angle) * radius * 0.73f, centre.y - std::cos(angle) * radius * 0.73f, 2.0f);
-    text(g, slider.getTextFromValue(slider.getValue()), static_cast<int>(inner.getX()), static_cast<int>(centre.y - 8.0f),
-         static_cast<int>(inner.getWidth()), 16, juce::jlimit(9.0f, 12.0f, size * 0.14f), textPrimary, juce::Font::bold, juce::Justification::centred);
+    const float markerX = centre.x + std::sin(angle) * radius, markerY = centre.y - std::cos(angle) * radius;
+    g.setColour(juce::Colour(0xffffd58e)); g.fillEllipse(markerX - 2.5f, markerY - 2.5f, 5.0f, 5.0f);
+    const auto label = slider.getProperties().getWithDefault("faceLabel", {}).toString();
+    text(g, label, static_cast<int>(inner.getX() + 2.0f), static_cast<int>(centre.y - 16.0f),
+         static_cast<int>(inner.getWidth() - 4.0f), 14, juce::jlimit(7.5f, 9.5f, size * 0.105f), textSecondary, juce::Font::bold, juce::Justification::centred);
+    mono(g, slider.getTextFromValue(slider.getValue()), static_cast<int>(inner.getX()), static_cast<int>(centre.y + 1.0f),
+         static_cast<int>(inner.getWidth()), 16, juce::jlimit(9.0f, 12.0f, size * 0.13f), textPrimary, juce::Justification::centred);
 }
 void VantaLook::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height, float position,
-                                 float, float, juce::Slider::SliderStyle style, juce::Slider&)
+                                 float, float, juce::Slider::SliderStyle style, juce::Slider& slider)
 {
+    const float alpha = slider.isEnabled() ? 1.0f : 0.38f;
     if (style == juce::Slider::LinearVertical)
     {
         const auto centre = static_cast<float>(x) + static_cast<float>(width) * 0.5f;
         const auto top = static_cast<float>(y) + 7.0f, bottom = static_cast<float>(y + height) - 7.0f;
         const auto pos = juce::jlimit(top, bottom, position);
-        g.setColour(juce::Colour(0xff632e28)); g.fillRoundedRectangle(centre - 2.0f, top, 4.0f, bottom - top, 2.0f);
-        g.setColour(accent); g.fillRoundedRectangle(centre - 2.0f, pos, 4.0f, bottom - pos, 2.0f);
-        g.setColour(textPrimary); g.fillRoundedRectangle(centre - 11.0f, pos - 4.0f, 22.0f, 8.0f, 2.0f);
+        g.setColour(juce::Colour(0xff321213).withAlpha(alpha)); g.fillRect(centre - 2.0f, top, 4.0f, bottom - top);
+        g.setColour(accent.withAlpha(alpha)); g.fillRect(centre - 2.0f, pos, 4.0f, bottom - pos);
+        g.setColour(juce::Colour(0xffffdfa3).withAlpha(alpha)); g.fillRect(centre - 8.0f, pos - 4.0f, 16.0f, 8.0f);
         return;
     }
     const float mid = static_cast<float>(y) + static_cast<float>(height) * 0.5f;
-    const float left = static_cast<float>(x) + 5.0f;
-    const float right = static_cast<float>(x + width) - 5.0f;
+    const float left = static_cast<float>(x) + 5.0f, right = static_cast<float>(x + width) - 5.0f;
     const float pos = juce::jlimit(left, right, position);
-    g.setColour(juce::Colour(0xff632e28)); g.fillRoundedRectangle(left, mid - 2.0f, right - left, 4.0f, 2.0f);
-    g.setColour(accent); g.fillRoundedRectangle(left, mid - 2.0f, juce::jmax(0.0f, pos - left), 4.0f, 2.0f);
-    g.setColour(textPrimary); g.fillEllipse(pos - 5.0f, mid - 5.0f, 10.0f, 10.0f);
+    g.setColour(juce::Colour(0xff250a0c).withAlpha(alpha)); g.fillRect(left, mid - 2.5f, right - left, 5.0f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffffb05e).withAlpha(alpha), left, mid,
+                                          accent.withAlpha(alpha), right, mid, false));
+    g.fillRect(left, mid - 1.5f, juce::jmax(0.0f, pos - left), 3.0f);
+    g.setColour(juce::Colour(0xffffdfa3).withAlpha(alpha)); g.fillRect(pos - 3.5f, mid - 6.0f, 7.0f, 12.0f);
+    g.setColour(juce::Colour(0xff6c2a1e).withAlpha(alpha)); g.drawRect(pos - 3.5f, mid - 6.0f, 7.0f, 12.0f, 1.0f);
 }
 void VantaLook::drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour&, bool hovered, bool down)
 {
     const auto role = button.getProperties().getWithDefault("role", {}).toString();
-    auto area = button.getLocalBounds().toFloat().reduced(0.5f);
+    const auto area = button.getLocalBounds().toFloat().reduced(0.5f);
     const bool selected = button.getToggleState();
-    if (role == "tab")
+    if (role == "preset" || role == "arrow" || role == "link")
     {
-        if (selected || hovered)
-        {
-            g.setColour(selected ? juce::Colour(0xffffa176) : juce::Colour(0xff2b1212));
-            g.fillRoundedRectangle(area, 6.0f);
-        }
-        if (selected)
-        {
-            g.setColour(accent); g.fillRoundedRectangle(area.getX() + 12.0f, area.getBottom() - 3.0f, area.getWidth() - 24.0f, 2.0f, 1.0f);
-        }
+        if (hovered && button.isEnabled() && role != "link") { g.setColour(juce::Colour(0x443e1715)); g.fillRect(area); }
         return;
     }
-    auto fill = selected ? juce::Colour(0xff71271f) : juce::Colour(0xff2b1112);
-    if (role == "preset") fill = juce::Colour(0xff100a0a);
-    if (role == "presetRow") fill = selected ? juce::Colour(0xff53201b) : juce::Colour(0xff1a0d0e);
-    if (role == "primary") fill = juce::Colour(0xff7d2b24);
-    if (hovered && button.isEnabled()) fill = fill.brighter(0.12f);
+    if (role == "tab")
+    {
+        if (selected)
+        {
+            g.setGradientFill(juce::ColourGradient(juce::Colour(0xffffcc80), area.getX(), area.getY(),
+                                                  juce::Colour(0xfff0854e), area.getX(), area.getBottom(), false));
+            g.fillRect(area);
+            g.setColour(juce::Colour(0xffffd9a8)); g.drawRect(area, 1.0f);
+        }
+        else { g.setColour(hovered ? juce::Colour(0xff481a1b) : juce::Colour(0xff231112)); g.fillRect(area); }
+        return;
+    }
+    auto fill = selected ? juce::Colour(0xff5f1d1c) : juce::Colour(0xff211112);
+    if (role == "presetRow") fill = selected ? juce::Colour(0xff5f1d1c) : juce::Colour(0xff1a0d0e);
+    if (role == "primary") fill = juce::Colour(0xff491a1c);
+    if (hovered && button.isEnabled()) fill = fill.brighter(0.13f);
     if (down) fill = fill.brighter(0.10f);
     if (!button.isEnabled()) fill = fill.withMultipliedAlpha(0.45f);
-    g.setColour(fill); g.fillRoundedRectangle(area, role == "preset" ? 7.0f : 6.0f);
-    g.setColour(selected ? accent.withAlpha(0.75f) : border);
-    g.drawRoundedRectangle(area, role == "preset" ? 7.0f : 6.0f, 1.0f);
+    g.setColour(fill); g.fillRect(area);
+    g.setColour(selected ? accent.withAlpha(0.75f) : juce::Colour(0xff71302c)); g.drawRect(area, 1.0f);
 }
 void VantaLook::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool, bool)
 {
@@ -270,31 +300,41 @@ void VantaLook::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool
     const bool enabled = button.isEnabled();
     if (role == "preset")
     {
-        text(g, "CURRENT PRESET", 12, 6, area.getWidth() - 42, 13, 9.0f, textMuted, juce::Font::bold);
-        text(g, button.getButtonText(), 12, 20, area.getWidth() - 42, 22, 13.0f, textPrimary, juce::Font::bold);
-        const float cx = static_cast<float>(area.getRight() - 19), cy = static_cast<float>(area.getCentreY());
-        juce::Path chevron; chevron.startNewSubPath(cx - 4.0f, cy - 2.0f); chevron.lineTo(cx, cy + 2.0f); chevron.lineTo(cx + 4.0f, cy - 2.0f);
-        g.setColour(accent); g.strokePath(chevron, juce::PathStrokeType(1.5f));
+        const auto category = button.getProperties().getWithDefault("category", "USER").toString();
+        const int index = static_cast<int>(button.getProperties().getWithDefault("presetIndex", -1));
+        text(g, "PRESET", 0, 10, 56, 15, 10.0f, accent, juce::Font::bold);
+        text(g, index >= 0 ? "VANTA FACTORY   /   " + category : "USER / IMPORTED", 62, 10, area.getWidth() - 76, 15, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, index >= 0 ? juce::String(index + 1).paddedLeft('0', 3) + ":" : "---:", 0, 29, 86, 38, 31.0f, accent);
+        text(g, button.getButtonText(), 88, 31, area.getWidth() - 100, 36, 25.0f, textPrimary, juce::Font::bold);
+        mono(g, index >= 0 ? "FACTORY COLLECTION  /  CLICK TO BROWSE" : "USER PRESET  /  CLICK TO BROWSE", 0, 74, area.getWidth() - 5, 15, 9.0f, textMuted);
+        return;
+    }
+    if (role == "arrow")
+    {
+        const auto cx = static_cast<float>(area.getCentreX()), cy = static_cast<float>(area.getCentreY());
+        const bool up = button.getButtonText() == "^";
+        juce::Path chevron; chevron.startNewSubPath(cx - 7.0f, cy + (up ? 3.0f : -3.0f));
+        chevron.lineTo(cx, cy + (up ? -3.0f : 3.0f)); chevron.lineTo(cx + 7.0f, cy + (up ? 3.0f : -3.0f));
+        g.setColour(accent); g.strokePath(chevron, juce::PathStrokeType(2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         return;
     }
     if (role == "presetRow")
     {
-        text(g, button.getButtonText(), 15, 0, area.getWidth() - 140, area.getHeight(), 12.0f, textPrimary, juce::Font::bold);
-        text(g, button.getProperties().getWithDefault("category", {}).toString(), area.getWidth() - 112, 0, 90, area.getHeight(), 10.0f,
-             button.getToggleState() ? accent : textSecondary, juce::Font::bold, juce::Justification::centredRight);
+        text(g, button.getButtonText(), 15, 0, area.getWidth() - 140, area.getHeight(), 11.0f, textPrimary, juce::Font::bold);
+        mono(g, button.getProperties().getWithDefault("category", {}).toString(), area.getWidth() - 112, 0, 90, area.getHeight(), 9.0f,
+             button.getToggleState() ? accent : textSecondary, juce::Justification::centredRight);
         return;
     }
-    const float fontSize = role == "arrow" ? 17.0f : 10.5f;
-    const auto colour = role == "tab" && button.getToggleState() ? juce::Colour(0xff42120e)
-                        : (role == "tab" ? textSecondary : textPrimary);
-    text(g, button.getButtonText(), 4, 0, area.getWidth() - 8, area.getHeight(), fontSize,
+    const auto colour = role == "tab" && button.getToggleState() ? juce::Colour(0xff35100c)
+                        : (role == "tab" ? textSecondary : role == "link" ? accent : textPrimary);
+    text(g, button.getButtonText(), 4, 0, area.getWidth() - 8, area.getHeight(), role == "link" ? 9.0f : 10.0f,
          colour.withMultipliedAlpha(enabled ? 1.0f : 0.4f), juce::Font::bold, juce::Justification::centred);
 }
 void VantaLook::drawComboBox(juce::Graphics& g, int width, int height, bool down, int, int, int, int, juce::ComboBox&)
 {
     const auto area = juce::Rectangle<float>(0.5f, 0.5f, static_cast<float>(width) - 1.0f, static_cast<float>(height) - 1.0f);
-    g.setColour(down ? juce::Colour(0xff5c251f) : juce::Colour(0xff2b1112)); g.fillRoundedRectangle(area, 6.0f);
-    g.setColour(border); g.drawRoundedRectangle(area, 6.0f, 1.0f);
+    g.setColour(down ? juce::Colour(0xff5c251f) : juce::Colour(0xff2b1112)); g.fillRect(area);
+    g.setColour(border); g.drawRect(area, 1.0f);
     const float x = static_cast<float>(width) - 17.0f, y = static_cast<float>(height) * 0.5f;
     juce::Path chevron; chevron.startNewSubPath(x - 4.0f, y - 2.0f); chevron.lineTo(x, y + 2.0f); chevron.lineTo(x + 4.0f, y - 2.0f);
     g.setColour(accent); g.strokePath(chevron, juce::PathStrokeType(1.5f));
@@ -314,7 +354,8 @@ void VantaKnob::configure(juce::AudioProcessorValueTreeState& state, vanta::Para
     slider.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[parameter].id));
     slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name) + " - drag to adjust, double-click to reset");
     slider.onValueChange = [this] { if (onValueChanged) onValueChanged(); };
-    label.setText(labelText, juce::dontSendNotification);
+    slider.getProperties().set("faceLabel", labelText);
+    label.setText({}, juce::dontSendNotification);
     label.setFont(juce::FontOptions(10.0f, juce::Font::bold));
     label.setColour(juce::Label::textColourId, textSecondary);
     label.setJustificationType(juce::Justification::centred);
@@ -338,6 +379,7 @@ void VantaKnob::configure(juce::AudioProcessorValueTreeState& state, vanta::Para
         return juce::String(value * 100.0, 0) + "%";
     };
 }
+void VantaKnob::setCaption(const juce::String& caption) { label.setText(caption, juce::dontSendNotification); }
 void VantaKnob::resized()
 {
     auto area = getLocalBounds();
@@ -416,9 +458,9 @@ void VantaKeyboard::focusLost(FocusChangeType type)
 VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), processor(owner)
 {
     setLookAndFeel(&look);
-    setSize(1000, 700);
-    configureButton(previous, "<", "arrow"); previous.setComponentID("preset-previous"); previous.setTooltip("Previous factory preset"); previous.onClick = [this] { changePreset(-1); };
-    configureButton(next, ">", "arrow"); next.setComponentID("preset-next"); next.setTooltip("Next factory preset"); next.onClick = [this] { changePreset(1); };
+    setSize(editorWidth, processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone ? standaloneHeight : vstHeight);
+    configureButton(previous, "^", "arrow"); previous.setComponentID("preset-previous"); previous.setTooltip("Previous factory preset"); previous.onClick = [this] { changePreset(-1); };
+    configureButton(next, "v", "arrow"); next.setComponentID("preset-next"); next.setTooltip("Next factory preset"); next.onClick = [this] { changePreset(1); };
     configureButton(browserButton, "VANTA INIT", "preset"); browserButton.setComponentID("preset-browser"); browserButton.setTooltip("Browse and search factory sounds");
     browserButton.onClick = [this] { browserOpen = !browserOpen; refresh(); };
     configureButton(writeButton, "WRITE"); writeButton.setComponentID("preset-save"); writeButton.setTooltip("Save a VANTA preset"); writeButton.onClick = [this] { savePreset(); };
@@ -458,9 +500,36 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     levelSlider.setTitle("Master level"); levelSlider.setComponentID("parameter-level"); levelSlider.setTooltip("Master output level"); addAndMakeVisible(levelSlider);
     levelSlider.onValueChange = [this] { repaint(); };
     levelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "level", levelSlider);
+    const vanta::Parameter miniIds[] = { vanta::decay, vanta::sustain, vanta::vibratoRate };
+    for (int i = 0; i < 3; ++i)
+    {
+        auto& slider = mainMiniSliders[static_cast<std::size_t>(i)];
+        const auto parameter = miniIds[i];
+        slider.setSliderStyle(juce::Slider::LinearHorizontal);
+        slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        slider.setTitle(vanta::parameterSpecs[parameter].name);
+        slider.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[parameter].id));
+        slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name));
+        slider.onValueChange = [this] { repaint(); }; addAndMakeVisible(slider);
+        mainMiniAttachments[static_cast<std::size_t>(i)] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            processor.state, vanta::parameterSpecs[parameter].id, slider);
+    }
+    configureButton(editEnvelope, "EDIT >", "link"); editEnvelope.setComponentID("edit-envelope");
+    editEnvelope.setTooltip("Open amplitude envelope controls"); editEnvelope.onClick = [this] { selectPage(3); };
+    configureButton(editVibrato, "EDIT >", "link"); editVibrato.setComponentID("edit-vibrato");
+    editVibrato.setTooltip("Open vibrato controls"); editVibrato.onClick = [this] { selectPage(3); };
     waveform.addItem("SINE", 1); waveform.addItem("SAW", 2); waveform.addItem("SQUARE", 3); waveform.addItem("TRIANGLE", 4); waveform.addItem("WAVETABLE", 5); waveform.addItem("SAMPLE", 6);
     waveform.setTitle("Selected oscillator waveform"); waveform.setComponentID("parameter-wave");
     waveform.setTooltip("Choose the selected oscillator's waveform"); waveform.onChange = [this] { setWaveform(waveform.getSelectedId() - 1); }; addAndMakeVisible(waveform);
+    const char* waveNames[] = { "SINE", "SAW", "SQUARE", "TRIANGLE" };
+    const char* waveIds[] = { "wave-sine", "wave-saw", "wave-square", "wave-triangle" };
+    for (int i = 0; i < 4; ++i)
+    {
+        auto& waveButton = waveButtons[static_cast<std::size_t>(i)];
+        configureButton(waveButton, waveNames[i], "filter"); waveButton.setComponentID(waveIds[i]);
+        waveButton.setTooltip("Select " + juce::String(waveNames[i]) + " for this oscillator");
+        waveButton.onClick = [this, i] { setWaveform(i); };
+    }
 
     for (int layer = 0; layer < vanta::oscillatorCount; ++layer)
     {
@@ -491,7 +560,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
                 vanta::parameterSpecs[vanta::oscillatorTablePosition(layer)].id, position);
         auto setupMixerSlider = [this, i, &letter](juce::Slider& slider, vanta::Parameter parameter, bool vertical)
         {
-            slider.setSliderStyle(vertical ? juce::Slider::LinearVertical : juce::Slider::LinearHorizontal);
+            slider.setSliderStyle(juce::Slider::LinearHorizontal);
             slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
             slider.setTitle(vanta::parameterSpecs[parameter].name);
             slider.setComponentID("mixer-" + juce::String(vanta::parameterSpecs[parameter].id));
@@ -532,12 +601,14 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     multibandMixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "ottMix", multibandMix);
 
     const vanta::Parameter mainIds[] = { vanta::cutoff, vanta::resonance, vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
-    const char* mainNames[] = { "CUTOFF", "RESONANCE", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DEPTH", "RATE" };
+    const char* mainNames[] = { "CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
     for (int i = 0; i < 8; ++i)
     {
         auto& knob = mainKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, mainIds[i], mainNames[i]);
         knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
     }
+    mainKnobs[0].setCaption("FILTER"); mainKnobs[1].setCaption("FILTER");
+    mainKnobs[2].setCaption("ENVELOPE"); mainKnobs[5].setCaption("ENVELOPE"); mainKnobs[6].setCaption("PITCH");
     const vanta::Parameter fxIds[] = { vanta::reverbSize, vanta::reverbDecay, vanta::reverbMix, vanta::delayTime, vanta::delayFeedback, vanta::delayMix, vanta::distortionDrive, vanta::distortionTone, vanta::distortionMix };
     const char* fxNames[] = { "SIZE", "DECAY", "MIX", "TIME", "FEEDBACK", "MIX", "DRIVE", "TONE", "MIX" };
     for (int i = 0; i < 9; ++i)
@@ -546,7 +617,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         knob.onValueChanged = [this] { repaint(); }; addAndMakeVisible(knob);
     }
     const vanta::Parameter modIds[] = { vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
-    const char* modNames[] = { "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DEPTH", "RATE" };
+    const char* modNames[] = { "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
     for (int i = 0; i < 6; ++i)
     {
         auto& knob = modulationKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, modIds[i], modNames[i]);
@@ -646,12 +717,26 @@ void VantaEditor::refresh()
         if (vanta::oscillatorIsEnabled(values, i)) { mask |= 1 << i; ++activeCount; }
     lastOscMask = mask;
     browserButton.setButtonText(processor.presetName());
+    browserButton.getProperties().set("presetIndex", currentFactory);
+    browserButton.getProperties().set("category", currentFactory >= 0 ? juce::String(VantaProcessor::factoryPresetCategory(currentFactory)) : juce::String("USER"));
     browserButton.setToggleState(browserOpen, juce::dontSendNotification);
     for (int i = 0; i < 7; ++i) tabs[static_cast<std::size_t>(i)].setToggleState(!browserOpen && i == page, juce::dontSendNotification);
     waveform.setVisible(!browserOpen && page == 1);
     waveform.setComponentID(selectedOsc == 0 ? "parameter-wave" : "parameter-" + juce::String(vanta::parameterSpecs[vanta::oscillatorWave(selectedOsc)].id));
     waveform.setSelectedId(values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? 6 : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? 5 : vanta::oscillatorShape(values, selectedOsc) + 1, juce::dontSendNotification);
-    for (int i = 0; i < 8; ++i) mainKnobs[static_cast<std::size_t>(i)].setVisible(!browserOpen && (page == 0 || (page == 1 && i < 2)));
+    for (int i = 0; i < 8; ++i)
+    {
+        const bool mainDial = i == 0 || i == 1 || i == 2 || i == 5 || i == 6;
+        mainKnobs[static_cast<std::size_t>(i)].setVisible(!browserOpen && ((page == 0 && mainDial) || (page == 1 && i < 2)));
+    }
+    for (auto& slider : mainMiniSliders) slider.setVisible(!browserOpen && page == 0);
+    editEnvelope.setVisible(!browserOpen && page == 0); editVibrato.setVisible(!browserOpen && page == 0);
+    for (int i = 0; i < 4; ++i)
+    {
+        auto& item = waveButtons[static_cast<std::size_t>(i)]; item.setVisible(!browserOpen && page == 1);
+        item.setToggleState(values[vanta::oscillatorSample(selectedOsc)] < 0.5f && values[vanta::oscillatorTable(selectedOsc)] < 0.5f
+                            && vanta::oscillatorShape(values, selectedOsc) == i, juce::dontSendNotification);
+    }
     for (auto& knob : effectKnobs) knob.setVisible(!browserOpen && page == 2);
     multibandEnabled.setVisible(!browserOpen && page == 2);
     multibandDepth.setVisible(!browserOpen && page == 2); multibandMix.setVisible(!browserOpen && page == 2);
@@ -770,204 +855,283 @@ void VantaEditor::savePreset()
 
 void VantaEditor::paint(juce::Graphics& g)
 {
-    g.fillAll(background);
-    g.setGradientFill(juce::ColourGradient(header, 0.0f, 0.0f, juce::Colour(0xff6b0b11), 1000.0f, 700.0f, false));
-    g.fillRect(getLocalBounds());
-    g.setColour(juce::Colour(0xffff7255)); g.fillRect(0, 0, 1000, 3);
-    g.setColour(juce::Colour(0xff461313)); g.drawRect(getLocalBounds().reduced(3), 1);
+    // The HTML concept is the layout reference.  This is a native, functional
+    // JUCE editor, so the preview's unimplemented mock controls stay labelled.
+    g.setGradientFill(juce::ColourGradient(header, 0.0f, 0.0f, juce::Colour(0xff710a0e),
+                                          1000.0f, static_cast<float>(getHeight()), false));
+    g.fillAll();
+    g.setColour(juce::Colour(0xffdb5040)); g.fillRect(0, 0, editorWidth, 4);
+    g.setColour(juce::Colour(0xffd04038)); g.drawRect(getLocalBounds(), 1);
+    g.setColour(juce::Colour(0x28ffc4a3)); g.drawRect(getLocalBounds().reduced(3), 1);
 
-    g.setColour(surfaceDark); g.fillRoundedRectangle(24.0f, 17.0f, 34.0f, 34.0f, 3.0f);
-    text(g, "V.", 27, 16, 29, 35, 24.0f, textPrimary, juce::Font::bold, juce::Justification::centred);
-    text(g, "VANTA", 69, 12, 160, 29, 22.0f, textPrimary, juce::Font::bold);
-    text(g, "SOFTWARE INSTRUMENT / 08", 70, 41, 210, 14, 9.0f, textSecondary, juce::Font::bold);
-    text(g, standaloneKeyboard ? "STANDALONE  /  16 VOICES" : "VST3  /  16 VOICES", 784, 52, 180, 12, 9.0f, textSecondary, juce::Font::plain, juce::Justification::centredRight);
-    panel(g, 24.0f, 66.0f, 952.0f, 72.0f);
-    text(g, "A = 440 Hz", 847, 113, 98, 14, 9.0f, textSecondary, juce::Font::plain, juce::Justification::centredRight);
-    text(g, "LEVEL", 25, 146, 60, 20, 10.0f, textPrimary, juce::Font::bold);
-    text(g, juce::String(levelSlider.getValue() * 100.0, 0) + "%", 920, 146, 53, 20, 10.0f, textPrimary, juce::Font::bold, juce::Justification::centredRight);
-    panel(g, 24.0f, 175.0f, 952.0f, 420.0f);
+    // Brand and the recessed seven-page navigation match the approved header.
+    g.setColour(juce::Colour(0xff200d0e)); g.fillRoundedRectangle(20.0f, 24.0f, 36.0f, 36.0f, 2.0f);
+    g.setColour(juce::Colour(0x99f08469)); g.drawRoundedRectangle(20.5f, 24.5f, 35.0f, 35.0f, 2.0f, 1.0f);
+    juce::Path mark; mark.startNewSubPath(27.0f, 33.0f); mark.lineTo(32.5f, 33.0f);
+    mark.lineTo(38.0f, 48.0f); mark.lineTo(43.5f, 33.0f); mark.lineTo(49.0f, 33.0f);
+    mark.lineTo(41.0f, 52.0f); mark.lineTo(35.0f, 52.0f); mark.closeSubPath();
+    g.setColour(juce::Colour(0xffffe0c4)); g.fillPath(mark);
+    g.setColour(accent); g.fillRect(46, 51, 4, 2);
+    text(g, "VANTA", 66, 19, 162, 29, 23.0f, textPrimary, juce::Font::bold);
+    mono(g, "SOFTWARE INSTRUMENT / 09", 67, 48, 210, 12, 8.5f, textSecondary);
+    g.setColour(juce::Colour(0xff150b0c)); g.fillRoundedRectangle(500.0f, 17.0f, 480.0f, 37.0f, 3.0f);
+    g.setColour(juce::Colour(0xff451417)); g.drawRoundedRectangle(500.5f, 17.5f, 479.0f, 36.0f, 3.0f, 1.0f);
+    g.setColour(juce::Colour(0xff41090b)); g.fillRect(500, 63, 350, 2);
+    mono(g, "16 VOICES / STEREO", 847, 57, 132, 15, 9.0f, textSecondary, juce::Justification::centredRight);
+
+    screen(g, 16.0f, 80.0f, 968.0f, 115.0f);
+    g.setColour(juce::Colour(0xff321417)); g.drawVerticalLine(780, 81.0f, 194.0f);
+    mono(g, "TUNING  A = 440 Hz", 807, 168, 157, 14, 9.0f, textSecondary, juce::Justification::centredRight);
+    text(g, "LEVEL", 23, 204, 55, 17, 10.0f, textPrimary, juce::Font::bold);
+    mono(g, juce::String(levelSlider.getValue() * 100.0, 0) + "%", 932, 204, 40, 17, 10.0f, textPrimary, juce::Justification::centredRight);
+    screen(g, 16.0f, 240.0f, 968.0f, 437.0f);
 
     const auto values = processor.currentValues();
     if (browserOpen)
     {
-        text(g, "LIBRARY", 44, 188, 160, 18, 10.0f, accent, juce::Font::bold);
-        text(g, "Factory sounds", 44, 210, 180, 23, 15.0f, textPrimary, juce::Font::bold);
-        g.setColour(border); g.drawVerticalLine(238, 192.0f, 569.0f);
-        text(g, "SEARCH PRESETS", 264, 190, 350, 19, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "5 FACTORY SOUNDS", 741, 190, 200, 19, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centredRight);
+        text(g, "FACTORY PRESET BROWSER", 32, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "SEARCH / SELECT A SOUND", 675, 253, 292, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        text(g, "LIBRARY", 43, 298, 160, 18, 10.0f, accent, juce::Font::bold);
+        text(g, "FACTORY SOUNDS", 43, 319, 170, 18, 10.0f, textSecondary, juce::Font::bold);
+        text(g, "SEARCH", 228, 291, 100, 18, 9.0f, textMuted, juce::Font::bold);
         const bool hasMatch = std::any_of(presetButtons.begin(), presetButtons.end(), [](const auto& button) { return button.isVisible(); });
-        if (!hasMatch) text(g, "No factory presets match this search.", 264, 278, 640, 24, 11.0f, textSecondary);
-        text(g, "Search applies to factory names and categories.", 264, 535, 640, 19, 10.0f, textMuted);
-        text(g, "Import VANTA, Vital or Serum presets above (third-party imports are approximate).", 264, 557, 640, 18, 10.0f, textMuted);
+        if (!hasMatch) mono(g, "No factory presets match this search.", 228, 365, 640, 24, 10.0f, textSecondary);
+        mono(g, "Import VANTA, Vital or Serum presets above; third-party conversions are approximate.", 228, 618, 700, 18, 9.0f, textMuted);
     }
     else if (page == 0)
     {
-        text(g, "01  PERFORMANCE / SOUND", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "16 VOICES  /  GLOBAL CONTROLS", 655, 187, 300, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
-        text(g, "01  AMP ENVELOPE", 43, 344, 300, 18, 10.0f, textPrimary, juce::Font::bold);
-        text(g, "02  PITCH VIBRATO", 518, 344, 300, 18, 10.0f, textPrimary, juce::Font::bold);
-        drawEnvelope(g, { 42.0f, 368.0f, 442.0f, 154.0f }, values);
-        drawLfo(g, { 516.0f, 368.0f, 442.0f, 154.0f }, values);
-        text(g, "ADSR  /  SUSTAIN LENGTH IS ILLUSTRATIVE", 43, 531, 430, 17, 9.0f, textMuted);
-        text(g, "SINE VIBRATO  /  NOT A LIVE AUDIO DISPLAY", 517, 531, 440, 17, 9.0f, textMuted);
+        text(g, "01", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "PERFORMANCE / SOUND", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "16 VOICES / GLOBAL CONTROLS", 660, 253, 308, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        text(g, "PLAY MODE", 32, 290, 130, 14, 9.0f, textMuted, juce::Font::bold);
+        const char* modes[] = { "POLY", "UNISON", "LEGATO", "PORTAMENTO" };
+        for (int i = 0; i < 4; ++i)
+        {
+            const int y = 309 + i * 28;
+            g.setColour(i == 0 ? juce::Colour(0xff501918) : juce::Colour(0xff160e0e)); g.fillRect(32, y, 124, 23);
+            g.setColour(i == 0 ? juce::Colour(0xff9c3a30) : juce::Colour(0xff341617)); g.drawRect(32, y, 124, 23, 1);
+            if (i == 0) { g.setColour(juce::Colour(0xffffc37a)); g.fillRect(40, y + 10, 4, 4); }
+            text(g, modes[i], 49, y + 1, 96, 21, 9.0f, i == 0 ? textPrimary : textMuted.withAlpha(0.65f), juce::Font::bold);
+        }
+        mono(g, "Additional modes are", 32, 426, 124, 12, 8.0f, textMuted);
+        mono(g, "not available yet.", 32, 438, 124, 12, 8.0f, textMuted);
+        g.setColour(border); g.drawVerticalLine(169, 290.0f, 449.0f);
+        panel(g, 32.0f, 457.0f, 464.0f, 206.0f); panel(g, 504.0f, 457.0f, 464.0f, 206.0f);
+        text(g, "01", 44, 470, 24, 16, 10.0f, accent, juce::Font::bold);
+        text(g, "AMP ENVELOPE", 69, 470, 300, 16, 10.0f, textSecondary, juce::Font::bold);
+        text(g, "02", 516, 470, 24, 16, 10.0f, accent, juce::Font::bold);
+        text(g, "PITCH VIBRATO", 541, 470, 300, 16, 10.0f, textSecondary, juce::Font::bold);
+        drawEnvelope(g, { 44.0f, 498.0f, 440.0f, 98.0f }, values);
+        drawLfo(g, { 516.0f, 498.0f, 440.0f, 98.0f }, values);
+        auto seconds = [](float v) { return v < 1.0f ? juce::String(v * 1000.0f, 0) + " ms" : juce::String(v, 2) + " s"; };
+        mono(g, "A  " + seconds(values[vanta::attack]), 44, 603, 104, 15, 9.0f, textMuted);
+        mono(g, "D  " + seconds(values[vanta::decay]), 163, 603, 104, 15, 9.0f, textMuted);
+        mono(g, "S  " + juce::String(values[vanta::sustain] * 100.0f, 0) + "%", 280, 603, 75, 15, 9.0f, textMuted);
+        mono(g, "R  " + seconds(values[vanta::release]), 366, 603, 118, 15, 9.0f, textMuted, juce::Justification::centredRight);
+        mono(g, "DEPTH  " + juce::String(values[vanta::vibrato] * 100.0f, 0) + "%", 516, 603, 115, 15, 9.0f, textMuted);
+        mono(g, "RATE  " + juce::String(values[vanta::vibratoRate], 1) + " Hz", 638, 603, 130, 15, 9.0f, textMuted);
+        mono(g, "SINE / PARAMETER VIEW", 768, 603, 188, 15, 8.5f, textMuted, juce::Justification::centredRight);
+        panel(g, 44.0f, 624.0f, 216.0f, 27.0f); panel(g, 266.0f, 624.0f, 218.0f, 27.0f);
+        panel(g, 516.0f, 624.0f, 440.0f, 27.0f);
+        text(g, "DECAY", 51, 630, 38, 15, 8.0f, textSecondary, juce::Font::bold);
+        text(g, "SUSTAIN", 272, 630, 43, 15, 8.0f, textSecondary, juce::Font::bold);
+        text(g, "RATE", 523, 630, 42, 15, 8.0f, textSecondary, juce::Font::bold);
+        mono(g, seconds(values[vanta::decay]), 201, 630, 52, 15, 8.0f, textPrimary, juce::Justification::centredRight);
+        mono(g, juce::String(values[vanta::sustain] * 100.0f, 0) + "%", 428, 630, 49, 15, 8.0f, textPrimary, juce::Justification::centredRight);
+        mono(g, juce::String(values[vanta::vibratoRate], 1) + " Hz", 870, 630, 79, 15, 8.0f, textPrimary, juce::Justification::centredRight);
     }
     else if (page == 1)
     {
-        text(g, "02  OSCILLATOR / FILTER", 42, 187, 460, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "UP TO 8 OSCILLATORS  /  GLOBAL LOW-PASS", 640, 187, 318, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
-        panel(g, 38.0f, 257.0f, 565.0f, 319.0f);
-        panel(g, 615.0f, 257.0f, 342.0f, 319.0f);
+        text(g, "02", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "OSCILLATOR / FILTER", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "UP TO 8 OSCILLATORS / GLOBAL LOW-PASS", 610, 253, 358, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        int active = 0; for (int i = 0; i < vanta::oscillatorCount; ++i) if (vanta::oscillatorIsEnabled(values, i)) ++active;
+        mono(g, juce::String(active) + " / 8 TABS", 833, 292, 134, 20, 9.0f, textMuted, juce::Justification::centredRight);
+        mono(g, "REAL OSCILLATOR LAYERS  /  SHARED FILTER AND EFFECTS", 32, 320, 730, 14, 9.0f, textMuted);
+        panel(g, 32.0f, 338.0f, 588.0f, 324.0f); panel(g, 630.0f, 338.0f, 338.0f, 224.0f); panel(g, 630.0f, 570.0f, 338.0f, 92.0f);
         const auto letter = juce::String::charToString(static_cast<juce::juce_wchar>('A' + selectedOsc));
-        text(g, "OSCILLATOR " + letter, 54, 271, 305, 18, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "WAVE", 386, 270, 48, 22, 9.0f, textMuted, juce::Font::bold);
-        drawWave(g, { 54.0f, 304.0f, 532.0f, 105.0f }, vanta::oscillatorShape(values, selectedOsc));
-        text(g, values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? "SAMPLE / SCHEMATIC PREVIEW" : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? "WAVETABLE / SCHEMATIC PREVIEW" : "WAVE SHAPE / ILLUSTRATIVE", 55, 413, 400, 15, 9.0f, textMuted);
-        if (values[vanta::oscillatorTable(selectedOsc)] >= 0.5f) text(g, "TABLE POSITION", 55, 579, 102, 20, 9.0f, textMuted);
-        text(g, "GLOBAL LOW-PASS", 632, 271, 285, 18, 11.0f, textPrimary, juce::Font::bold);
-        drawFilter(g, { 632.0f, 305.0f, 308.0f, 88.0f }, values);
-        text(g, "ALL ENABLED OSCILLATORS SHARE THIS FILTER", 632, 548, 307, 16, 9.0f, textMuted);
+        text(g, "01", 44, 352, 22, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "OSCILLATOR " + letter, 69, 352, 142, 17, 10.0f, textSecondary, juce::Font::bold);
+        drawWave(g, { 44.0f, 384.0f, 564.0f, 114.0f }, vanta::oscillatorShape(values, selectedOsc));
+        mono(g, values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? "SAMPLE / SCHEMATIC" : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? "WAVETABLE / SCHEMATIC" : "WAVE SHAPE / ILLUSTRATIVE", 44, 502, 350, 14, 9.0f, textMuted);
+        mono(g, "16 POLY / GLOBAL FILTER", 423, 502, 185, 14, 9.0f, textMuted, juce::Justification::centredRight);
+        if (values[vanta::oscillatorTable(selectedOsc)] >= 0.5f) text(g, "TABLE POSITION", 44, 632, 102, 18, 9.0f, textSecondary, juce::Font::bold);
+        else mono(g, "SELECT AN IMPORTED SOURCE IN THE SOURCE MENU", 44, 630, 546, 18, 8.5f, textMuted);
+        text(g, "02", 642, 352, 22, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "GLOBAL LOW-PASS", 667, 352, 205, 17, 10.0f, textSecondary, juce::Font::bold);
+        drawFilter(g, { 642.0f, 384.0f, 314.0f, 62.0f }, values);
+        text(g, "03", 642, 584, 22, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "IMPORTED SOURCES", 667, 584, 250, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "WAVETABLE / SAMPLE WHEN AVAILABLE", 642, 612, 306, 16, 9.0f, textMuted);
+        mono(g, "UNISON + EXTRA ENGINES / PLANNED", 642, 632, 306, 16, 9.0f, textMuted);
     }
     else if (page == 2)
     {
-        text(g, "03  EFFECTS / SIGNAL CHAIN", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "REVERB  >  DELAY  >  DISTORTION  >  MULTIBAND", 600, 187, 358, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
+        text(g, "03", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "EFFECTS / SIGNAL CHAIN", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "REVERB > DELAY > DISTORTION > MULTIBAND", 585, 253, 383, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        mono(g, "OSC + FILTER   >   REVERB   >   DELAY   >   DISTORTION   >   MULTIBAND   >   OUTPUT", 32, 289, 900, 20, 9.0f, textSecondary);
         const char* titles[] = { "01 / REVERB", "02 / DELAY", "03 / DISTORTION" };
         for (int i = 0; i < 3; ++i)
         {
-            const int x = 38 + i * 306;
-            panel(g, static_cast<float>(x), 225.0f, 296.0f, 350.0f);
-            text(g, titles[i], x + 14, 239, 260, 20, 11.0f, textPrimary, juce::Font::bold);
-            effectIllustration(g, i, { static_cast<float>(x + 14), 273.0f, 268.0f, 135.0f }, values);
-            text(g, "ILLUSTRATIVE RESPONSE", x + 14, 414, 260, 14, 9.0f, textMuted);
+            const int x = 32 + i * 314;
+            panel(g, static_cast<float>(x), 320.0f, 308.0f, 252.0f);
+            text(g, titles[i], x + 12, 331, 245, 20, 10.0f, textSecondary, juce::Font::bold);
+            effectIllustration(g, i, { static_cast<float>(x + 12), 366.0f, 284.0f, 65.0f }, values);
+            mono(g, "ILLUSTRATIVE RESPONSE", x + 12, 435, 275, 13, 8.5f, textMuted);
         }
-        text(g, "DEPTH", 200, 581, 58, 20, 9.0f, textMuted);
-        text(g, "MIX", 542, 581, 40, 20, 9.0f, textMuted);
+        panel(g, 32.0f, 582.0f, 936.0f, 80.0f);
+        text(g, "04 / THREE-BAND DYNAMICS", 44, 591, 320, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "VANTA APPROXIMATION / HIGH BAND +3 dB", 630, 591, 326, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        text(g, "DEPTH", 201, 622, 51, 17, 9.0f, textSecondary, juce::Font::bold);
+        text(g, "MIX", 514, 622, 36, 17, 9.0f, textSecondary, juce::Font::bold);
     }
     else if (page == 3)
     {
-        text(g, "04  MODULATION / ENVELOPE", 42, 187, 460, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "AMP ENVELOPE  /  SINE PITCH VIBRATO", 640, 187, 318, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
-        panel(g, 38.0f, 225.0f, 565.0f, 350.0f); panel(g, 615.0f, 225.0f, 342.0f, 350.0f);
-        text(g, "01 / AMPLITUDE ENVELOPE", 54, 239, 480, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "02 / PITCH VIBRATO", 632, 239, 300, 20, 11.0f, textPrimary, juce::Font::bold);
-        drawEnvelope(g, { 54.0f, 272.0f, 532.0f, 120.0f }, values);
-        drawLfo(g, { 632.0f, 272.0f, 308.0f, 120.0f }, values);
-        text(g, "MORE ENVELOPES AND THE MOD MATRIX ARE PLANNED", 54, 550, 520, 15, 9.0f, textMuted);
-        text(g, "IMPORTED LFO ROUTES PLAY; EDITING PLANNED", 632, 550, 308, 15, 9.0f, textMuted);
+        text(g, "04", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "MODULATION / ENVELOPE", 57, 253, 420, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "AMP ENVELOPE / SINE PITCH VIBRATO", 630, 253, 338, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        panel(g, 32.0f, 289.0f, 464.0f, 337.0f); panel(g, 504.0f, 289.0f, 464.0f, 337.0f);
+        text(g, "01", 44, 302, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "AMPLITUDE ENVELOPE", 69, 302, 310, 17, 10.0f, textSecondary, juce::Font::bold);
+        text(g, "02", 516, 302, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "PITCH VIBRATO", 541, 302, 310, 17, 10.0f, textSecondary, juce::Font::bold);
+        drawEnvelope(g, { 44.0f, 335.0f, 440.0f, 122.0f }, values);
+        drawLfo(g, { 516.0f, 335.0f, 440.0f, 122.0f }, values);
+        mono(g, "ONE SHARED AMPLITUDE ENVELOPE", 44, 600, 420, 15, 9.0f, textMuted);
+        mono(g, "IMPORTED LFO ROUTES PLAY / EDITING PLANNED", 516, 600, 438, 15, 9.0f, textMuted);
+        panel(g, 32.0f, 636.0f, 936.0f, 26.0f);
+        text(g, "MIDI INPUT", 44, 641, 90, 16, 9.0f, textSecondary, juce::Font::bold);
+        mono(g, "VELOCITY > AMP   /   PITCH BEND +/-2 ST   /   SUSTAIN CC64", 137, 641, 800, 16, 9.0f, textMuted);
     }
     else if (page == 4)
     {
-        text(g, "05  MIXER / ROUTING", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "LAYER LEVEL + PAN  /  GLOBAL FILTER AND FX", 630, 187, 328, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
+        text(g, "05", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "MIXER / ROUTING", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "LAYER LEVEL + PAN / GLOBAL FILTER AND FX", 620, 253, 348, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        mono(g, "EIGHT REAL OSCILLATOR CHANNELS", 32, 288, 500, 16, 9.0f, textMuted);
         for (int layer = 0; layer < vanta::oscillatorCount; ++layer)
         {
-            const int x = 38 + layer * 115;
-            panel(g, static_cast<float>(x), 225.0f, 106.0f, 350.0f);
+            const int x = 32 + (layer % 4) * 236, y = 312 + (layer / 4) * 146;
+            panel(g, static_cast<float>(x), static_cast<float>(y), 228.0f, 138.0f);
             const auto letter = juce::String::charToString(static_cast<juce::juce_wchar>('A' + layer));
-            text(g, "OSC " + letter, x + 9, 237, 88, 18, 10.0f, textPrimary, juce::Font::bold, juce::Justification::centred);
-            text(g, juce::String(values[vanta::oscillatorLevel(layer)] * 100.0f, 0) + "%", x + 9, 464, 88, 18, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centred);
-            text(g, "PAN", x + 9, 490, 88, 15, 9.0f, textMuted, juce::Font::bold, juce::Justification::centred);
-            text(g, "LAYER", x + 9, 553, 88, 14, 8.0f, textMuted, juce::Font::plain, juce::Justification::centred);
+            text(g, "OSC " + letter, x + 11, y + 10, 100, 18, 10.0f, textSecondary, juce::Font::bold);
+            mono(g, vanta::oscillatorIsEnabled(values, layer) ? "ACTIVE" : "OFF", x + 132, y + 10, 83, 18, 9.0f, textMuted, juce::Justification::centredRight);
+            mono(g, "LEVEL", x + 11, y + 40, 55, 18, 9.0f, textMuted);
+            mono(g, "PAN", x + 11, y + 68, 55, 18, 9.0f, textMuted);
+            mono(g, juce::String(values[vanta::oscillatorLevel(layer)] * 100.0f, 0) + "%", x + 165, y + 104, 50, 18, 9.0f, textSecondary, juce::Justification::centredRight);
         }
+        panel(g, 32.0f, 615.0f, 936.0f, 47.0f);
+        text(g, "ROUTING", 44, 625, 78, 18, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "ALL LAYERS SHARE THE GLOBAL LOW-PASS, ENVELOPE AND EFFECTS", 130, 625, 810, 18, 9.0f, textMuted);
     }
     else if (page == 5)
     {
-        text(g, "06  SEQUENCING", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "DESIGN TARGETS / NOT IMPLEMENTED", 630, 187, 328, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
-        panel(g, 38.0f, 225.0f, 450.0f, 350.0f); panel(g, 508.0f, 225.0f, 449.0f, 350.0f);
-        text(g, "01 / ARPEGGIATOR", 54, 240, 300, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "32 STEPS / PLANNED", 54, 265, 300, 18, 9.0f, textSecondary);
-        text(g, "02 / CLIP + AUTOMATION", 524, 240, 360, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "64 STEPS / PLANNED", 524, 265, 300, 18, 9.0f, textSecondary);
+        text(g, "06", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "SEQUENCING", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "DESIGN TARGETS / NOT IMPLEMENTED", 630, 253, 338, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        panel(g, 32.0f, 290.0f, 464.0f, 372.0f); panel(g, 504.0f, 290.0f, 464.0f, 372.0f);
+        text(g, "01 / ARPEGGIATOR", 44, 305, 300, 20, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "32 STEPS / PLANNED", 44, 331, 300, 18, 9.0f, textMuted);
+        text(g, "02 / CLIP SEQUENCER", 516, 305, 300, 20, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "64 STEPS / PLANNED", 516, 331, 300, 18, 9.0f, textMuted);
         for (int i = 0; i < 32; ++i)
         {
-            const float x = static_cast<float>(54 + (i % 16) * 25), y = static_cast<float>(303 + (i / 16) * 30);
-            g.setColour((i % 4 == 0) ? juce::Colour(0xff8e4137) : surfaceDark); g.fillRect(x, y, 20.0f, 23.0f);
-            g.setColour(border); g.drawRect(x, y, 20.0f, 23.0f, 1.0f);
+            const float x = static_cast<float>(44 + (i % 16) * 26), y = static_cast<float>(371 + (i / 16) * 32);
+            g.setColour((i % 4 == 0) ? juce::Colour(0xff8e4137) : surfaceDark); g.fillRect(x, y, 21.0f, 24.0f);
+            g.setColour(border); g.drawRect(x, y, 21.0f, 24.0f, 1.0f);
         }
         for (int i = 0; i < 64; ++i)
         {
-            const float x = static_cast<float>(524 + (i % 16) * 25), y = static_cast<float>(303 + (i / 16) * 30);
-            g.setColour((i % 7 == 0) ? juce::Colour(0xff8e4137) : surfaceDark); g.fillRect(x, y, 20.0f, 23.0f);
-            g.setColour(border); g.drawRect(x, y, 20.0f, 23.0f, 1.0f);
+            const float x = static_cast<float>(516 + (i % 16) * 26), y = static_cast<float>(371 + (i / 16) * 32);
+            g.setColour((i % 7 == 0) ? juce::Colour(0xff8e4137) : surfaceDark); g.fillRect(x, y, 21.0f, 24.0f);
+            g.setColour(border); g.drawRect(x, y, 21.0f, 24.0f, 1.0f);
         }
-        text(g, "Not playable yet; planned for a future build.", 54, 499, 400, 26, 11.0f, textSecondary);
-        text(g, "Not playable yet; planned for a future build.", 524, 499, 400, 26, 11.0f, textSecondary);
+        mono(g, "NOT PLAYABLE / PLANNED FOR A FUTURE BUILD", 44, 592, 420, 18, 9.0f, textMuted);
+        mono(g, "NOT PLAYABLE / PLANNED FOR A FUTURE BUILD", 516, 592, 420, 18, 9.0f, textMuted);
     }
     else
     {
-        text(g, "07  SYSTEM / INFORMATION", 42, 187, 450, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, "WINDOWS  /  VST3 + STANDALONE", 650, 187, 308, 20, 9.0f, textMuted, juce::Font::bold, juce::Justification::centredRight);
-        separator(g, 42.0f, 958.0f, 210.0f);
-        panel(g, 38.0f, 225.0f, 565.0f, 350.0f); panel(g, 615.0f, 225.0f, 342.0f, 350.0f);
-        text(g, "01 / AUDIO & MIDI", 54, 242, 500, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, standaloneKeyboard ? "Options > Audio/MIDI Settings" : "Audio and MIDI are configured in your DAW.", 54, 278, 520, 23, 13.0f, textSecondary);
-        text(g, "16 voices  /  velocity  /  sustain  /  pitch bend", 54, 315, 520, 23, 12.0f, textPrimary);
-        text(g, "Up to 8 analog oscillators  /  shared filter and effects", 54, 344, 520, 23, 11.0f, textSecondary);
-        text(g, "More synthesis, modulation and effects are planned.", 54, 373, 520, 23, 11.0f, textSecondary);
-        text(g, "VANTA BETA 0.8", 54, 538, 300, 18, 10.0f, textMuted, juce::Font::bold);
-        text(g, "02 / PRESET SUPPORT", 632, 242, 300, 20, 11.0f, textPrimary, juce::Font::bold);
-        text(g, ".VANTA  /  SAVE + LOAD", 632, 278, 300, 22, 11.0f, textPrimary);
-        text(g, ".VITAL  /  PARTIAL IMPORT", 632, 311, 300, 22, 11.0f, textSecondary);
-        text(g, "SERUM / ZENOLOGY  /  UNSUPPORTED", 632, 344, 300, 32, 10.0f, textSecondary);
+        text(g, "07", 32, 253, 25, 17, 10.0f, accent, juce::Font::bold);
+        text(g, "SYSTEM / INFORMATION", 57, 253, 400, 17, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, "WINDOWS / VST3 + STANDALONE", 650, 253, 318, 17, 9.0f, textMuted, juce::Justification::centredRight);
+        separator(g, 32.0f, 968.0f, 275.0f);
+        panel(g, 32.0f, 290.0f, 464.0f, 372.0f); panel(g, 504.0f, 290.0f, 464.0f, 372.0f);
+        text(g, "01 / AUDIO & MIDI", 44, 307, 400, 20, 10.0f, textSecondary, juce::Font::bold);
+        text(g, standaloneKeyboard ? "Options > Audio/MIDI Settings" : "Audio and MIDI are configured in your DAW.", 44, 343, 430, 23, 12.0f, textSecondary);
+        mono(g, "POLY / 16 VOICES", 44, 390, 380, 20, 10.0f, textPrimary);
+        mono(g, "VELOCITY / SUSTAIN / PITCH BEND +/-2", 44, 418, 400, 20, 10.0f, textMuted);
+        mono(g, "UP TO 8 LAYERS / GLOBAL FILTER AND FX", 44, 446, 410, 20, 10.0f, textMuted);
+        mono(g, "VANTA BETA 0.9", 44, 622, 300, 18, 10.0f, textMuted);
+        text(g, "02 / PRESET SUPPORT", 516, 307, 380, 20, 10.0f, textSecondary, juce::Font::bold);
+        mono(g, ".VANTA  /  SAVE + LOAD", 516, 343, 380, 22, 10.0f, textPrimary);
+        mono(g, ".VITAL  /  PARTIAL IMPORT", 516, 376, 380, 22, 10.0f, textSecondary);
+        mono(g, "SERUM 1 / SERUM 2  /  PARTIAL IMPORT", 516, 409, 410, 22, 10.0f, textSecondary);
+        mono(g, "ZENOLOGY  /  UNSUPPORTED", 516, 442, 380, 22, 10.0f, textMuted);
     }
 
     if (standaloneKeyboard)
     {
-        text(g, "02  PERFORMANCE KEYBOARD", 25, 605, 250, 18, 10.0f, textPrimary, juce::Font::bold);
-        text(g, "CLICK KEYS OR FOCUS: Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P", 282, 605, 690, 18, 9.5f, textSecondary, juce::Font::bold, juce::Justification::centredRight);
+        text(g, "02", 16, 688, 25, 16, 10.0f, accent, juce::Font::bold);
+        text(g, "PERFORMANCE KEYBOARD", 42, 688, 250, 16, 10.0f, textPrimary, juce::Font::bold);
+        mono(g, "CLICK A KEY, THEN PLAY Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P", 340, 688, 644, 16, 9.0f, textSecondary, juce::Justification::centredRight);
     }
-    else
-    {
-        text(g, "VANTA  /  SOFTWARE SYNTHESIZER", 25, 617, 450, 20, 10.0f, textSecondary, juce::Font::bold);
-        text(g, "VST3  /  BETA 0.8", 770, 617, 200, 20, 10.0f, textSecondary, juce::Font::bold, juce::Justification::centredRight);
-    }
+    const int footerY = getHeight() - 23;
+    mono(g, "VANTA / SOFTWARE SYNTHESIZER", 18, footerY, 450, 16, 9.0f, textSecondary);
+    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.9" : "VST3 / BETA 0.9", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
 }
 void VantaEditor::resized()
 {
-    previous.setBounds(31, 76, 27, 24); next.setBounds(31, 104, 27, 24);
-    browserButton.setBounds(65, 72, 645, 60); writeButton.setBounds(771, 78, 78, 31); importButton.setBounds(855, 78, 90, 31);
-    levelSlider.setBounds(84, 145, 828, 22);
-    for (int i = 0; i < 7; ++i) tabs[static_cast<std::size_t>(i)].setBounds(420 + i * 78, 17, 76, 30);
-    if (standaloneKeyboard) standaloneKeyboard->setBounds(24, 631, 952, 55);
+    previous.setBounds(25, 93, 38, 38); next.setBounds(25, 143, 38, 38);
+    browserButton.setBounds(74, 87, 700, 100); writeButton.setBounds(820, 96, 72, 28); importButton.setBounds(899, 96, 72, 28);
+    levelSlider.setBounds(87, 203, 826, 20);
+    for (int i = 0; i < 7; ++i) tabs[static_cast<std::size_t>(i)].setBounds(504 + i * 67, 21, 64, 29);
+    if (standaloneKeyboard) standaloneKeyboard->setBounds(17, 710, 966, 66);
 
-    for (int i = 0; i < 8; ++i)
+    if (page == 0)
     {
-        if (page == 0) mainKnobs[static_cast<std::size_t>(i)].setBounds(42 + i * 113, 217, 108, 113);
+        const int indices[] = { 0, 1, 2, 5, 6 };
+        for (int i = 0; i < 5; ++i) mainKnobs[static_cast<std::size_t>(indices[i])].setBounds(180 + i * 157, 292, 148, 152);
+        mainMiniSliders[0].setBounds(89, 629, 105, 17); mainMiniSliders[1].setBounds(315, 629, 105, 17);
+        mainMiniSliders[2].setBounds(563, 629, 298, 17);
+        editEnvelope.setBounds(435, 467, 48, 20); editVibrato.setBounds(907, 467, 48, 20);
     }
     if (page == 1)
     {
-        mainKnobs[0].setBounds(636, 414, 135, 123); mainKnobs[1].setBounds(796, 414, 135, 123);
-        waveform.setBounds(433, 266, 152, 28);
+        mainKnobs[0].setBounds(659, 453, 112, 100); mainKnobs[1].setBounds(828, 453, 112, 100);
+        waveform.setBounds(464, 347, 144, 27);
+        for (int i = 0; i < 4; ++i) waveButtons[static_cast<std::size_t>(i)].setBounds(215 + i * 61, 348, 57, 25);
     }
     int shown = 0;
     for (int layer = 0; layer < vanta::oscillatorCount; ++layer)
     {
         const auto i = static_cast<std::size_t>(layer);
-        if (oscillatorTabs[i].isVisible()) oscillatorTabs[i].setBounds(42 + shown++ * 62, 220, 58, 27);
-        for (int k = 0; k < 4; ++k) oscillatorKnobs[i][static_cast<std::size_t>(k)].setBounds(55 + k * 130, 428, 120, 120);
-        tablePositions[i].setBounds(160, 578, 425, 22);
-        const int x = 38 + layer * 115;
-        mixerEnabled[i].setBounds(x + 20, 260, 66, 26);
-        mixerLevel[i].setBounds(x + 33, 297, 40, 160);
-        mixerPan[i].setBounds(x + 12, 510, 82, 22);
+        if (oscillatorTabs[i].isVisible()) oscillatorTabs[i].setBounds(32 + shown++ * 59, 289, 55, 25);
+        for (int k = 0; k < 4; ++k) oscillatorKnobs[i][static_cast<std::size_t>(k)].setBounds(48 + k * 139, 520, 112, 103);
+        tablePositions[i].setBounds(148, 629, 440, 22);
+        const int x = 32 + (layer % 4) * 236, y = 312 + (layer / 4) * 146;
+        mixerEnabled[i].setBounds(x + 11, y + 101, 65, 25);
+        mixerLevel[i].setBounds(x + 63, y + 39, 150, 20);
+        mixerPan[i].setBounds(x + 63, y + 67, 150, 20);
     }
-    addOscillator.setBounds(565, 220, 112, 27); removeOscillator.setBounds(684, 220, 84, 27);
-    multibandEnabled.setBounds(42, 578, 130, 26); multibandDepth.setBounds(257, 578, 245, 24); multibandMix.setBounds(580, 578, 245, 24);
+    const int addX = 32 + shown * 59;
+    addOscillator.setBounds(addX, 289, 103, 25); removeOscillator.setBounds(addX + 110, 289, 82, 25);
+    multibandEnabled.setBounds(44, 617, 130, 27); multibandDepth.setBounds(255, 619, 220, 21); multibandMix.setBounds(555, 619, 220, 21);
     for (int i = 0; i < 9; ++i)
-        effectKnobs[static_cast<std::size_t>(i)].setBounds(52 + (i / 3) * 306 + (i % 3) * 92, 434, 88, 110);
-    for (int i = 0; i < 4; ++i) modulationKnobs[static_cast<std::size_t>(i)].setBounds(55 + i * 130, 422, 120, 122);
-    modulationKnobs[4].setBounds(636, 422, 135, 122); modulationKnobs[5].setBounds(796, 422, 135, 122);
-    for (int i = 0; i < 4; ++i) folders[static_cast<std::size_t>(i)].setBounds(44, 266 + i * 44, 175, 36);
-    presetSearch.setBounds(264, 220, 680, 30);
+        effectKnobs[static_cast<std::size_t>(i)].setBounds(42 + (i / 3) * 314 + (i % 3) * 94, 453, 88, 103);
+    for (int i = 0; i < 4; ++i) modulationKnobs[static_cast<std::size_t>(i)].setBounds(42 + i * 111, 470, 100, 114);
+    modulationKnobs[4].setBounds(590, 470, 112, 114); modulationKnobs[5].setBounds(767, 470, 112, 114);
+    for (int i = 0; i < 4; ++i) folders[static_cast<std::size_t>(i)].setBounds(43, 349 + i * 42, 160, 34);
+    presetSearch.setBounds(228, 313, 726, 29);
     int row = 0;
     for (int i = 0; i < VantaProcessor::factoryPresetCount; ++i)
         if (presetButtons[static_cast<std::size_t>(i)].isVisible())
-            presetButtons[static_cast<std::size_t>(i)].setBounds(264, 266 + row++ * 45, 680, 38);
+            presetButtons[static_cast<std::size_t>(i)].setBounds(228, 350 + row++ * 44, 726, 36);
 }

@@ -19,6 +19,7 @@ class VantaKnob final : public juce::Component
 {
 public:
     void configure(juce::AudioProcessorValueTreeState&, vanta::Parameter, const juce::String& labelText);
+    void setCaption(const juce::String&);
     void resized() override;
     std::function<void()> onValueChanged;
 
@@ -79,7 +80,12 @@ private:
     std::array<juce::TextButton, VantaProcessor::factoryPresetCount> presetButtons;
     juce::TextEditor presetSearch;
     juce::Slider levelSlider;
+    // The preview's small controls are real duplicate views of these parameters.
+    std::array<juce::Slider, 3> mainMiniSliders;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> mainMiniAttachments;
+    juce::TextButton editEnvelope, editVibrato;
     juce::ComboBox waveform;
+    std::array<juce::TextButton, 4> waveButtons;
     std::array<juce::Slider, vanta::oscillatorCount> tablePositions;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> tablePositionAttachments;
     juce::TextButton multibandEnabled;

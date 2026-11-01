@@ -1,16 +1,16 @@
-# Vanta Beta 0.8
+# Vanta Beta 0.9
 
-VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.8 adds **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2, imported audio sources and a three-band dynamics effect. Converted sounds are approximations, not sound-for-sound reproductions.
+VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.9 redesigns the native editor to follow the approved HTML concept more closely, while retaining Beta 0.8’s **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2, imported audio sources and a three-band dynamics effect. Converted sounds are approximations, not sound-for-sound reproductions.
 
-![Native Beta 0.8 standalone editor](docs/vanta-beta-0.8-overview.png)
+![Native Beta 0.9 VST3 editor](docs/vanta-beta-0.9-vst-main.png)
 
-[View the oscillator page with four layers](docs/vanta-beta-0.8-oscillators.png). These are off-screen native-editor test snapshots; font rendering may differ on Windows.
+[View the native oscillator page](docs/vanta-beta-0.9-vst-oscillators.png) or [standalone keyboard](docs/vanta-beta-0.9-standalone.png). These are off-screen native-editor test snapshots; fonts and host framing may differ on Windows. The HTML is a design concept, so planned controls and long roadmap sections are not falsely presented as working synth features.
 
 ## Install and play
 
-The Windows build produces `Vanta-Beta-0.8-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. **Back up DAW projects and uninstall earlier VANTA betas before installing:** the betas share a VST3 ID, and duplicate bundles can confuse a plugin scan. Rescan plugins in FL Studio after installation.
+The Windows build produces `Vanta-Beta-0.9-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. **Back up DAW projects and uninstall earlier VANTA betas before installing:** the betas share a VST3 ID, and duplicate bundles can confuse a plugin scan. Rescan plugins in FL Studio after installation.
 
-Launch **Vanta > Vanta Beta 0.8** from the Start Menu. In the standalone window choose **Options > Audio/MIDI Settings...** to select an audio output and enable a MIDI input. Start with a low output volume. Click the on-screen keys, or focus the keyboard and play:
+Launch **Vanta > Vanta Beta 0.9** from the Start Menu. In the standalone window choose **Options > Audio/MIDI Settings...** to select an audio output and enable a MIDI input. Start with a low output volume. Click the on-screen keys, or focus the keyboard and play:
 
 `Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P`
 
@@ -56,4 +56,4 @@ cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.8` and the standard `C:\Program Files\Common Files\VST3` folder. Uninstall removes this beta's app, plugin and shortcut, not saved presets. After installing, test audio/MIDI devices, import/save/reopen and DAW project restoration at low volume. See [third-party notices](THIRD_PARTY_NOTICES.md) and review JUCE licensing obligations before distribution.
+The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.9` and the standard `C:\Program Files\Common Files\VST3` folder. Uninstall removes this beta's app, plugin and shortcut, not saved presets. After installing, test audio/MIDI devices, import/save/reopen and DAW project restoration at low volume. See [third-party notices](THIRD_PARTY_NOTICES.md) and review JUCE licensing obligations before distribution.

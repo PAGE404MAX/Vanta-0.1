@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <utility>
 
 namespace
 {
@@ -69,7 +70,7 @@ int changedPixels(const juce::Image& before, const juce::Image& after, juce::Rec
 void snapshot(juce::Component& editor, const juce::File& directory, const char* name)
 {
     const auto image = editor.createComponentSnapshot(editor.getLocalBounds());
-    check(image.isValid() && image.getWidth() == 1000 && image.getHeight() == 700, "Editor snapshot renders at the expected size");
+    check(image.isValid() && image.getWidth() == 1000 && (image.getHeight() == 720 || image.getHeight() == 820), "Editor snapshot renders at the expected size");
     juce::MemoryOutputStream stream;
     check(juce::PNGImageFormat().writeImageToStream(image, stream)
               && directory.getChildFile(name).replaceWithData(stream.getData(), stream.getDataSize()),
@@ -266,7 +267,7 @@ void testStandalone(const juce::File& previews)
     juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Undefined);
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     editor->setVisible(true);
-    check(editor->getWidth() == 1000 && editor->getHeight() == 700, "Standalone editor opens at 1000 x 700");
+    check(editor->getWidth() == 1000 && editor->getHeight() == 820, "Standalone editor opens at 1000 x 820");
     auto* keyboard = dynamic_cast<VantaKeyboard*>(findVisible(*editor, "standalone-keyboard"));
     check(keyboard != nullptr, "Standalone keyboard is visible");
     check(keyboard->getOctaveForMiddleC() == 4, "Keyboard labels MIDI 60 as C4");
@@ -316,15 +317,23 @@ void testStandalone(const juce::File& previews)
                                   vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
         changeSlider(*editor, processor, parameter);
 
+    click(*editor, "edit-envelope");
+    check(findVisible(*editor, "parameter-attack") != nullptr && findVisible(*editor, "edit-envelope") == nullptr,
+          "Envelope EDIT opens the modulation page");
+    click(*editor, "tab-overview"); click(*editor, "edit-vibrato");
+    check(findVisible(*editor, "parameter-vibratoRate") != nullptr && findVisible(*editor, "edit-vibrato") == nullptr,
+          "Vibrato EDIT opens the modulation page");
+    click(*editor, "tab-overview");
     click(*editor, "tab-oscillator");
     checkLayout(*editor); snapshot(*editor, previews, "oscillator.png");
     auto* waveform = dynamic_cast<juce::ComboBox*>(findVisible(*editor, "parameter-wave"));
     check(waveform != nullptr, "OSC A waveform selector is visible");
     const auto sineView = editor->createComponentSnapshot(editor->getLocalBounds());
-    waveform->setSelectedId(2, juce::sendNotificationSync);
+    click(*editor, "wave-saw");
+    check(waveform->getSelectedId() == 2, "Preview-style SAW button updates the source selector");
     const auto sawView = editor->createComponentSnapshot(editor->getLocalBounds());
     check(processor.currentValues()[vanta::wave] == 1.0f, "OSC A saw updates the original parameter");
-    check(changedPixels(sineView, sawView, { 54, 304, 532, 105 }) > 100, "Waveform preview follows the selected waveform");
+    check(changedPixels(sineView, sawView, { 44, 384, 564, 114 }) > 100, "Waveform preview follows the selected waveform");
     waveform->setSelectedId(3, juce::sendNotificationSync);
     check(processor.currentValues()[vanta::oscAExtraWave] == 1.0f, "OSC A square uses the appended shape parameter");
     waveform->setSelectedId(4, juce::sendNotificationSync);
@@ -354,12 +363,21 @@ void testStandalone(const juce::File& previews)
     check(findVisible(*editor, "remove-oscillator") == nullptr, "OSC A cannot be removed");
 
     click(*editor, "tab-effects"); checkLayout(*editor); snapshot(*editor, previews, "effects.png");
+    const auto reverbBefore = editor->createComponentSnapshot(editor->getLocalBounds());
+    auto* reverbDecay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-reverbDecay"));
+    check(reverbDecay != nullptr, "Reverb decay control is visible");
+    reverbDecay->setValue(1.0, juce::sendNotificationSync);
+    const auto reverbAfter = editor->createComponentSnapshot(editor->getLocalBounds());
+    check(changedPixels(reverbBefore, reverbAfter, { 44, 366, 284, 65 }) > 20, "Reverb sketch follows decay");
+    check(changedPixels(reverbBefore, reverbAfter, { 44, 350, 284, 16 }) == 0
+          && changedPixels(reverbBefore, reverbAfter, { 44, 433, 284, 15 }) == 0,
+          "Reverb illustration stays inside its graph frame");
     const auto distortionBefore = editor->createComponentSnapshot(editor->getLocalBounds());
     auto* drive = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-distortionDrive"));
     check(drive != nullptr, "Distortion drive control is visible");
     drive->setValue(8.0, juce::sendNotificationSync);
     const auto distortionAfter = editor->createComponentSnapshot(editor->getLocalBounds());
-    check(changedPixels(distortionBefore, distortionAfter, { 668, 273, 268, 135 }) > 30, "Distortion sketch follows drive");
+    check(changedPixels(distortionBefore, distortionAfter, { 672, 366, 284, 65 }) > 30, "Distortion sketch follows drive");
     for (const auto parameter : { vanta::reverbSize, vanta::reverbDecay, vanta::reverbMix, vanta::delayTime,
                                   vanta::delayFeedback, vanta::delayMix, vanta::distortionDrive, vanta::distortionTone, vanta::distortionMix })
         changeSlider(*editor, processor, parameter);
@@ -369,7 +387,7 @@ void testStandalone(const juce::File& previews)
     check(attack != nullptr, "Modulation attack control is visible");
     attack->setValue(1.9, juce::sendNotificationSync);
     const auto envelopeAfter = editor->createComponentSnapshot(editor->getLocalBounds());
-    check(changedPixels(envelopeBefore, envelopeAfter, { 54, 272, 532, 120 }) > 30, "Envelope preview follows the controls");
+    check(changedPixels(envelopeBefore, envelopeAfter, { 44, 335, 440, 122 }) > 30, "Envelope preview follows the controls");
     for (const auto parameter : { vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
         changeSlider(*editor, processor, parameter);
     click(*editor, "tab-mixer"); checkLayout(*editor); snapshot(*editor, previews, "mixer.png");
@@ -408,14 +426,28 @@ void testStandalone(const juce::File& previews)
     check(buffer.getRMSLevel(0, 2048, 1024) > 0.0001f, "Standalone virtual keyboard reaches the audio engine");
     processor.keyboardState.noteOff(1, 69, 0.0f); midi.clear(); processor.processBlock(buffer, midi); processor.releaseResources();
 }
-void testVstEditor()
+void testVstEditor(const juce::File& previews)
 {
     juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_VST3);
     VantaProcessor processor;
     juce::AudioProcessor::setTypeOfNextNewPlugin(juce::AudioProcessor::wrapperType_Undefined);
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor()); editor->setVisible(true);
+    check(editor->getWidth() == 1000 && editor->getHeight() == 720, "VST3 editor opens at 1000 x 720");
     check(findVisible(*editor, "standalone-keyboard") == nullptr, "VST3 does not add the standalone keyboard");
-    checkLayout(*editor);
+    check(findVisible(*editor, "edit-envelope") != nullptr && findVisible(*editor, "edit-vibrato") != nullptr,
+          "Preview-style visual cards expose functional edit links");
+    auto* preset = findVisible(*editor, "preset-browser");
+    check(preset != nullptr && preset->getBounds() == juce::Rectangle<int>(74, 87, 700, 100),
+          "VST3 preset display uses the approved large header layout");
+    checkLayout(*editor); snapshot(*editor, previews, "vst-main.png");
+    const std::pair<const char*, const char*> pages[] = {
+        { "tab-oscillator", "vst-oscillator.png" }, { "tab-effects", "vst-effects.png" },
+        { "tab-modulation", "vst-modulation.png" }, { "tab-mixer", "vst-mixer.png" },
+        { "tab-sequencer", "vst-sequencer.png" }, { "tab-settings", "vst-settings.png" }
+    };
+    for (const auto& [tab, file] : pages) { click(*editor, tab); checkLayout(*editor); snapshot(*editor, previews, file); }
+    click(*editor, "preset-browser"); checkLayout(*editor); snapshot(*editor, previews, "vst-browser.png");
+    click(*editor, "tab-overview");
     processor.prepareToPlay(44100.0, 4096);
     processor.keyboardState.noteOn(1, 69, 0.8f);
     juce::MidiBuffer midi; juce::AudioBuffer<float> buffer(2, 4096);
@@ -433,7 +465,7 @@ int main(int argc, char** argv)
     const auto previewDirectory = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(argv[1])
                                            : juce::File::getCurrentWorkingDirectory().getChildFile("ui-preview");
     check(previewDirectory.createDirectory().wasOk(), "Preview directory created");
-    testHostState(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor();
+    testHostState(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor(previewDirectory);
     std::cout << "All VANTA editor checks passed.\n";
     return 0;
 }

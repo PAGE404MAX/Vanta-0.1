@@ -11,7 +11,7 @@ public:
     VantaProcessor();
     ~VantaProcessor() override = default;
 
-    const juce::String getName() const override { return "Vanta Beta 0.8"; }
+    const juce::String getName() const override { return "Vanta Beta 0.9"; }
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
