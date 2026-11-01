@@ -21,7 +21,19 @@ jobs:
         run: cmake --build build --config Release --target VantaEditorTests --parallel
 
       - name: Run engine, preset, and editor tests
-        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error
+        shell: pwsh
+        run: |
+          # Keep the failure in the check annotations as well as the full log.
+          # This makes test failures actionable even when log downloads are blocked.
+          $ErrorActionPreference = 'Continue'
+          $output = (& ctest --test-dir build -C Release --output-on-failure --no-tests=error 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=CTest failed::$escaped"
+            exit $code
+          }
 
       - name: Build VST3
         run: cmake --build build --config Release --target VantaBeta_VST3 --parallel

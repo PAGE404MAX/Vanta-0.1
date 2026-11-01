@@ -114,6 +114,25 @@ void testHostState()
           && restored[vanta::oscALevel] == 1.0f && restored[vanta::oscBEnabled] == 0.0f
           && restored[vanta::oscDEnabled] == 0.0f && restored[vanta::oscHEnabled] == 0.0f,
           "Old host state restores legacy wave and defaults missing layers even after a newer state");
+
+    // Beta 0.3 had only these four parameters and no preset-name property.
+    auto beta03 = old.createCopy();
+    beta03.removeProperty("presetName", nullptr);
+    for (int i = beta03.getNumChildren() - 1; i >= 0; --i)
+    {
+        const auto id = beta03.getChild(i).getProperty("id").toString();
+        if (id != "level" && id != "attack" && id != "release" && id != "wave")
+            beta03.removeChild(i, nullptr);
+    }
+    auto beta03Xml = beta03.createXml(); juce::MemoryBlock beta03Bytes;
+    juce::AudioProcessor::copyXmlToBinary(*beta03Xml, beta03Bytes);
+    processor.applyValues(original, "A later patch");
+    processor.setStateInformation(beta03Bytes.getData(), static_cast<int>(beta03Bytes.getSize()));
+    restored = processor.currentValues();
+    check(restored[vanta::wave] == 1.0f && restored[vanta::cutoff] == vanta::parameterSpecs[vanta::cutoff].defaultValue
+          && restored[vanta::oscAExtraWave] == 0.0f && restored[vanta::oscBEnabled] == 0.0f
+          && processor.presetName() == "VANTA INIT",
+          "Beta 0.3-style host state restores four parameters and defaults all later additions");
 }
 void testStandalone(const juce::File& previews)
 {
