@@ -1316,7 +1316,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         mono(g, "POLY / 16 VOICES", 44, 390, 380, 20, 10.0f, textPrimary);
         mono(g, "VELOCITY / SUSTAIN / PITCH BEND +/-2", 44, 418, 400, 20, 10.0f, textMuted);
         mono(g, "UP TO 8 LAYERS / GLOBAL FILTER AND FX", 44, 446, 410, 20, 10.0f, textMuted);
-        mono(g, "VANTA BETA 0.10", 44, 622, 300, 18, 10.0f, textMuted);
+        mono(g, "VANTA BETA 0.11", 44, 622, 300, 18, 10.0f, textMuted);
         text(g, "02 / PRESET SUPPORT", 516, 307, 380, 20, 10.0f, textSecondary, juce::Font::bold);
         mono(g, ".VANTA  /  SAVE + LOAD", 516, 343, 380, 22, 10.0f, textPrimary);
         mono(g, ".VITAL  /  PARTIAL IMPORT", 516, 376, 380, 22, 10.0f, textSecondary);
@@ -1332,7 +1332,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
     }
     const int footerY = baseHeight() - 23;
     mono(g, "VANTA / SOFTWARE SYNTHESIZER", 18, footerY, 450, 16, 9.0f, textSecondary);
-    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.10" : "VST3 / BETA 0.10", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
+    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.11" : "VST3 / BETA 0.11", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
 }
 void VantaEditor::layoutCanvas()
 {
