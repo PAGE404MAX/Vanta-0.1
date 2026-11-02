@@ -1,7 +1,7 @@
-; VANTA Beta 0.11 cleanup. Only exact, historical names are considered. It
-; removes the known plugin binary and generated moduleinfo files, never a
-; whole non-empty tree. Unrecognised files, presets and projects are left in
-; place. Linked/junction plugin paths are skipped rather than followed.
+// VANTA Beta 0.11 cleanup. Only exact, historical names are considered. It
+// removes the known plugin binary and generated moduleinfo files, never a
+// whole non-empty tree. Unrecognised files, presets and projects are left in
+// place. Linked/junction plugin paths are skipped rather than followed.
 const
   CurrentBetaNumber = {#CurrentBeta};
   MaxOldCopies = 20;  { 10 old versions in the standard and one optional root }
