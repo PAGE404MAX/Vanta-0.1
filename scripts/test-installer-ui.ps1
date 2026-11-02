@@ -80,7 +80,7 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
     $process = Start-Process -FilePath $setup -ArgumentList $arguments -PassThru
     $reviewSeen = $false; $finishedClicked = $false; $idle = 0
     $trace = [Collections.Generic.List[string]]::new()
-    $lastPage = ''
+    $lastPage = ''; $lastClickedPage = ''
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
@@ -104,9 +104,14 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
                 $install = Button $controls 'Install'
                 $next = Button $controls 'Next'
                 if (!$next) { $next = Button $controls 'Next >' }
-                if ($finish) { [VantaUi]::Click($finish.Handle); $finishedClicked = $true }
-                elseif ($install) { [VantaUi]::Click($install.Handle) }
-                elseif ($next) { [VantaUi]::Click($next.Handle) }
+                $onReviewPage = @($controls | Where-Object { $_.Text -eq 'Remove older VANTA plugins' }).Count -gt 0
+                # Do not race through a page while its controls are still being
+                # created, and never click a stale Next button twice.
+                if ($page -ne $lastClickedPage -and !($onReviewPage -and !$choice)) {
+                    if ($finish) { [VantaUi]::Click($finish.Handle); $finishedClicked = $true; $lastClickedPage = $page }
+                    elseif ($install -and $reviewSeen) { [VantaUi]::Click($install.Handle); $lastClickedPage = $page }
+                    elseif ($next) { [VantaUi]::Click($next.Handle); $lastClickedPage = $page }
+                }
             } else {
                 $idle++
                 if ($finishedClicked -and $idle -ge 3) { break }
