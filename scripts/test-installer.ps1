@@ -137,6 +137,29 @@ try {
     Assert-Present $uninstallerTarget 'Uninstaller shortcut target is missing'
     if ((Split-Path -Parent $uninstallerTarget) -ne $destination -or (Split-Path -Leaf $uninstallerTarget) -notlike 'unins*.exe') { throw "Uninstaller shortcut points to the wrong target: $uninstallerTarget" }
 
+    # A known app file replaced by a directory is an unsafe/unexpected layout.
+    # Both setup and uninstall must stop before changing the current or old
+    # plugins, rather than overwriting or traversing the replacement.
+    $notices = Join-Path $destination 'THIRD_PARTY_NOTICES.md'
+    $heldNotices = Join-Path $outsideData 'held-third-party-notices.md'
+    Move-Item -LiteralPath $notices -Destination $heldNotices
+    New-Item -ItemType Directory -Path $notices | Out-Null
+    $unsafeMarker = Join-Path $notices 'DO NOT TOUCH.flp'
+    [IO.File]::WriteAllText($unsafeMarker, 'user data')
+    try {
+        $guardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.11-guard-setup.log'
+        $guardArgs = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/REMOVEOLDVANTA', "/DIR=`"$destination`"", "/LOG=`"$guardLog`"")
+        $guardSetup = Start-Process -FilePath $setup -ArgumentList $guardArgs -Wait -PassThru
+        if ($guardSetup.ExitCode -eq 0) { throw 'Setup accepted an unexpected current app file layout.' }
+        $uninstallGuardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.11-guard-uninstall.log'
+        $guardUninstall = Start-Process -FilePath $uninstallerTarget -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/REMOVEOLDVANTA', "/LOG=`"$uninstallGuardLog`"") -Wait -PassThru
+        if ($guardUninstall.ExitCode -eq 0) { throw 'Uninstaller accepted an unexpected current app file layout.' }
+        foreach ($path in @($unsafeMarker, $pluginBinary, $installedApp, (Binary $standardRoot 8))) { Assert-Present $path 'Guard did not preserve an existing file' }
+    } finally {
+        if (Test-Path -LiteralPath $notices) { Remove-Item -LiteralPath $notices -Recurse -Force }
+        if (Test-Path -LiteralPath $heldNotices) { Move-Item -LiteralPath $heldNotices -Destination $notices }
+    }
+
     # The real build checks process/window startup; the fast packaging job uses
     # tiny test files instead and exercises the same installer and cleanup code.
     if (!$SkipLaunch) {

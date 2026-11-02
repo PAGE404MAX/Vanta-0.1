@@ -98,7 +98,8 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
                 }
                 $finish = Button $controls 'Finish'
                 $install = Button $controls 'Install'
-                $next = Button $controls 'Next >'
+                $next = Button $controls 'Next'
+                if (!$next) { $next = Button $controls 'Next >' }
                 if ($finish) { [VantaUi]::Click($finish.Handle); $finishedClicked = $true }
                 elseif ($install) { [VantaUi]::Click($install.Handle) }
                 elseif ($next) { [VantaUi]::Click($next.Handle) }

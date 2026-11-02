@@ -79,8 +79,33 @@ begin
 end;
 
 function ExistingDirectoryIsSafe(const Path: String): Boolean;
+var
+  Attr, ErrorCode: Integer;
 begin
-  Result := not PathExists(Path) or IsRealDirectory(Path);
+  Attr := WinFileAttributes(Path);
+  if Attr = -1 then
+  begin
+    ErrorCode := DLLGetLastError;
+    Result := (ErrorCode = 2) or (ErrorCode = 3);  { genuinely absent }
+  end
+  else
+    Result := ((Attr and AttributeDirectory) <> 0) and
+      ((Attr and AttributeReparsePoint) = 0);
+end;
+
+function ExistingFileIsSafe(const Path: String): Boolean;
+var
+  Attr, ErrorCode: Integer;
+begin
+  Attr := WinFileAttributes(Path);
+  if Attr = -1 then
+  begin
+    ErrorCode := DLLGetLastError;
+    Result := (ErrorCode = 2) or (ErrorCode = 3);
+  end
+  else
+    Result := ((Attr and AttributeDirectory) = 0) and
+      ((Attr and AttributeReparsePoint) = 0);
 end;
 
 function IsAbsolutePath(const Path: String): Boolean;
@@ -269,7 +294,7 @@ end;
 
 function RemoveCandidate(const Root, Path: String; const Beta: Integer): Boolean;
 var
-  Attr: Integer;
+  Attr, ErrorCode: Integer;
   Problem, ContentsDir, ArchDir, ResourcesDir, Binary: String;
 begin
   Result := False;
@@ -281,8 +306,14 @@ begin
   Attr := WinFileAttributes(Path);
   if Attr = -1 then
   begin
-    Log('VANTA cleanup: already absent: ' + Path);
-    Result := True;
+    ErrorCode := DLLGetLastError;
+    if (ErrorCode = 2) or (ErrorCode = 3) then
+    begin
+      Log('VANTA cleanup: already absent: ' + Path);
+      Result := True;
+    end
+    else
+      AppendLine(CleanupFailures, Path + ' (could not inspect: ' + SysErrorMessage(ErrorCode) + ')');
     Exit;
   end;
   Problem := CandidateProblem(Path, Beta);
@@ -346,15 +377,25 @@ end;
 
 function CurrentBundlePathsAreSafe(): Boolean;
 var
-  Root, Bundle, ContentsDir: String;
+  Root, Bundle, ContentsDir, ArchDir, ResourcesDir: String;
 begin
   Root := StandardRoot();
   Bundle := AddBackslash(Root) + BundleName(CurrentBetaNumber);
   ContentsDir := AddBackslash(Bundle) + 'Contents';
+  ArchDir := AddBackslash(ContentsDir) + 'x86_64-win';
+  ResourcesDir := AddBackslash(ContentsDir) + 'Resources';
   Result := ExistingDirectoryIsSafe(Root) and ExistingDirectoryIsSafe(Bundle) and
-    ExistingDirectoryIsSafe(ContentsDir) and
-    ExistingDirectoryIsSafe(AddBackslash(ContentsDir) + 'x86_64-win') and
-    ExistingDirectoryIsSafe(AddBackslash(ContentsDir) + 'Resources');
+    ExistingDirectoryIsSafe(ContentsDir) and ExistingDirectoryIsSafe(ArchDir) and
+    ExistingDirectoryIsSafe(ResourcesDir) and
+    ExistingFileIsSafe(AddBackslash(ArchDir) + BundleName(CurrentBetaNumber)) and
+    ExistingFileIsSafe(AddBackslash(ResourcesDir) + 'moduleinfo.json');
+end;
+
+function CurrentAppPathsAreSafe(): Boolean;
+begin
+  Result := ExistingDirectoryIsSafe(ExpandConstant('{app}')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\Vanta Beta 0.11.exe')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'));
 end;
 
 function InstalledCurrentBinaryExists(): Boolean;
@@ -363,8 +404,8 @@ var
 begin
   Binary := AddBackslash(StandardRoot()) + BundleName(CurrentBetaNumber) +
     '\Contents\x86_64-win\' + BundleName(CurrentBetaNumber);
-  Result := CurrentBundlePathsAreSafe() and IsRealFile(Binary) and
-    IsRealFile(ExpandConstant('{app}\Vanta Beta 0.11.exe'));
+  Result := CurrentBundlePathsAreSafe() and CurrentAppPathsAreSafe() and
+    IsRealFile(Binary) and IsRealFile(ExpandConstant('{app}\Vanta Beta 0.11.exe'));
 end;
 
 procedure RunOldCleanup();
@@ -514,8 +555,8 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
-  if not CurrentBundlePathsAreSafe() then
-    Result := 'The Beta 0.11 VST3 folder or one of its contents is a link/junction or is not a directory. Setup will not overwrite it. Remove or resolve the link and retry.';
+  if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe() then
+    Result := 'The Beta 0.11 app or VST3 location contains a link/junction, an unexpected item, or cannot be inspected. Setup will not overwrite it. Resolve the location and retry.';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -556,11 +597,11 @@ begin
   CleanupIsSilent := UninstallSilent;
   CleanupRequested := False;
   CleanupFailed := False;
-  if not CurrentBundlePathsAreSafe() then
+  if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe() then
   begin
-    Log('VANTA uninstall stopped: the current VST3 folder contains a link/junction or an unexpected file.');
+    Log('VANTA uninstall stopped: the current app or VST3 location is linked, unexpected, or inaccessible.');
     if not UninstallSilent then
-      MsgBox('The current VANTA VST3 folder contains a link/junction or an unexpected file. The uninstaller stopped to protect its target. Resolve the link and retry.', mbError, MB_OK);
+      MsgBox('The current VANTA app or VST3 location is linked, unexpected, or inaccessible. The uninstaller stopped to protect its target. Resolve the location and retry.', mbError, MB_OK);
     Exit;
   end;
 
