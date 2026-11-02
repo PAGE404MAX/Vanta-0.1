@@ -79,6 +79,8 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
     $arguments = @('/SP-', '/NORESTART', "/DIR=`"$destination`"", "/LOG=`"$log`"")
     $process = Start-Process -FilePath $setup -ArgumentList $arguments -PassThru
     $reviewSeen = $false; $finishedClicked = $false; $idle = 0
+    $trace = [Collections.Generic.List[string]]::new()
+    $lastPage = ''
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
@@ -86,6 +88,8 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
             if ($wizard) {
                 $idle = 0
                 $controls = @([VantaUi]::Children($wizard.Handle))
+                $page = (($controls | Where-Object { $_.Text } | ForEach-Object { "[$($_.ClassName)] $($_.Text)" }) -join ' | ')
+                if ($page -ne $lastPage) { $trace.Add($page); $lastPage = $page }
                 $choice = $controls | Where-Object { $_.Text -like 'Remove the older VANTA plugin copies listed above*' } | Select-Object -First 1
                 if ($choice -and !$reviewSeen) {
                     if ([VantaUi]::Checked($choice.Handle) -ne 1) { throw 'The old-plugin cleanup checkbox should be checked by default.' }
@@ -109,7 +113,10 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
             }
             Start-Sleep -Milliseconds 400
         }
-        if (!$reviewSeen -or !$finishedClicked) { throw "Setup did not display the review page and finish. Windows:`n$(Describe-Windows)" }
+        if (!$reviewSeen -or !$finishedClicked) {
+            $logTail = if (Test-Path -LiteralPath $log) { (Get-Content -LiteralPath $log -Tail 80) -join "`n" } else { '(no setup log)' }
+            throw "Setup did not display the review page and finish (review=$reviewSeen, finish=$finishedClicked). Pages:`n$($trace -join "`n")`nWindows:`n$(Describe-Windows)`nLog:`n$logTail"
+        }
         if (!$process.WaitForExit(15000)) { throw 'Setup process did not exit.' }
         if ($process.ExitCode -ne 0) { throw "Interactive setup exit code: $($process.ExitCode)" }
         if (!(Select-String -LiteralPath $log -SimpleMatch 'VANTA older plugin detected' -Quiet)) { throw 'Interactive setup did not detect the older plugin.' }
