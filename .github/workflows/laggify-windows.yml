@@ -24,7 +24,18 @@ jobs:
         run: cmake --build build/laggify --config Release --target LaggifyVST3Tests --parallel 2
 
       - name: Run audio, state, editor and VST3 host tests
-        run: ctest --test-dir build/laggify -C Release --output-on-failure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = (& ctest --test-dir build/laggify -C Release --output-on-failure --no-tests=error 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            if ($output.Length -gt 40000) { $output = $output.Substring($output.Length - 40000) }
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify CTest failed::$escaped"
+            exit $code
+          }
 
       - name: Install Inno Setup if needed
         shell: pwsh
@@ -36,12 +47,26 @@ jobs:
       - name: Build Laggify installer
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "Laggify VST Effect/installer/Laggify.iss"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ErrorActionPreference = 'Continue'
+          $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "Laggify VST Effect/installer/Laggify.iss" 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify installer compilation failed::$escaped"
+            exit $code
+          }
 
       - name: Test installer and uninstaller on isolated runner
         shell: pwsh
-        run: '& "./Laggify VST Effect/installer/test-installer.ps1"'
+        run: |
+          try {
+            & "./Laggify VST Effect/installer/test-installer.ps1"
+          } catch {
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify installer test failed::$message"
+            exit 1
+          }
 
       - name: Upload separate Laggify installer
         uses: actions/upload-artifact@v7

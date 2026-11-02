@@ -1,6 +1,6 @@
 # Vanta Beta 0.12
 
-VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.12 expands the nine-module effects rack. **Laggify** is a separate VST3 mixer-insert effect, not a synth tab or a standalone instrument. It retains the uninstaller, resize menu and **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2. Converted sounds are approximations, not sound-for-sound reproductions.
+VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.12 expands the nine-module effects rack. **Laggify** is a separate VST3 mixer-insert effect, not a synth tab or a standalone instrument. VANTA retains the uninstaller, resize menu and **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2. Converted sounds are approximations, not sound-for-sound reproductions.
 
 ![Beta 0.12 effects rack](docs/vanta-beta-0.12-effects.png)
 
