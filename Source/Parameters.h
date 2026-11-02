@@ -27,6 +27,13 @@ enum Parameter : std::size_t
     oscETablePosition, oscFTablePosition, oscGTablePosition, oscHTablePosition,
     ottEnabled, ottDepth, ottMix,
     oscASample, oscBSample, oscCSample, oscDSample, oscESample, oscFSample, oscGSample, oscHSample,
+    // Beta 0.12: append only. Legacy mixes keep their original behaviour.
+    reverbEnabled, delayEnabled, distortionEnabled,
+    chorusEnabled, chorusRate, chorusDepth, chorusMix,
+    eqEnabled, eqLow, eqMid, eqHigh, eqMix,
+    fxFilterEnabled, fxFilterCutoff, fxFilterResonance, fxFilterMix,
+    flangerEnabled, flangerRate, flangerDepth, flangerFeedback, flangerMix,
+    phaserEnabled, phaserRate, phaserDepth, phaserFeedback, phaserMix,
     parameterCount
 };
 
@@ -133,7 +140,33 @@ inline constexpr std::array<ParameterSpec, parameterCount> parameterSpecs {{
     { "oscESample", "Osc E Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
     { "oscFSample", "Osc F Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
     { "oscGSample", "Osc G Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
-    { "oscHSample", "Osc H Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f }
+    { "oscHSample", "Osc H Sample", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "reverbEnabled", "Reverb Enabled", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    { "delayEnabled", "Delay Enabled", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    { "distortionEnabled", "Distortion Enabled", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    { "chorusEnabled", "Chorus Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "chorusRate", "Chorus Rate", 0.05f, 5.0f, 0.7f, 0.01f, 0.5f },
+    { "chorusDepth", "Chorus Depth", 0.0f, 1.0f, 0.6f, 0.001f, 1.0f },
+    { "chorusMix", "Chorus Mix", 0.0f, 1.0f, 0.45f, 0.001f, 1.0f },
+    { "eqEnabled", "Equalizer Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "eqLow", "Equalizer Low", -12.0f, 12.0f, 0.0f, 0.1f, 1.0f },
+    { "eqMid", "Equalizer Mid", -12.0f, 12.0f, 0.0f, 0.1f, 1.0f },
+    { "eqHigh", "Equalizer High", -12.0f, 12.0f, 0.0f, 0.1f, 1.0f },
+    { "eqMix", "Equalizer Mix", 0.0f, 1.0f, 1.0f, 0.001f, 1.0f },
+    { "fxFilterEnabled", "FX Filter Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "fxFilterCutoff", "FX Filter Cutoff", 30.0f, 18000.0f, 5000.0f, 1.0f, 0.28f },
+    { "fxFilterResonance", "FX Filter Resonance", 0.0f, 0.95f, 0.2f, 0.001f, 1.0f },
+    { "fxFilterMix", "FX Filter Mix", 0.0f, 1.0f, 1.0f, 0.001f, 1.0f },
+    { "flangerEnabled", "Flanger Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "flangerRate", "Flanger Rate", 0.05f, 5.0f, 0.35f, 0.01f, 0.5f },
+    { "flangerDepth", "Flanger Depth", 0.0f, 1.0f, 0.7f, 0.001f, 1.0f },
+    { "flangerFeedback", "Flanger Feedback", -0.8f, 0.8f, 0.3f, 0.001f, 1.0f },
+    { "flangerMix", "Flanger Mix", 0.0f, 1.0f, 0.5f, 0.001f, 1.0f },
+    { "phaserEnabled", "Phaser Enabled", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "phaserRate", "Phaser Rate", 0.05f, 5.0f, 0.4f, 0.01f, 0.5f },
+    { "phaserDepth", "Phaser Depth", 0.0f, 1.0f, 0.7f, 0.001f, 1.0f },
+    { "phaserFeedback", "Phaser Feedback", -0.8f, 0.8f, 0.2f, 0.001f, 1.0f },
+    { "phaserMix", "Phaser Mix", 0.0f, 1.0f, 0.5f, 0.001f, 1.0f },
 }};
 
 using ParameterValues = std::array<float, parameterCount>;

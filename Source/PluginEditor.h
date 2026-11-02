@@ -89,7 +89,7 @@ private:
     bool awaitingHostResize = false, resizeRequestFromUser = false, hostResizeRejected = false;
     bool needsStandalonePosition = true;
     juce::uint32 resizeRequestTime = 0;
-    int page = 0, folder = 0, currentFactory = -1, selectedOsc = 0, lastOscMask = -1;
+    int page = 0, folder = 0, currentFactory = -1, selectedOsc = 0, lastOscMask = -1, selectedFx = 0;
     bool browserOpen = false;
     juce::String lastPresetName;
 
@@ -107,10 +107,9 @@ private:
     std::array<juce::TextButton, 4> waveButtons;
     std::array<juce::Slider, vanta::oscillatorCount> tablePositions;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> tablePositionAttachments;
-    juce::TextButton multibandEnabled;
-    juce::Slider multibandDepth, multibandMix;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> multibandEnabledAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> multibandDepthAttachment, multibandMixAttachment;
+    std::array<juce::TextButton, 9> effectSelectors, effectEnabled;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, 9> effectEnabledAttachments;
+    std::array<std::array<VantaKnob, 4>, 9> effectKnobs;
     std::array<juce::TextButton, vanta::oscillatorCount> oscillatorTabs;
     juce::TextButton addOscillator, removeOscillator;
     std::array<std::array<VantaKnob, 4>, vanta::oscillatorCount> oscillatorKnobs;
@@ -119,7 +118,6 @@ private:
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, vanta::oscillatorCount> mixerEnabledAttachments;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> mixerLevelAttachments, mixerPanAttachments;
     std::array<VantaKnob, 8> mainKnobs;
-    std::array<VantaKnob, 9> effectKnobs;
     std::array<VantaKnob, 6> modulationKnobs;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
     std::unique_ptr<VantaKeyboard> standaloneKeyboard;

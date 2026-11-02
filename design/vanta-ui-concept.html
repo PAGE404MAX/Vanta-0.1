@@ -499,6 +499,8 @@
   .instrument-foot strong { color: #f8d4bf; font-weight: 500; }
   .preview-caption { display: flex; justify-content: space-between; gap: 16px; margin: 13px 2px 0; color: #a3948e; font: 11px/1.45 var(--sans); }
   .preview-caption strong { color: #d8c3b9; font-weight: 600; }
+  .preview-caption a { color: #dfab97; text-decoration: none; }
+  .preview-caption a:hover { color: #ffe7d6; }
   .preview-caption .caption-right { color: #796a66; font: 10px/1.4 var(--mono); text-align: right; }
   .toast { position: fixed; z-index: 30; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 11px 15px; border: 1px solid #a44639; background: #1c1010; box-shadow: 0 8px 30px #000a; color: #f5d5c6; font: 11px/1.4 var(--sans); }
 
@@ -559,12 +561,83 @@
     .keyboard-head small { text-align: left; }
     .instrument-foot { flex-wrap: wrap; padding: 7px 12px; font-size: 8px; }
   }
+
+  /* Proposed effects page: original VANTA controls, not an audio plug-in. */
+  .fx-workbench { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; padding-top: 12px; }
+  .fx-browser, .fx-stage { border: 1px solid #482321; background: #160d0e; }
+  .fx-browser { padding: 9px; }
+  .fx-browser-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 3px 9px; color: #d9a99a; font: 9px var(--mono); letter-spacing: .08em; }
+  .fx-browser-head b { color: #f16b53; font-weight: 500; }
+  .fx-slots { display: grid; gap: 4px; }
+  .fx-slot { min-width: 0; display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: stretch; border: 1px solid #35201e; background: #110b0c; }
+  .fx-slot[data-selected="true"] { border-color: #a64234; background: linear-gradient(90deg, #351412, #261010); box-shadow: inset 2px 0 #f16a4e; }
+  .fx-power { display: grid; place-items: center; min-height: 29px; padding: 0; border: 0; background: transparent; }
+  .fx-power::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #3a2928; border: 1px solid #77504b; }
+  .fx-power[aria-pressed="true"]::before { background: #ff7353; border-color: #ffc090; box-shadow: 0 0 7px #f35b42a8; }
+  .fx-select { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 29px; padding: 0 6px 0 0; border: 0; background: transparent; color: #cbb0a7; text-align: left; font-size: 9px; font-weight: 800; letter-spacing: .055em; }
+  .fx-select:hover, .fx-slot[data-selected="true"] .fx-select { color: #ffe3d3; }
+  .fx-select .fx-number { color: #865e55; font: 8px var(--mono); }
+  .fx-select .fx-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .fx-select svg { flex: none; width: 23px; height: 17px; fill: none; stroke: #ae7466; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .fx-slot[data-selected="true"] svg { stroke: #ff9672; }
+  .fx-browser-note { margin: 9px 2px 1px; color: #87675e; font: 9px/1.45 var(--mono); }
+  .fx-stage { display: flex; min-width: 0; flex-direction: column; padding: 14px; }
+  .fx-stage-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .fx-stage-kicker { color: #f27859; font: 9px var(--mono); letter-spacing: .09em; }
+  .fx-stage h3 { margin: 6px 0 4px; color: #fae2d3; font-size: 17px; line-height: 1.1; letter-spacing: .1em; }
+  .fx-stage p { margin: 0; color: #a9877d; font: 10px/1.4 var(--mono); }
+  .fx-stage-toggle {
+    min-height: 26px; padding: 0 10px; border: 1px solid #61302a; background: #251111;
+    color: #c1998b; font-size: 9px; font-weight: 800; letter-spacing: .07em; white-space: nowrap;
+  }
+  .fx-stage-toggle:hover { border-color: #d57058; color: #ffe7d7; }
+  .fx-stage-toggle[aria-pressed="true"] {
+    background: #62221c; color: #ffe1ce; border-color: #da6d50; box-shadow: inset 0 1px #ffc8a020;
+  }
+  .fx-stage-panel { min-width: 0; }
+  .fx-stage .fx-plot { height: 116px; margin-top: 14px; background: #0a0808; }
+  .fx-stage .fx-line { stroke: #ff7455; stroke-width: 2; filter: drop-shadow(0 0 2px #e34b3c75); }
+  .fx-stage .fx-area { fill: #e0523b; opacity: .1; }
+  .fx-stage .fx-caption { margin-top: 7px; letter-spacing: .04em; }
+  .fx-stage .effect-knobs { grid-template-columns: repeat(var(--knob-count, 3), minmax(0, 1fr)); max-width: 610px; margin: 13px 0 0; }
+  .fx-stage .compact .dial { width: min(92px, 100%); }
+  .fx-stage-spacer { flex: 1; min-height: 12px; }
+  .fx-chain { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 9px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #3d201e; font: 9px/1.5 var(--mono); }
+  .fx-chain b { color: #de9885; font-weight: 500; white-space: nowrap; }
+  .fx-chain span { color: #927168; }
+  .fx-future { margin-top: 10px; }
+  .fx-future summary { cursor: pointer; list-style: none; }
+  .fx-future summary::-webkit-details-marker { display: none; }
+  .fx-future summary::before { content: "+"; float: right; color: #d3937e; font: 14px var(--mono); }
+  .fx-future[open] summary::before { content: "−"; }
+  .fx-future .future-head { padding-right: 24px; }
+
+  @media (max-width: 800px) {
+    .fx-workbench { grid-template-columns: 175px minmax(0, 1fr); }
+    .fx-select .fx-number { display: none; }
+    .fx-stage .effect-knobs { max-width: 100%; margin-left: 0; }
+    .fx-stage .fx-plot { height: 100px; }
+  }
+  @media (max-width: 520px) {
+    .fx-workbench { grid-template-columns: 1fr; }
+    .fx-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fx-select { gap: 4px; font-size: 9px; }
+    .fx-select .fx-number { display: none; }
+    .fx-select svg { width: 20px; }
+    .fx-browser-note { display: none; }
+    .fx-stage { padding: 11px; }
+    .fx-stage h3 { font-size: 15px; }
+    .fx-stage .effect-knobs { gap: 2px; }
+    .fx-stage .compact .knob-face .face-label { font-size: 7px; }
+    .fx-stage .compact .knob-face output { font-size: 8px; }
+  }
+
 </style>
 </head>
 <body>
 <div class="preview">
   <header class="preview-bar">
-    <div class="preview-heading"><strong>VANTA / INTERFACE STUDY</strong><span>CONCEPT 01 · NO AUDIO</span></div>
+    <div class="preview-heading"><strong>VANTA / INTERFACE STUDY</strong><span>EFFECTS PROPOSAL · NO AUDIO</span></div>
     <div class="view-switch" aria-label="Preview format">
       <span>VIEW</span>
       <button type="button" data-format="standalone" aria-pressed="true">STANDALONE</button>
@@ -585,9 +658,9 @@
       </div>
       <div class="header-right">
         <nav class="nav" role="tablist" aria-label="Instrument pages">
-          <button type="button" id="tab-main" role="tab" aria-selected="true" aria-controls="page-main" data-page="main">MAIN</button>
+          <button type="button" id="tab-main" role="tab" aria-selected="false" aria-controls="page-main" data-page="main" tabindex="-1">MAIN</button>
           <button type="button" id="tab-osc" role="tab" aria-selected="false" aria-controls="page-osc" data-page="osc" tabindex="-1">OSC</button>
-          <button type="button" id="tab-fx" role="tab" aria-selected="false" aria-controls="page-fx" data-page="fx" tabindex="-1">EFFECTS</button>
+          <button type="button" id="tab-fx" role="tab" aria-selected="true" aria-controls="page-fx" data-page="fx">EFFECTS</button>
           <button type="button" id="tab-mod" role="tab" aria-selected="false" aria-controls="page-mod" data-page="mod" tabindex="-1">MOD</button>
           <button type="button" id="tab-mixer" role="tab" aria-selected="false" aria-controls="page-mixer" data-page="mixer" tabindex="-1">MIXER</button>
           <button type="button" id="tab-seq" role="tab" aria-selected="false" aria-controls="page-seq" data-page="seq" tabindex="-1">SEQ</button>
@@ -631,7 +704,7 @@
       </div>
 
       <section class="workspace screen" aria-label="Sound controls">
-        <div id="page-main" role="tabpanel" aria-labelledby="tab-main">
+        <div id="page-main" role="tabpanel" aria-labelledby="tab-main" hidden>
           <div class="workspace-head"><div class="eyebrow"><b>01</b> PERFORMANCE / SOUND</div><div class="workspace-note">PARAMETER VIEW · NO AUDIO</div></div>
           <div class="main-controls">
             <div class="mode-section">
@@ -708,45 +781,28 @@
           </section>
         </div>
 
-        <div id="page-fx" role="tabpanel" aria-labelledby="tab-fx" hidden>
-          <div class="workspace-head"><div class="eyebrow"><b>03</b> EFFECTS / SIGNAL CHAIN</div><div class="workspace-note">REVERB → DELAY → DISTORTION</div></div>
-          <div class="fx-flow" aria-label="Fixed effect order"><span>OSC + FILTER</span><i>→</i><span>REVERB</span><i>→</i><span>DELAY</span><i>→</i><span>DISTORTION</span><i>→</i><span>OUTPUT</span></div>
-          <div class="rack">
-            <section class="effect-group" aria-label="Reverb controls">
-              <div class="effect-top"><strong>01 / REVERB</strong><span data-fx-status="reverbMix">0% WET</span></div>
-              <div class="fx-plot"><svg data-graph="reverb" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="Illustrative reverb room response">
-                  <path class="plot-grid" d="M0 15H280M0 30H280M0 45H280M56 0V60M112 0V60M168 0V60M224 0V60"/>
-                  <path class="fx-area" data-area/><path class="fx-line" data-line/>
-                </svg></div><div class="fx-caption"><span>ROOM SHAPE</span><span>ILLUSTRATIVE</span></div>
-              <div class="effect-knobs compact" data-knob-group="reverbSize,reverbDecay,reverbMix"></div>
-            </section>
-            <section class="effect-group" aria-label="Delay controls">
-              <div class="effect-top"><strong>02 / DELAY</strong><span data-fx-status="delayMix">0% WET</span></div>
-              <div class="fx-plot"><svg data-graph="delay" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="Illustrative delay repeats">
-                  <path class="plot-grid" d="M0 15H280M0 30H280M0 45H280M56 0V60M112 0V60M168 0V60M224 0V60"/>
-                  <path class="fx-area" data-area/><path class="fx-line" data-line/>
-                </svg></div><div class="fx-caption"><span>REPEATS</span><span>ILLUSTRATIVE</span></div>
-              <div class="effect-knobs compact" data-knob-group="delayTime,delayFeedback,delayMix"></div>
-            </section>
-            <section class="effect-group" aria-label="Distortion controls">
-              <div class="effect-top"><strong>03 / DISTORTION</strong><span data-fx-status="distortionMix">0% WET</span></div>
-              <div class="fx-plot"><svg data-graph="distortion" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="Illustrative distortion drive curve">
-                  <path class="plot-grid" d="M0 15H280M0 30H280M0 45H280M56 0V60M112 0V60M168 0V60M224 0V60"/>
-                  <path class="fx-area" data-area/><path class="fx-line" data-line/>
-                </svg></div><div class="fx-caption"><span>DRIVE CURVE</span><span>ILLUSTRATIVE</span></div>
-              <div class="effect-knobs compact" data-knob-group="distortionDrive,distortionTone,distortionMix"></div>
+        <div id="page-fx" role="tabpanel" aria-labelledby="tab-fx">
+          <div class="workspace-head"><div class="eyebrow"><b>03</b> EFFECTS / SIGNAL CHAIN</div><div class="workspace-note">NINE PROCESSORS · PREVIEW ONLY</div></div>
+          <div class="fx-workbench">
+            <aside class="fx-browser" aria-label="Effects selection">
+              <div class="fx-browser-head"><span><b>FX</b> / RACK</span><span>09 MODULES</span></div>
+              <div class="fx-slots" id="fx-slots"></div>
+              <div class="fx-browser-note">Select a module to edit.<br>Click its light to enable / bypass.</div>
+            </aside>
+            <section class="fx-stage" aria-label="Selected effect controls">
+              <div class="fx-stage-top"><div><div class="fx-stage-kicker" id="fx-stage-kicker">01 / MODULATION</div><h3 id="fx-stage-title">CHORUS</h3><p id="fx-stage-description">Stereo movement / soft width</p></div><button type="button" class="fx-stage-toggle" id="fx-stage-toggle" aria-pressed="false">BYPASSED</button></div>
+              <div id="fx-panels"></div>
+              <div class="fx-stage-spacer"></div>
+              <div class="fx-chain"><b>SIGNAL PATH</b><span>REVERB → DELAY → DISTORTION → COMP → CHORUS → EQ → FILTER → FLANGER → PHASER → OUT</span></div>
             </section>
           </div>
-          <section class="future-panel" aria-label="EFFECTS EXPANSION, planned features">
-            <div class="future-head"><strong>EFFECTS EXPANSION</strong><span>PLANNED · NOT IN ENGINE</span></div>
-            <div class="future-grid"><div class="future-card"><strong>ADDITIONAL PROCESSORS</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">CHORUS</button><button type="button" disabled title="Planned concept; not implemented">FLANGER</button><button type="button" disabled title="Planned concept; not implemented">PHASER</button><button type="button" disabled title="Planned concept; not implemented">EQ</button><button type="button" disabled title="Planned concept; not implemented">MULTIBAND COMP</button><button type="button" disabled title="Planned concept; not implemented">FILTER</button><button type="button" disabled title="Planned concept; not implemented">DIMENSION</button><button type="button" disabled title="Planned concept; not implemented">AMP SIM</button></div></div><div class="future-card"><strong>RACK &amp; ROUTING</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">MULTI-INSTANCE</button><button type="button" disabled title="Planned concept; not implemented">REORDER</button><button type="button" disabled title="Planned concept; not implemented">3-BAND SPLIT</button><button type="button" disabled title="Planned concept; not implemented">TAPE DELAY</button><button type="button" disabled title="Planned concept; not implemented">EXTRA DISTORTIONS</button></div></div></div>
-          </section>
-          <section class="future-panel" aria-label="Preview effects rack">
-            <div class="future-head"><strong>EXPANDED RACK DESIGN</strong><span>SESSION MOCKUP · NO AUDIO</span></div>
+          <details class="fx-future future-panel" aria-label="Additional effects design ideas">
+            <summary><span class="future-head"><strong>MORE RACK IDEAS</strong><span>OPTIONAL CONCEPT · NO AUDIO</span></span></summary>
+            <div class="future-grid"><div class="future-card"><strong>FURTHER PROCESSORS</strong><div class="unavailable"><button type="button" disabled title="Future concept">DIMENSION</button><button type="button" disabled title="Future concept">AMP SIM</button><button type="button" disabled title="Future concept">TAPE DELAY</button><button type="button" disabled title="Future concept">EXTRA DISTORTIONS</button></div></div><div class="future-card"><strong>ROUTING CONCEPTS</strong><div class="unavailable"><button type="button" disabled title="Future concept">MULTI-INSTANCE</button><button type="button" disabled title="Future concept">REORDER</button><button type="button" disabled title="Future concept">3-BAND SPLIT</button></div></div></div>
             <div class="design-tools"><label for="fx-choice">PROCESSOR</label><select id="fx-choice"><option>CHORUS</option><option>FLANGER</option><option>PHASER</option><option>EQ</option><option>MULTIBAND COMP</option><option>FILTER</option><option>DIMENSION</option><option>DELAY</option><option>REVERB</option><option>DISTORTION</option><option>AMP SIM</option></select><button type="button" id="fx-add">+ ADD MODULE</button><span id="fx-draft-count" aria-live="polite"></span></div>
             <div class="design-rack" id="fx-draft-rack" aria-label="Preview effects order"></div>
-            <div class="help-line">Add duplicates or move modules to explore the design. This does not change the real fixed effects chain and resets on refresh.</div>
-          </section>
+            <div class="help-line">A separate, session-only idea: adding or moving modules here does not change the fixed signal path above.</div>
+          </details>
         </div>
 
         <div id="page-mod" role="tabpanel" aria-labelledby="tab-mod" hidden>
@@ -852,14 +908,14 @@
     </div>
     <footer class="instrument-foot"><span><strong>VANTA</strong> / SOFTWARE SYNTHESIZER</span><span id="format-label">STANDALONE CONCEPT</span></footer>
   </main>
-  <div class="preview-caption"><span><strong>Design preview only.</strong> Controls are interactive for the mockup, but do not produce sound or change the VST.</span><span class="caption-right">DRAG KNOBS TO ADJUST<br>DOUBLE-CLICK TO RESET</span></div>
+  <div class="preview-caption"><span><strong>Design preview only.</strong> Controls do not produce sound or change the VST. <a href="laggify-ui-concept.html">View the separate Laggify concept ↗</a></span><span class="caption-right">DRAG KNOBS TO ADJUST<br>DOUBLE-CLICK TO RESET</span></div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
 <script>
 (() => {
   'use strict';
 
-  // These ranges and factory sounds mirror the currently implemented engine.
+  // Existing controls keep their ranges. New controls below are proposed UI values only.
   const specs = {
     cutoff:          { label: 'CUTOFF',    sub: 'FILTER',     min: 30,    max: 18000, initial: 14000, step: 1,     skew: .28, format: v => v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : Math.round(v) + ' Hz' },
     resonance:       { label: 'RESO',      sub: 'FILTER',     min: 0,     max: .95,   initial: 0,     step: .001,  skew: 1,   format: pct },
@@ -877,9 +933,32 @@
     delayMix:        { label: 'MIX',       sub: 'DELAY',      min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
     distortionDrive: { label: 'DRIVE',     sub: 'DISTORTION', min: 1,     max: 12,    initial: 2,     step: .01,   skew: .5,  format: v => v.toFixed(1) + 'x' },
     distortionTone:  { label: 'TONE',      sub: 'DISTORTION', min: 0,     max: 1,     initial: .65,   step: .001,  skew: 1,   format: pct },
-    distortionMix:   { label: 'MIX',       sub: 'DISTORTION', min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct }
+    distortionMix:   { label: 'MIX',       sub: 'DISTORTION', min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
+    chorusRate:      { label: 'RATE',      sub: 'CHORUS',     min: .05,   max: 5,     initial: .7,    step: .01,   skew: .5,  format: hz },
+    chorusDepth:     { label: 'DEPTH',     sub: 'CHORUS',     min: 0,     max: 1,     initial: .6,    step: .001,  skew: 1,   format: pct },
+    chorusMix:       { label: 'MIX',       sub: 'CHORUS',     min: 0,     max: 1,     initial: .45,   step: .001,  skew: 1,   format: pct },
+    ottDepth:        { label: 'DEPTH',     sub: 'COMPRESSOR', min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    ottMix:          { label: 'MIX',       sub: 'COMPRESSOR', min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    eqLow:           { label: 'LOW',       sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqMid:           { label: 'MID',       sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqHigh:          { label: 'HIGH',      sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqMix:           { label: 'MIX',       sub: 'EQUALIZER',  min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    fxFilterCutoff:  { label: 'CUTOFF',    sub: 'FX FILTER',  min: 30,    max: 18000, initial: 5000,  step: 1,     skew: .28, format: frequency },
+    fxFilterResonance:{label: 'RESO',      sub: 'FX FILTER',  min: 0,     max: .95,   initial: .2,    step: .001,  skew: 1,   format: pct },
+    fxFilterMix:     { label: 'MIX',       sub: 'FX FILTER',  min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    flangerRate:     { label: 'RATE',      sub: 'FLANGER',    min: .05,   max: 5,     initial: .35,   step: .01,   skew: .5,  format: hz },
+    flangerDepth:    { label: 'DEPTH',     sub: 'FLANGER',    min: 0,     max: 1,     initial: .7,    step: .001,  skew: 1,   format: pct },
+    flangerFeedback: { label: 'FEEDBACK',  sub: 'FLANGER',    min: -.8,   max: .8,    initial: .3,    step: .001,  skew: 1,   format: pct },
+    flangerMix:      { label: 'MIX',       sub: 'FLANGER',    min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    phaserRate:      { label: 'RATE',      sub: 'PHASER',     min: .05,   max: 5,     initial: .4,    step: .01,   skew: .5,  format: hz },
+    phaserDepth:     { label: 'DEPTH',     sub: 'PHASER',     min: 0,     max: 1,     initial: .7,    step: .001,  skew: 1,   format: pct },
+    phaserFeedback:  { label: 'FEEDBACK',  sub: 'PHASER',     min: -.8,   max: .8,    initial: .2,    step: .001,  skew: 1,   format: pct },
+    phaserMix:       { label: 'MIX',       sub: 'PHASER',     min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct }
   };
   function pct(value) { return Math.round(value * 100) + '%'; }
+  function hz(value) { return value.toFixed(2) + ' Hz'; }
+  function db(value) { return (value > 0 ? '+' : '') + value.toFixed(1) + ' dB'; }
+  function frequency(value) { return value >= 1000 ? (value / 1000).toFixed(1) + ' kHz' : Math.round(value) + ' Hz'; }
   function time(value) { return value < 1 ? Math.round(value * 1000) + ' ms' : value.toFixed(2) + ' s'; }
   const defaults = Object.fromEntries(Object.entries(specs).map(([key, spec]) => [key, spec.initial]));
   const presets = [
@@ -893,9 +972,14 @@
   const maxOscillators = 8;
   const presetDrafts = new Map();
   let presetLoaded = false;
+  function defaultFxEnabled() {
+    // Existing reverb/delay/distortion retain their original mix-controlled behavior.
+    return { chorus: false, compressor: false, delay: true, distortion: true, equalizer: false, filter: false, flanger: false, phaser: false, reverb: true };
+  }
   const state = {
     values: { ...defaults }, level: 70, preset: 0, filter: 'ALL', format: 'standalone',
-    oscillators: [{ id: 0, wave: 'sine' }], selectedOsc: 0
+    oscillators: [{ id: 0, wave: 'sine' }], selectedOsc: 0,
+    fxEnabled: defaultFxEnabled(), selectedFx: 'chorus'
   };
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
@@ -905,6 +989,60 @@
     const raw = spec.min + (spec.max - spec.min) * Math.pow(clamp(normal, 0, 1), 1 / spec.skew);
     return clamp(spec.min + Math.round((raw - spec.min) / spec.step) * spec.step, spec.min, spec.max);
   }
+
+  const effects = [
+    { id: 'chorus', name: 'CHORUS', category: 'MODULATION', description: 'Stereo movement / soft width', graph: 'MODULATION SHAPE', mix: 'chorusMix', knobs: ['chorusRate', 'chorusDepth', 'chorusMix'], icon: '<circle cx="8" cy="9" r="5"/><circle cx="12" cy="9" r="5"/><circle cx="16" cy="9" r="5"/>' },
+    { id: 'compressor', name: 'COMPRESSOR', category: 'DYNAMICS', description: 'Three-band dynamics / +3 dB high band', graph: 'DYNAMICS CURVE', mix: 'ottMix', knobs: ['ottDepth', 'ottMix'], icon: '<path d="M3 14L9 9l4-2 8-3M3 4h5M16 14h5"/>' },
+    { id: 'delay', name: 'DELAY', category: 'TIME', description: 'Stereo echoes / free time', graph: 'ECHO REPEATS', mix: 'delayMix', knobs: ['delayTime', 'delayFeedback', 'delayMix'], icon: '<path d="M4 3v12M8 5v8M12 6v6M16 7v4M20 8v2"/>' },
+    { id: 'distortion', name: 'DISTORTION', category: 'COLOR', description: 'Saturation / low-pass tone', graph: 'DRIVE CURVE', mix: 'distortionMix', knobs: ['distortionDrive', 'distortionTone', 'distortionMix'], icon: '<path d="M3 14h4l3-10h4l3 10h4"/>' },
+    { id: 'equalizer', name: 'EQUALIZER', category: 'TONE', description: 'Three bands / low, mid & high', graph: 'TONE RESPONSE', mix: 'eqMix', knobs: ['eqLow', 'eqMid', 'eqHigh', 'eqMix'], icon: '<path d="M3 12c3 0 3-7 6-7s3 8 6 8 3-5 6-5"/>' },
+    { id: 'filter', name: 'FILTER', category: 'TONE', description: 'Post-effects low-pass / resonance', graph: 'FILTER RESPONSE', mix: 'fxFilterMix', knobs: ['fxFilterCutoff', 'fxFilterResonance', 'fxFilterMix'], icon: '<path d="M3 5h9c3 0 4 1 5 4l4 5"/>' },
+    { id: 'flanger', name: 'FLANGER', category: 'MODULATION', description: 'Short moving delay / feedback', graph: 'COMB COLOR', mix: 'flangerMix', knobs: ['flangerRate', 'flangerDepth', 'flangerFeedback', 'flangerMix'], icon: '<path d="M3 6v6M7 4v10M11 7v4M15 4v10M19 6v6"/>' },
+    { id: 'phaser', name: 'PHASER', category: 'MODULATION', description: 'Four-stage phase sweep / feedback', graph: 'PHASE SWEEP', mix: 'phaserMix', knobs: ['phaserRate', 'phaserDepth', 'phaserFeedback', 'phaserMix'], icon: '<path d="M2 9c2-7 4-7 6 0s4 7 6 0 4-7 6 0 2 4 3 2"/>' },
+    { id: 'reverb', name: 'REVERB', category: 'SPACE', description: 'Stereo space / size + decay', graph: 'ROOM SHAPE', mix: 'reverbMix', knobs: ['reverbSize', 'reverbDecay', 'reverbMix'], icon: '<path d="M4 14V6l8-3 8 3v8l-8 3zM4 6l8 3 8-3M12 9v8"/>' }
+  ];
+  function buildFxUi() {
+    const slots = $('#fx-slots'), panels = $('#fx-panels');
+    effects.forEach((effect, index) => {
+      const row = document.createElement('div'); row.className = 'fx-slot'; row.dataset.fxRow = effect.id;
+      row.innerHTML = `<button type="button" class="fx-power" data-fx-power="${effect.id}" aria-label="Toggle ${effect.name}" aria-pressed="false"></button>
+        <button type="button" class="fx-select" data-fx-select="${effect.id}" aria-controls="fx-panel-${effect.id}" aria-pressed="false"><span class="fx-number">${String(index + 1).padStart(2, '0')}</span><span class="fx-name">${effect.name}</span><svg viewBox="0 0 24 18" aria-hidden="true">${effect.icon}</svg></button>`;
+      slots.append(row);
+      const panel = document.createElement('section'); panel.className = 'fx-stage-panel'; panel.id = `fx-panel-${effect.id}`; panel.dataset.fxPanel = effect.id;
+      panel.setAttribute('aria-label', `${effect.name} controls`); panel.hidden = effect.id !== state.selectedFx;
+      const graphId = effect.id === 'filter' ? 'fxFilter' : effect.id;
+      panel.innerHTML = `<div class="fx-plot"><svg data-graph="${graphId}" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="Illustrative ${effect.graph.toLowerCase()}"><path class="plot-grid" d="M0 15H280M0 30H280M0 45H280M56 0V60M112 0V60M168 0V60M224 0V60"/><path class="fx-area" data-area/><path class="fx-line" data-line/></svg></div>
+        <div class="fx-caption"><span>${effect.graph} / ILLUSTRATIVE</span><span data-fx-status="${effect.mix}"></span></div>
+        <div class="effect-knobs compact" style="--knob-count:${effect.knobs.length}" data-knob-group="${effect.knobs.join(',')}"></div>`;
+      panels.append(panel);
+    });
+    slots.addEventListener('click', event => {
+      const power = event.target.closest('[data-fx-power]');
+      const select = event.target.closest('[data-fx-select]');
+      if (power) { const id = power.dataset.fxPower; state.fxEnabled[id] = !state.fxEnabled[id]; renderFxSelection(); }
+      else if (select) { state.selectedFx = select.dataset.fxSelect; renderFxSelection(); }
+    });
+    $('#fx-stage-toggle').addEventListener('click', () => {
+      state.fxEnabled[state.selectedFx] = !state.fxEnabled[state.selectedFx]; renderFxSelection();
+    });
+  }
+  function renderFxSelection() {
+    const effect = effects.find(item => item.id === state.selectedFx);
+    const index = effects.indexOf(effect), enabled = state.fxEnabled[effect.id];
+    $('#fx-stage-kicker').textContent = `${String(index + 1).padStart(2, '0')} / ${effect.category}`;
+    $('#fx-stage-title').textContent = effect.name; $('#fx-stage-description').textContent = effect.description;
+    const toggle = $('#fx-stage-toggle'); toggle.setAttribute('aria-pressed', String(enabled));
+    toggle.textContent = enabled ? 'MODULE ON' : 'BYPASSED'; toggle.setAttribute('aria-label', `${enabled ? 'Bypass' : 'Enable'} ${effect.name}`);
+    $$('[data-fx-row]').forEach(row => { row.dataset.selected = String(row.dataset.fxRow === effect.id); });
+    $$('[data-fx-select]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.fxSelect === effect.id)); });
+    $$('[data-fx-power]').forEach(button => {
+      const isOn = state.fxEnabled[button.dataset.fxPower];
+      button.setAttribute('aria-pressed', String(isOn));
+      button.setAttribute('aria-label', `${isOn ? 'Bypass' : 'Enable'} ${button.dataset.fxPower}`);
+    });
+    $$('[data-fx-panel]').forEach(panel => { panel.hidden = panel.dataset.fxPanel !== effect.id; });
+  }
+  buildFxUi();
 
   function makeKnob(key) {
     const spec = specs[key];
@@ -970,7 +1108,7 @@
     if (['attack', 'decay', 'sustain', 'release'].includes(key)) renderEnvelope();
     if (['vibrato', 'vibratoRate'].includes(key)) renderVibrato();
     if (['cutoff', 'resonance'].includes(key)) renderFilter();
-    if (/^(reverb|delay|distortion)/.test(key)) renderEffects();
+    if (/^(reverb|delay|distortion|chorus|ott|eq|fxFilter|flanger|phaser)/.test(key)) renderEffects();
   }
 
   // All curves are parameter illustrations, not measurements of live audio.
@@ -1060,6 +1198,39 @@
       curve += `${i ? 'L' : 'M'}${(8 + 264 * t).toFixed(2)} ${(30 - 23 * output).toFixed(2)} `;
     }
     $('[data-graph="distortion"] [data-line]').setAttribute('d', curve);
+    renderAddedEffects();
+  }
+  function renderAddedEffects() {
+    const v = state.values;
+    const paint = (name, fn, fillBase = 53) => {
+      let line = '';
+      for (let i = 0; i <= 160; i++) {
+        const t = i / 160, x = 8 + t * 264, y = clamp(fn(t), 4, 56);
+        line += `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)} `;
+      }
+      const graph = $(`[data-graph="${name}"]`);
+      graph.querySelector('[data-line]').setAttribute('d', line);
+      graph.querySelector('[data-area]').setAttribute('d', `${line} L272 ${fillBase} L8 ${fillBase} Z`);
+    };
+    paint('chorus', t => 30 - (4 + 18 * v.chorusDepth) * Math.sin(t * Math.PI * (3.4 + v.chorusRate * .55)), 30);
+    paint('compressor', t => {
+      const depth = v.ottDepth * v.ottMix;
+      const compressed = t < .52 ? t * (1 + .22 * depth) : .52 * (1 + .22 * depth) + (t - .52) * (1 - .45 * depth);
+      return 53 - 46 * compressed;
+    });
+    paint('equalizer', t => {
+      const lowWeight = 1 / (1 + Math.exp((t - .30) * 18));
+      const highWeight = 1 / (1 + Math.exp((.70 - t) * 18));
+      const midWeight = Math.max(0, 1 - lowWeight - highWeight);
+      return 30 - (v.eqLow * lowWeight + v.eqMid * midWeight + v.eqHigh * highWeight) * v.eqMix * 1.55;
+    }, 30);
+    paint('fxFilter', t => {
+      const frequency = 30 * Math.pow(600, t), ratio = frequency / v.fxFilterCutoff, q = .707 + 5 * v.fxFilterResonance;
+      const magnitude = 1 / Math.sqrt(Math.pow(1 - ratio * ratio, 2) + Math.pow(ratio / q, 2));
+      return 53 - 46 * (clamp(20 * Math.log10(magnitude), -48, 12) + 48) / 60;
+    });
+    paint('flanger', t => 17 + v.flangerDepth * (10 + 9 * Math.abs(v.flangerFeedback)) * (1 + Math.sin(t * (24 + v.flangerRate * 2))) / 2);
+    paint('phaser', t => 17 + v.phaserDepth * (12 + 7 * Math.abs(v.phaserFeedback)) * Math.pow(Math.sin(t * (13 + v.phaserRate)), 2));
   }
   function updateLevel(value) {
     state.level = clamp(Number(value), 0, 100);
@@ -1222,20 +1393,22 @@
     if (presetLoaded) {
       presetDrafts.set(state.preset, {
         values: { ...state.values }, level: state.level,
-        oscillators: state.oscillators.map(osc => ({ ...osc })), selectedOsc: state.selectedOsc
+        oscillators: state.oscillators.map(osc => ({ ...osc })), selectedOsc: state.selectedOsc,
+        fxEnabled: { ...state.fxEnabled }
       });
     }
     state.preset = (index + presets.length) % presets.length;
     const preset = presets[state.preset], draft = presetDrafts.get(state.preset);
     state.oscillators = draft ? draft.oscillators.map(osc => ({ ...osc })) : [{ id: 0, wave: preset.wave }];
     state.selectedOsc = draft ? draft.selectedOsc : 0;
+    state.fxEnabled = draft ? { ...draft.fxEnabled } : defaultFxEnabled();
     $('#patch-number').textContent = String(state.preset + 1).padStart(3, '0') + ':';
     $('#patch-name').textContent = preset.name; $('#patch-category').textContent = preset.category;
     $('#patch-button').setAttribute('aria-label', `Browse factory presets. Current: ${preset.name}`);
     const values = draft ? draft.values : { ...defaults, ...preset.values };
     Object.entries(values).forEach(([key, value]) => setValue(key, value));
     updateLevel(draft ? draft.level : 70);
-    renderOscTabs(); renderOscEditor(); renderLibrary();
+    renderOscTabs(); renderOscEditor(); renderLibrary(); renderFxSelection();
     presetLoaded = true;
   }
   $('#previous-preset').addEventListener('click', () => selectPreset(state.preset - 1));
@@ -1409,6 +1582,9 @@
   });
   renderFxDraft();
   selectPreset(0); setFormat('standalone');
+  // Open the proposed Effects page first; direct links can open other synth pages.
+  const requestedPage = new URLSearchParams(window.location.search).get('page') || window.location.hash.slice(1) || 'fx';
+  if (['main', 'osc', 'fx', 'mod', 'mixer', 'seq', 'system'].includes(requestedPage)) setPage(requestedPage);
 })();
 </script>
 </body>

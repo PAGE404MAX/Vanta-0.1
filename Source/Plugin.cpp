@@ -88,7 +88,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout VantaProcessor::makeLayout()
             layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
                                                                    juce::StringArray { "Sine", "Saw", "Square", "Triangle" }, 0));
         }
-        else if (i == vanta::oscAEnabled || (i >= vanta::oscATable && i <= vanta::oscHTable) || (i >= vanta::oscASample && i <= vanta::oscHSample) || i == vanta::ottEnabled)
+        else if (i == vanta::oscAEnabled || (i >= vanta::oscATable && i <= vanta::oscHTable) || (i >= vanta::oscASample && i <= vanta::oscHSample) || i == vanta::ottEnabled
+                 || i == vanta::reverbEnabled || i == vanta::delayEnabled || i == vanta::distortionEnabled
+                 || i == vanta::chorusEnabled || i == vanta::eqEnabled || i == vanta::fxFilterEnabled
+                 || i == vanta::flangerEnabled || i == vanta::phaserEnabled)
             layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { p.id, 1 }, p.name, p.defaultValue >= 0.5f));
         else
             layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { p.id, 1 }, p.name,

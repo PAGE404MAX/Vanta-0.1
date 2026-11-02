@@ -16,13 +16,13 @@ jobs:
       - name: Create small installer test inputs
         shell: pwsh
         run: |
-          $plugin = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.11.vst3/Contents/x86_64-win'
-          $resources = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.11.vst3/Contents/Resources'
+          $plugin = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.12.vst3/Contents/x86_64-win'
+          $resources = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.12.vst3/Contents/Resources'
           $app = 'build/VantaBeta_artefacts/Release/Standalone'
           New-Item -ItemType Directory -Path $plugin, $resources, $app -Force | Out-Null
-          Set-Content -LiteralPath (Join-Path $plugin 'Vanta Beta 0.11.vst3') -Value 'VANTA test module'
+          Set-Content -LiteralPath (Join-Path $plugin 'Vanta Beta 0.12.vst3') -Value 'VANTA test module'
           Set-Content -LiteralPath (Join-Path $resources 'moduleinfo.json') -Value '{"test":true}'
-          Set-Content -LiteralPath (Join-Path $app 'Vanta Beta 0.11.exe') -Value 'VANTA test app'
+          Set-Content -LiteralPath (Join-Path $app 'Vanta Beta 0.12.exe') -Value 'VANTA test app'
 
       - name: Install Inno Setup if needed
         shell: pwsh
@@ -73,6 +73,9 @@ jobs:
 
       - name: Build engine and preset tests
         run: cmake --build build --config Release --target VantaTests --parallel
+
+      - name: Build effects tests
+        run: cmake --build build --config Release --target VantaEffectsTests --parallel
 
       - name: Build preset importer tests
         run: cmake --build build --config Release --target VantaImporterTests --parallel
@@ -138,9 +141,9 @@ jobs:
       - name: Upload installer, standalone and VST3
         uses: actions/upload-artifact@v7
         with:
-          name: VANTA 0.11 HERE
+          name: VANTA 0.12 HERE
           path: |
-            installer-output/Vanta-Beta-0.11-Setup.exe
+            installer-output/Vanta-Beta-0.12-Setup.exe
             build/VantaBeta_artefacts/Release/Standalone/
             build/VantaBeta_artefacts/Release/VST3/
             build/ui-preview/

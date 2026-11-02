@@ -387,6 +387,7 @@ void testHostState()
     original[vanta::oscBEnabled] = 1.0f; original[vanta::oscBWave] = 2.0f;
     original[vanta::oscBFine] = -17.0f; original[vanta::oscBPan] = 0.5f;
     original[vanta::oscDEnabled] = 1.0f; original[vanta::oscHEnabled] = 1.0f;
+    original[vanta::chorusEnabled] = 1.0f; original[vanta::eqLow] = 5.0f;
     processor.applyValues(original, "Layered");
     juce::MemoryBlock saved; processor.getStateInformation(saved);
     processor.applyValues(vanta::defaultValues(), "Reset");
@@ -396,6 +397,26 @@ void testHostState()
           && restored[vanta::oscBWave] == 2.0f && restored[vanta::oscDEnabled] == 1.0f
           && restored[vanta::oscHEnabled] == 1.0f && std::abs(restored[vanta::oscBFine] + 17.0f) < 0.01f,
           "Host state saves and restores oscillator layers and settings");
+    check(restored[vanta::chorusEnabled] == 1.0f && restored[vanta::eqLow] == 5.0f,
+          "Host state saves and restores the effects rack");
+
+    // A Beta 0.11 host state contains none of these appended parameters. Its
+    // original nonzero wet mixes must remain enabled, while new effects stay off.
+    auto beta11 = processor.state.copyState();
+    for (int n = beta11.getNumChildren() - 1; n >= 0; --n)
+    {
+        const auto id = beta11.getChild(n).getProperty("id").toString();
+        bool newParameter = false;
+        for (std::size_t i = vanta::reverbEnabled; i < vanta::parameterCount; ++i)
+            newParameter |= id == vanta::parameterSpecs[i].id;
+        if (newParameter) beta11.removeChild(n, nullptr);
+    }
+    auto old11Xml = beta11.createXml(); juce::MemoryBlock beta11Bytes; juce::AudioProcessor::copyXmlToBinary(*old11Xml, beta11Bytes);
+    processor.setStateInformation(beta11Bytes.getData(), static_cast<int>(beta11Bytes.getSize()));
+    auto from11 = processor.currentValues();
+    check(from11[vanta::reverbEnabled] == 1.0f && from11[vanta::delayEnabled] == 1.0f && from11[vanta::distortionEnabled] == 1.0f
+          && from11[vanta::chorusEnabled] == 0.0f,
+          "Beta 0.11 states keep legacy effects enabled and default new effects safely");
 
     // Synthesize an old host state without any of the new oscillator parameters.
     auto old = processor.state.copyState();
@@ -546,7 +567,7 @@ void testImportedEditorControls()
     check(processor.currentValues()[vanta::oscDSample] == 0.0f, "Selecting a basic shape disables sample playback");
     sample->setSelectedId(6, juce::sendNotificationSync);
     check(processor.currentValues()[vanta::oscDSample] == 1.0f, "Selecting an available sample enables playback");
-    click(*editor, "tab-effects"); checkLayout(*editor);
+    click(*editor, "tab-effects"); click(*editor, "fx-select-compressor"); checkLayout(*editor);
     auto* multiband = dynamic_cast<juce::TextButton*>(findVisible(*editor, "parameter-ottEnabled"));
     check(multiband != nullptr && multiband->getToggleState(), "Imported multiband enable is visible on effects page");
     multiband->setToggleState(false, juce::sendNotificationSync);
@@ -662,24 +683,42 @@ void testStandalone(const juce::File& previews)
     check(findVisible(*editor, "remove-oscillator") == nullptr, "OSC A cannot be removed");
 
     click(*editor, "tab-effects"); checkLayout(*editor); snapshot(*editor, previews, "effects.png");
+    const struct { const char* selector; vanta::Parameter enabled; std::array<vanta::Parameter, 4> knobs; int count; } rack[] = {
+        { "fx-select-chorus", vanta::chorusEnabled, { vanta::chorusRate, vanta::chorusDepth, vanta::chorusMix, vanta::level }, 3 },
+        { "fx-select-compressor", vanta::ottEnabled, { vanta::ottDepth, vanta::ottMix, vanta::level, vanta::level }, 2 },
+        { "fx-select-delay", vanta::delayEnabled, { vanta::delayTime, vanta::delayFeedback, vanta::delayMix, vanta::level }, 3 },
+        { "fx-select-distortion", vanta::distortionEnabled, { vanta::distortionDrive, vanta::distortionTone, vanta::distortionMix, vanta::level }, 3 },
+        { "fx-select-equalizer", vanta::eqEnabled, { vanta::eqLow, vanta::eqMid, vanta::eqHigh, vanta::eqMix }, 4 },
+        { "fx-select-filter", vanta::fxFilterEnabled, { vanta::fxFilterCutoff, vanta::fxFilterResonance, vanta::fxFilterMix, vanta::level }, 3 },
+        { "fx-select-flanger", vanta::flangerEnabled, { vanta::flangerRate, vanta::flangerDepth, vanta::flangerFeedback, vanta::flangerMix }, 4 },
+        { "fx-select-phaser", vanta::phaserEnabled, { vanta::phaserRate, vanta::phaserDepth, vanta::phaserFeedback, vanta::phaserMix }, 4 },
+        { "fx-select-reverb", vanta::reverbEnabled, { vanta::reverbSize, vanta::reverbDecay, vanta::reverbMix, vanta::level }, 3 }
+    };
+    for (const auto& fx : rack)
+    {
+        click(*editor, fx.selector); checkLayout(*editor);
+        auto* enable = dynamic_cast<juce::TextButton*>(findVisible(*editor, "parameter-" + juce::String(vanta::parameterSpecs[fx.enabled].id)));
+        check(enable != nullptr, "Every effect has a power switch");
+        enable->setToggleState(!enable->getToggleState(), juce::sendNotificationSync);
+        check(processor.currentValues()[fx.enabled] == (enable->getToggleState() ? 1.0f : 0.0f), "Effect power switch controls its parameter");
+        for (int i = 0; i < fx.count; ++i) changeSlider(*editor, processor, fx.knobs[static_cast<std::size_t>(i)]);
+    }
     const auto reverbBefore = editor->createComponentSnapshot(editor->getLocalBounds());
     auto* reverbDecay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-reverbDecay"));
     check(reverbDecay != nullptr, "Reverb decay control is visible");
     reverbDecay->setValue(1.0, juce::sendNotificationSync);
     const auto reverbAfter = editor->createComponentSnapshot(editor->getLocalBounds());
-    check(changedPixels(reverbBefore, reverbAfter, { 44, 366, 284, 65 }) > 20, "Reverb sketch follows decay");
-    check(changedPixels(reverbBefore, reverbAfter, { 44, 350, 284, 16 }) == 0
-          && changedPixels(reverbBefore, reverbAfter, { 44, 433, 284, 15 }) == 0,
+    check(changedPixels(reverbBefore, reverbAfter, { 237, 365, 713, 102 }) > 20, "Reverb sketch follows decay");
+    check(changedPixels(reverbBefore, reverbAfter, { 237, 350, 713, 15 }) == 0
+          && changedPixels(reverbBefore, reverbAfter, { 237, 468, 713, 15 }) == 0,
           "Reverb illustration stays inside its graph frame");
+    click(*editor, "fx-select-distortion");
     const auto distortionBefore = editor->createComponentSnapshot(editor->getLocalBounds());
     auto* drive = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-distortionDrive"));
     check(drive != nullptr, "Distortion drive control is visible");
     drive->setValue(8.0, juce::sendNotificationSync);
     const auto distortionAfter = editor->createComponentSnapshot(editor->getLocalBounds());
-    check(changedPixels(distortionBefore, distortionAfter, { 672, 366, 284, 65 }) > 30, "Distortion sketch follows drive");
-    for (const auto parameter : { vanta::reverbSize, vanta::reverbDecay, vanta::reverbMix, vanta::delayTime,
-                                  vanta::delayFeedback, vanta::delayMix, vanta::distortionDrive, vanta::distortionTone, vanta::distortionMix })
-        changeSlider(*editor, processor, parameter);
+    check(changedPixels(distortionBefore, distortionAfter, { 237, 365, 713, 102 }) > 30, "Distortion sketch follows drive");
     click(*editor, "tab-modulation"); checkLayout(*editor); snapshot(*editor, previews, "modulation.png");
     const auto envelopeBefore = editor->createComponentSnapshot(editor->getLocalBounds());
     auto* attack = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-attack"));

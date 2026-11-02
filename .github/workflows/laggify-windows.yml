@@ -1,0 +1,51 @@
+name: Build Laggify Windows VST3
+
+on: [push, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  laggify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure the independent effect
+        run: cmake -S "Laggify VST Effect" -B build/laggify -A x64
+
+      - name: Build audio and editor tests
+        run: cmake --build build/laggify --config Release --target LaggifyEngineTests LaggifyProcessorTests --parallel 2
+
+      - name: Build the mixer-insert VST3
+        run: cmake --build build/laggify --config Release --target LaggifyFx_VST3 --parallel 2
+
+      - name: Build the VST3 host tests
+        run: cmake --build build/laggify --config Release --target LaggifyVST3Tests --parallel 2
+
+      - name: Run audio, state, editor and VST3 host tests
+        run: ctest --test-dir build/laggify -C Release --output-on-failure
+
+      - name: Install Inno Setup if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+          }
+
+      - name: Build Laggify installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "Laggify VST Effect/installer/Laggify.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Test installer and uninstaller on isolated runner
+        shell: pwsh
+        run: '& "./Laggify VST Effect/installer/test-installer.ps1"'
+
+      - name: Upload separate Laggify installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: LAGGIFY 0.1 HERE
+          path: installer-output/Laggify-0.1-Setup.exe
+          if-no-files-found: error

@@ -25,7 +25,7 @@ This roadmap is based on the requested synth feature list, not a statement that 
 
 ## Effects and routing
 
-- Beta 0.8 adds a fixed three-band OTT-style approximation. Expand the rack beyond reverb, delay, distortion and this multiband effect: chorus, flanger, phaser, EQ, filter, dimension, additional delay/reverb/distortion flavors and amp-style processing.
+- Beta 0.12 expands the native rack to chorus, three-band dynamics, delay, distortion, EQ, post-filter, flanger, phaser and reverb. Dimension, additional delay/reverb/distortion flavors, amp-style processing and flexible routing remain planned. Laggify is a separate 16-step time/volume VST3 mixer insert with its own installer; it is not inside the VANTA synth or Gross Beat-compatible.
 - Reorderable and multiple instances, per-layer/FX-bus routing and multiband routing are goals, not capabilities of the current engine.
 - The mixer controls layer gain, pan and enable state, including OSC A in Beta 0.8. Advanced layer/FX-bus routing remains planned.
 
@@ -37,6 +37,6 @@ This roadmap is based on the requested synth feature list, not a statement that 
 
 ## Current baseline and approval boundary
 
-Beta 0.8's native engine has up to eight layers, basic shapes or supported imported wavetables and one PCM sample, 16 voices, velocity, sustain and pitch bend, a shared low-pass filter and ADSR, sine pitch vibrato, limited imported LFO routes, reverb/delay/distortion and an OTT-style multiband effect. Per-layer filter/envelope paths, an editable general modulation matrix, playable sequencers and macros are not implemented. The HTML's OSC tabs, sequence grids and expanded effects rack remain session-only visual demonstrations; reloading clears them, and the sequencer and effects sketches are not saved per preset.
+Beta 0.12's native engine has up to eight layers, basic shapes or supported imported wavetables and one PCM sample, 16 voices, velocity, sustain and pitch bend, a shared low-pass filter and ADSR, sine pitch vibrato, limited imported LFO routes, and nine effects. Laggify is a separate mixer-insert plugin. Per-layer filter/envelope paths, an editable general modulation matrix, note sequencers and macros remain unimplemented. The HTML is a design reference, not the running instrument; use the native VANTA editor for oscillator and rack controls, and the separate Laggify editor for its insert controls.
 
 Further implementation should be staged and tested in the native engine, editor, Windows VST3/standalone builds and an actual DAW/audio/MIDI setup before claiming support.

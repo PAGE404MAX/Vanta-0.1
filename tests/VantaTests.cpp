@@ -71,6 +71,18 @@ void testAudio()
         difference += std::abs(sample - saw.getSample(0, i));
     }
     check(finite && difference / distortedAudio.getNumSamples() > 0.002, "Distortion changes audio without non-finite or out-of-range samples");
+    auto mutedDistortion = distorted; mutedDistortion[vanta::distortionEnabled] = 0.0f;
+    auto noDistortion = distorted; noDistortion[vanta::distortionMix] = 0.0f;
+    const auto bypassedDistortion = render(mutedDistortion, rate / 4), originalDry = render(noDistortion, rate / 4);
+    double bypassDifference = 0.0;
+    for (int c = 0; c < 2; ++c) for (int i = 0; i < rate / 4; ++i)
+        bypassDifference += std::abs(bypassedDistortion.getSample(c, i) - originalDry.getSample(c, i));
+    check(bypassDifference == 0.0, "Legacy distortion power switch bypasses the effect");
+    auto withChorus = p; withChorus[vanta::chorusEnabled] = 1.0f;
+    const auto chorusAudio = render(withChorus, rate / 4);
+    difference = 0.0;
+    for (int i = rate / 20; i < rate / 4; ++i) difference += std::abs(chorusAudio.getSample(0, i) - saw.getSample(0, i));
+    check(difference / (rate / 4 - rate / 20) > 0.001, "Effects rack is connected to the synth output");
 
     // Exercise MIDI handling across blocks, including a release before the
     // attack has reached its sustain level (which must not reset every block).
@@ -231,6 +243,7 @@ void testPresets()
     values[vanta::oscAExtraWave] = 2.0f; values[vanta::oscBEnabled] = 1.0f; values[vanta::oscBWave] = 2.0f;
     values[vanta::oscBTune] = -12.0f; values[vanta::oscBFine] = 17.0f; values[vanta::oscBPan] = -0.75f;
     values[vanta::oscDEnabled] = 1.0f; values[vanta::oscHEnabled] = 1.0f;
+    values[vanta::chorusEnabled] = 1.0f; values[vanta::chorusRate] = 1.7f;
     const auto encoded = vanta::PresetCodec::encode("My patch", values);
     auto decoded = vanta::PresetCodec::decode(encoded, ".vanta");
     check(decoded.ok && decoded.name == "My patch", "Native preset round-trip loads name");
@@ -241,6 +254,10 @@ void testPresets()
     check(legacy.ok && legacy.values[vanta::wave] == 1.0f && legacy.values[vanta::oscAExtraWave] == 0.0f
           && legacy.values[vanta::oscALevel] == 1.0f && legacy.values[vanta::oscBEnabled] == 0.0f,
           "Older VANTA presets retain the original saw and default new layers to off");
+    check(legacy.values[vanta::reverbEnabled] == 1.0f && legacy.values[vanta::delayEnabled] == 1.0f
+          && legacy.values[vanta::distortionEnabled] == 1.0f
+          && legacy.values[vanta::chorusEnabled] == 0.0f,
+          "Old presets retain legacy FX behaviour and default new features off");
     check(!vanta::PresetCodec::decode("not json", ".vanta").ok, "Malformed JSON is rejected");
     check(!vanta::PresetCodec::decode("{}", ".vanta").ok, "Unrecognised VANTA schema is rejected");
     check(!vanta::PresetCodec::decode(encoded, ".fxp").ok && !vanta::PresetCodec::decode(encoded, ".SerumPreset").ok

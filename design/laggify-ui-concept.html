@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>LAGGIFY — VANTA audio effect concept</title>
+<style>
+  :root { color-scheme: dark; --cream: #f4e6df; --sans: "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif; --mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; min-height: 100vh; padding: 32px 24px 44px; background: #151414; color: var(--cream); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid #ffd18c; outline-offset: 3px; }
+  .preview { max-width: calc(1060px * var(--preview-scale, 1)); margin: 0 auto; }
+  .preview-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 20px; margin: 0 1px 14px; color: #a99c98; font: 10px/1.2 var(--mono); letter-spacing: .08em; }
+  .preview-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .preview-heading strong { color: #e7d8d0; font-size: 11px; letter-spacing: .13em; }
+  .preview-heading span { color: #9c8780; }
+  .preview-link { color: #d0a89a; text-decoration: none; }
+  .preview-link:hover { color: #fff0dd; }
+  .instrument { position: relative; overflow: hidden; border: 1px solid #d04038; border-radius: 4px; background: #8e171b; zoom: var(--preview-scale, 1); }
+  .topline { height: 4px; background: #d14b3d; }
+  .instrument-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 76px; padding: 12px 20px; }
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .brand-logo { display: block; flex: none; width: 38px; height: 38px; padding: 0; border: 0; background: transparent; }
+  .brand-mark { display: block; width: 38px; height: 38px; }
+  .brand-logo:hover rect { stroke: #ffd2b6; stroke-opacity: 1; }
+  .brand-name { margin: 0; color: #fff0e3; font-size: 23px; line-height: .95; font-weight: 800; letter-spacing: .15em; }
+  .brand-sub { margin-top: 5px; color: #edaaa0; font: 9px var(--mono); letter-spacing: .11em; }
+  .plugin-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: #f1c5b3; font: 9px var(--mono); letter-spacing: .08em; }
+  .plugin-meta b { padding: 8px 11px; color: #ffe3cb; border: 1px solid #b94837; background: #451413; font-weight: 500; }
+  .inside { padding: 0 16px 13px; }
+  .signal-path { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 48px; margin-bottom: 9px; padding: 8px 12px; border: 1px solid #bd493d; background: #170d0e; color: #d9b0a1; font: 9px var(--mono); letter-spacing: .06em; }
+  .signal-path b { color: #ffe1c7; font-weight: 500; }
+  .signal-path i { color: #ed6c50; font-style: normal; }
+  .signal-path .signal-sync { margin-left: auto; color: #c8917f; }
+  .workspace { min-width: 0; padding: 13px 16px 15px; border: 1px solid #d45a49; background: #0c0909; }
+  .workspace-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #4b1d1d; padding-bottom: 10px; }
+  .eyebrow { display: flex; align-items: center; gap: 9px; color: #efc2b3; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+  .eyebrow b { color: #f25a43; font: 10px var(--mono); }
+  .workspace-note { color: #a68479; font: 9px var(--mono); letter-spacing: .07em; text-align: right; }
+  /* Laggify: two preset banks and one large, switchable flat editor. */
+  .lag-console { display: grid; grid-template-columns: 286px minmax(0, 1fr); margin-top: 12px; border: 1px solid #61302a; background: #100b0c; }
+  .lag-sidebar { min-width: 0; border-right: 1px solid #61302a; background: #1a1010; }
+  .lag-side-top, .lag-side-bottom { display: flex; gap: 6px; padding: 7px; background: #241112; }
+  .lag-side-bottom { border-top: 1px solid #532722; }
+  .lag-mode, .lag-power, .lag-tool {
+    border: 1px solid #65322b; border-radius: 0; background: #160e0e; color: #bc9589;
+    font-size: 9px; font-weight: 800; letter-spacing: .1em;
+  }
+  .lag-mode { display: flex; flex: 1; align-items: center; gap: 9px; min-height: 32px; padding: 0 9px; text-align: left; }
+  .lag-mode .lamp { width: 9px; height: 9px; border: 1px solid #805145; border-radius: 50%; background: #442420; }
+  .lag-mode strong { color: #eac6b6; font-size: 11px; letter-spacing: .13em; }
+  .lag-mode small { margin-left: auto; color: #896a60; font: 8px var(--mono); }
+  .lag-mode[aria-pressed="true"] { border-color: #d26049; background: #55201b; }
+  .lag-mode[aria-pressed="true"] .lamp { background: #ff7255; border-color: #ffa47d; }
+  .lag-mode[data-lag-mode="volume"][aria-pressed="true"] { border-color: #ce9557; background: #4a2e1d; }
+  .lag-mode[data-lag-mode="volume"][aria-pressed="true"] .lamp { background: #ffc36a; border-color: #ffe0a5; }
+  .lag-power { min-width: 71px; padding: 0 8px; }
+  .lag-power[aria-pressed="true"] { color: #ffdfcb; border-color: #d4644a; background: #62221c; }
+  .lag-mode:hover, .lag-power:hover, .lag-tool:hover { color: #fff2e3; border-color: #e68a68; }
+  .lag-bank-section { padding: 3px 7px 5px; }
+  .lag-bank-heading { display: flex; align-items: center; justify-content: space-between; min-height: 22px; color: #bb8d7e; font: 9px var(--mono); letter-spacing: .05em; }
+  .lag-bank-heading strong { color: #ee967d; font: 9px var(--mono); }
+  .lag-bank-section[data-kind="volume"] .lag-bank-heading strong { color: #dca96e; }
+  .lag-bank-heading span { color: #826056; font-size: 8px; }
+  .lag-bank { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
+  .lag-bank button {
+    display: block; min-width: 0; height: 20px; padding: 0 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: left; border: 1px solid #482623; border-radius: 0; background: #211314; color: #bda49b; font: 8px var(--sans);
+  }
+  .lag-bank button:hover { color: #fff0e1; border-color: #b25542; background: #3c1b19; }
+  .lag-bank button[aria-pressed="true"] { color: #fff0e0; border-color: #ff8561; background: #6b271f; }
+  .lag-bank-section[data-kind="volume"] button[aria-pressed="true"] { color: #fff0d6; border-color: #e5b26e; background: #674326; }
+  .lag-parameters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 3px 7px 7px; padding: 7px; border: 1px solid #482623; background: #120c0c; }
+  .lag-control { display: flex; align-items: center; min-width: 0; gap: 6px; color: #af887b; font: 8px var(--mono); letter-spacing: .04em; }
+  .lag-control label { white-space: nowrap; }
+  .lag-control select, .lag-control input[type="number"] { min-width: 0; height: 24px; border: 1px solid #57302a; border-radius: 0; background: #1b0f0f; color: #f1cdbb; font: 9px var(--mono); }
+  .lag-control select { flex: 1; padding: 0 4px; }
+  .lag-control input[type="number"] { width: 55px; padding: 0 4px; }
+  .lag-mix { grid-column: 1 / -1; }
+  .lag-mix input { flex: 1; min-width: 0; margin: 0; accent-color: #ff7654; }
+  .lag-mix output { min-width: 29px; color: #f0cab6; text-align: right; }
+  .lag-editor { display: flex; flex-direction: column; min-width: 0; background: #0d0a0a; }
+  .lag-edit-area { display: grid; flex: 1; grid-template-columns: 33px minmax(0, 1fr); min-height: 500px; }
+  .lag-tools { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 4px; border-right: 1px solid #4d2723; background: #160e0e; }
+  .lag-tool { display: grid; place-items: center; width: 24px; height: 25px; padding: 3px; letter-spacing: 0; }
+  .lag-tool svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .lag-tool[aria-pressed="true"] { color: #ffac88; background: #53201c; border-color: #c75843; }
+  .lag-tool[data-lag-mode="volume"][aria-pressed="true"], .lag-tools[data-kind="volume"] .lag-tool[data-lag-set-smooth][aria-pressed="true"] { color: #ffe0a3; background: #543820; border-color: #bb8549; }
+  .lag-tool-separator { height: 1px; margin: 3px 0; background: #57302b; }
+  .lag-tool-spacer { flex: 1; }
+  .lag-chart { position: relative; min-width: 0; min-height: 500px; overflow: hidden; background: #120d0e; }
+  .lag-graph { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  .lag-graph:focus-visible { outline: 2px solid #ffd18c; outline-offset: -3px; }
+  .lag-grid { fill: none; stroke: #70443d; stroke-width: .6; vector-effect: non-scaling-stroke; }
+  .lag-grid-major { fill: none; stroke: #aa6753; stroke-width: .8; vector-effect: non-scaling-stroke; }
+  .lag-guide { fill: none; stroke: #84594b; stroke-width: .7; opacity: .45; vector-effect: non-scaling-stroke; }
+  .lag-playhead { fill: none; stroke: #ffc36a; stroke-width: .8; opacity: .48; vector-effect: non-scaling-stroke; }
+  .lag-path { fill: none; stroke: #ff7658; stroke-width: .9; vector-effect: non-scaling-stroke; }
+  .lag-fill { fill: #f15c42; opacity: .07; }
+  .lag-point { fill: #180f0e; stroke: #ffc39c; stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+  .lag-graph[data-kind="volume"] .lag-path { stroke: #ffc36a; }
+  .lag-graph[data-kind="volume"] .lag-fill { fill: #f1ad54; opacity: .08; }
+  .lag-graph[data-kind="volume"] .lag-point { stroke: #ffe2a4; }
+  .lag-selected { fill: #ffd7b8; opacity: 0; }
+  .lag-graph:focus .lag-selected { opacity: .07; }
+  .lag-axis-label { position: absolute; left: 12px; z-index: 1; padding: 2px 4px; background: #120d0dcc; color: #be9788; font: 9px var(--mono); pointer-events: none; }
+  .lag-axis-top { top: 9px; }
+  .lag-axis-bottom { bottom: 9px; }
+  .lag-chart-tag { position: absolute; top: 9px; right: 12px; z-index: 1; color: #a58173; font: 9px var(--mono); pointer-events: none; }
+  .lag-footbar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; min-height: 39px; padding: 8px 10px; border-top: 1px solid #61302a; background: #201011; color: #aa8174; font: 9px var(--mono); }
+  .lag-footbar strong { flex: 1; min-width: 120px; color: #ff9d7b; font: 10px var(--mono); }
+  .lag-footbar[data-kind="volume"] strong { color: #ffc983; }
+  .lag-footbar b { color: #ecc3ae; font-weight: 500; }
+  .lag-readout { color: #d2a89a; }
+  .lag-footnote { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px 12px; margin-top: 9px; color: #96766b; font: 9px/1.45 var(--mono); }
+  .lag-footnote strong { color: #d8a993; font-weight: 500; }
+
+  /* Mirrors VANTA's centered V-button display menu; preview scaling is local. */
+  .resize-overlay { position: absolute; z-index: 20; inset: 0; background: #000b; }
+  .resize-dialog { position: absolute; width: 440px; max-width: calc(100% - 24px); overflow-y: auto; transform: translate(-50%, -50%); padding: 19px 21px 17px; border: 1px solid #d04038; border-top: 3px solid #d04038; background: #0c0909; color: #f6e4db; }
+  .resize-dialog:focus { outline: none; }
+  .resize-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .resize-kicker { color: #f56850; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+  .resize-close { min-width: 28px; height: 25px; padding: 0; border: 0; background: transparent; color: #f26b53; font-size: 15px; }
+  .resize-close:hover { color: #ffe6d0; }
+  .resize-title-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+  .resize-title-row h2 { margin: 5px 0 0; font-size: 18px; letter-spacing: .02em; }
+  .resize-current { color: #caa99c; font: 9px var(--mono); }
+  .resize-description { margin: 12px 0 13px; padding-bottom: 12px; border-bottom: 1px solid #44201e; color: #a38479; font: 9px/1.4 var(--mono); }
+  .resize-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(75px, 1fr)); gap: 8px; }
+  .resize-choices button { min-width: 0; min-height: 36px; padding: 0 5px; border: 1px solid #341719; background: #251112; color: #dbb9ab; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
+  .resize-choices button:hover { border-color: #e46f51; color: #fff0df; }
+  .resize-choices button[aria-pressed="true"] { border-color: #ffad7b; background: #f3a867; color: #35100c; }
+  .resize-hint { margin-top: 10px; color: #8d7065; font: 9px var(--mono); }
+  .instrument-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 15px; min-height: 28px; padding: 0 19px 4px; color: #edaaa0; font: 9px var(--mono); letter-spacing: .05em; }
+  .instrument-foot strong { color: #f8d4bf; font-weight: 500; }
+  .preview-caption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 13px 2px 0; color: #aa9992; font: 11px/1.5 var(--sans); }
+  .preview-caption strong { color: #ddc7bc; font-weight: 600; }
+  .caption-right { color: #88746d; font: 10px/1.4 var(--mono); text-align: right; }
+  @media (max-width: 800px) {
+    body { padding: 20px 14px 35px; }
+    .lag-console { grid-template-columns: 230px minmax(0, 1fr); }
+    .lag-bank button { font-size: 7px; }
+    .lag-edit-area, .lag-chart { min-height: 500px; }
+  }
+  @media (max-width: 600px) {
+    .lag-console { grid-template-columns: 1fr; }
+    .lag-sidebar { border-right: 0; border-bottom: 1px solid #61302a; }
+    .lag-bank button { font-size: 9px; }
+    .lag-edit-area, .lag-chart { min-height: 330px; }
+  }
+  @media (max-width: 520px) {
+    body { padding: 14px 9px 28px; }
+    .instrument-header { align-items: flex-start; flex-direction: column; gap: 12px; padding: 12px; }
+    .plugin-meta { justify-content: flex-start; }
+    .inside { padding: 0 9px 10px; }
+    .workspace { padding: 12px; }
+    .workspace-note { font-size: 8px; }
+    .lag-bank button { font-size: clamp(7px, 2.4vw, 9px); }
+    .signal-path .signal-sync { width: 100%; margin-left: 0; }
+    .caption-right { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="preview">
+  <header class="preview-bar">
+    <div class="preview-heading"><strong>LAGGIFY / EFFECT STUDY</strong><span>SEPARATE VST3 · NO AUDIO</span></div>
+    <a class="preview-link" href="vanta-ui-concept.html?page=fx">VIEW VANTA SYNTH CONCEPT ↗</a>
+  </header>
+  <main class="instrument" aria-label="Laggify separate audio effect concept">
+    <div class="topline"></div>
+    <header class="instrument-header">
+      <div class="brand">
+        <button type="button" class="brand-logo" id="resize-trigger" aria-label="Resize Laggify interface" aria-haspopup="dialog" aria-expanded="false" aria-controls="resize-dialog" title="Open interface size options"><svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x=".5" y=".5" width="39" height="39" rx="3" fill="#200d0e" stroke="#f08469" stroke-opacity=".55"/><path d="M8 10h6l6 16 6-16h6L23 31h-6z" fill="#ffe0c4"/><path d="M29 30h4" stroke="#ff6549" stroke-width="2"/></svg></button>
+        <div><h1 class="brand-name">LAGGIFY</h1><div class="brand-sub">VANTA AUDIO / TIME + VOLUME FX</div></div>
+      </div>
+      <div class="plugin-meta"><span>STEREO INPUT / OUTPUT</span><b>VST3 INSERT EFFECT</b></div>
+    </header>
+    <div class="inside">
+      <div class="signal-path" aria-label="Effect signal path"><b>TRACK AUDIO IN</b><i>→</i><b>TIME + VOLUME</b><i>→</i><b>PROCESSED OUT</b><span class="signal-sync">HOST TEMPO / POSITION</span></div>
+      <section class="workspace" aria-label="Laggify time and volume controls">
+        <div class="workspace-head"><div class="eyebrow"><b>01</b> TIME + VOLUME / CURVE EDITOR</div><div class="workspace-note">PRESET BANKS · EXAMPLE CURVES</div></div>
+          <div class="lag-console">
+            <aside class="lag-sidebar" aria-label="Laggify preset banks and controls">
+              <div class="lag-side-top"><button type="button" class="lag-mode" data-lag-mode="time" aria-pressed="true"><span class="lamp" aria-hidden="true"></span><strong>TIME</strong><small>EDIT CURVE</small></button><button type="button" class="lag-power" id="lag-enabled" aria-pressed="false">LAG OFF</button></div>
+              <section class="lag-bank-section" data-kind="time" aria-label="Time preset bank"><div class="lag-bank-heading"><strong>01 / TIME PRESETS</strong><span>36 SLOTS</span></div><div class="lag-bank" id="lag-time-bank" role="group" aria-label="Time preset concepts"></div></section>
+              <section class="lag-bank-section" data-kind="volume" aria-label="Volume preset bank"><div class="lag-bank-heading"><strong>02 / VOLUME PRESETS</strong><span>36 SLOTS</span></div><div class="lag-bank" id="lag-volume-bank" role="group" aria-label="Volume preset concepts"></div></section>
+              <div class="lag-parameters">
+                <div class="lag-control"><label for="lag-cycle">CYCLE</label><select id="lag-cycle" aria-label="Laggify cycle length"><option value="0.5">½ BAR</option><option value="1" selected>1 BAR</option><option value="2">2 BARS</option></select></div>
+                <div class="lag-control"><label for="lag-bpm" title="Used when the host does not provide a tempo">BPM*</label><input id="lag-bpm" type="number" min="30" max="400" step="1" value="120" aria-label="Fallback tempo in beats per minute"></div>
+                <div class="lag-control lag-mix"><label for="lag-mix">MIX</label><input id="lag-mix" type="range" min="0" max="100" step="1" value="100" aria-label="Laggify dry and wet mix"><output id="lag-mix-output" for="lag-mix">100%</output></div>
+              </div>
+              <div class="lag-side-bottom"><button type="button" class="lag-mode" data-lag-mode="volume" aria-pressed="false"><span class="lamp" aria-hidden="true"></span><strong>VOLUME</strong><small>EDIT CURVE</small></button></div>
+            </aside>
+            <section class="lag-editor" aria-label="Laggify curve editor">
+              <div class="lag-edit-area">
+                <div class="lag-tools" aria-label="Curve tools">
+                  <button type="button" class="lag-tool" data-lag-mode="time" aria-label="Edit time curve" title="Time curve" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 5v5l4 2"/></svg></button>
+                  <button type="button" class="lag-tool" data-lag-mode="volume" aria-label="Edit volume curve" title="Volume curve" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l5-4v12l-5-4H3zM14 7c2 1 2 5 0 6"/></svg></button>
+                  <div class="lag-tool-separator"></div>
+                  <button type="button" class="lag-tool" data-lag-set-smooth="line" aria-label="Interpolate points with lines" title="Line interpolation" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15L9 5l8 7"/><circle cx="3" cy="15" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="17" cy="12" r="1"/></svg></button>
+                  <button type="button" class="lag-tool" data-lag-set-smooth="step" aria-label="Hold each step" title="Held steps" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15h5V9h5V4h6"/></svg></button>
+                  <div class="lag-tool-spacer"></div>
+                  <button type="button" class="lag-tool" id="lag-reset" aria-label="Reset the active curve" title="Reset active curve"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6a6 6 0 1 1-1 6M5 6V2M5 6h4"/></svg></button>
+                </div>
+                <div class="lag-chart">
+                  <span class="lag-axis-label lag-axis-top" id="lag-axis-top" aria-hidden="true">LIVE</span><span class="lag-axis-label lag-axis-bottom" id="lag-axis-bottom" aria-hidden="true">1 CYCLE BACK</span><span class="lag-chart-tag">16 STEPS / EXAMPLE</span>
+                  <svg class="lag-graph" data-kind="time" id="lag-time-graph" viewBox="0 0 800 600" preserveAspectRatio="none" tabindex="0" role="group" aria-label="Time curve: 16 steps. Top is live; bottom is one cycle back. Drag to draw. Use left and right arrows to select a step, up and down to change it." aria-describedby="lag-instructions"><path class="lag-grid" data-grid/><path class="lag-grid-major" data-grid-major/><rect class="lag-selected" data-selection/><path class="lag-guide" d="M10 10L790 590"/><path class="lag-fill" data-fill/><path class="lag-playhead" d="M285 10V590"/><path class="lag-path" data-curve/><g data-points/></svg>
+                  <svg class="lag-graph" data-kind="volume" id="lag-volume-graph" viewBox="0 0 800 600" preserveAspectRatio="none" tabindex="0" role="group" aria-label="Volume curve: 16 steps. Top is full volume; bottom is silence. Drag to draw. Use left and right arrows to select a step, up and down to change it." aria-describedby="lag-instructions" hidden><path class="lag-grid" data-grid/><path class="lag-grid-major" data-grid-major/><rect class="lag-selected" data-selection/><path class="lag-guide" d="M10 10H790"/><path class="lag-fill" data-fill/><path class="lag-playhead" d="M285 10V590"/><path class="lag-path" data-curve/><g data-points/></svg>
+                </div>
+              </div>
+              <div class="lag-footbar" id="lag-footbar" data-kind="time"><strong id="lag-current-title">TIME / Complex 4</strong><output class="lag-readout" id="lag-readout" aria-live="polite"></output><span>SYNC <b id="lag-cycle-readout">1 BAR</b></span><span>HOST / BPM*</span></div>
+            </section>
+          </div>
+          <div class="lag-footnote" id="lag-instructions"><span><strong>PREVIEW ONLY</strong> · select a bank or draw in the editor</span><span>HOST TEMPO + POSITION · BPM* FALLBACK</span></div>
+      </section>
+    </div>
+    <footer class="instrument-foot"><span><strong>VANTA AUDIO</strong> / LAGGIFY</span><span>INDEPENDENT VST3 EFFECT CONCEPT</span></footer>
+    <div class="resize-overlay" id="resize-overlay" hidden>
+      <section class="resize-dialog" id="resize-dialog" role="dialog" aria-modal="true" aria-labelledby="resize-title" aria-describedby="resize-description" tabindex="-1">
+        <div class="resize-top"><span class="resize-kicker">LAGGIFY / DISPLAY</span><button type="button" class="resize-close" id="resize-close" aria-label="Close interface size menu">×</button></div>
+        <div class="resize-title-row"><h2 id="resize-title">INTERFACE SIZE</h2><span class="resize-current" id="resize-current" aria-live="polite">CURRENT 100%</span></div>
+        <p class="resize-description" id="resize-description">Choose a size or fit Laggify to your screen.</p>
+        <div class="resize-choices" role="group" aria-label="Interface size options">
+          <button type="button" data-resize="60" aria-pressed="false">60%</button><button type="button" data-resize="75" aria-pressed="false">75%</button><button type="button" data-resize="90" aria-pressed="false">90%</button><button type="button" data-resize="100" aria-pressed="true">100%</button><button type="button" data-resize="110" aria-pressed="false">110%</button><button type="button" data-resize="125" aria-pressed="false">125%</button><button type="button" data-resize="150" aria-pressed="false">150%</button><button type="button" id="resize-fit" title="Fit the preview to the browser window">FIT SCREEN</button>
+        </div>
+        <div class="resize-hint">ESC OR CLICK OUTSIDE TO CLOSE</div>
+      </section>
+    </div>
+  </main>
+  <div class="preview-caption"><span><strong>Design preview only.</strong> Names match the reference; curves are original illustrations, not Gross Beat presets. No audio is processed.</span><span class="caption-right">SELECT TIME / VOLUME<br>DRAG TO DRAW</span></div>
+</div>
+<script>
+(() => {
+  'use strict';
+  // Labels follow the supplied Gross Beat reference. Curves are original
+  // illustrations for this no-audio preview, not imported factory presets.
+  const timeIds = [
+    'live', 'half', 'slow-a', 'slow-b',
+    'slow-c', 'slow-d', 'reverse', 'rev-a',
+    'rev-b', 'rev-c', 'rev-d', 'stutter',
+    'jump-a', 'rept-a', 'rept-b', 'jump-b',
+    'rept-c', 'rept-d', 'ramp-a', 'ramp-b',
+    'ramp-c', 'ramp-d', 'bounce-a', 'bounce-b',
+    'bounce-c', 'bounce-d', 'jump-c', 'jump-d',
+    'warp-a', 'warp-b', 'warp-c', 'warp-d',
+    'slice-a', 'slice-b', 'slice-c', 'slice-d'
+  ];
+  const timeLabels = [
+    'Empty',
+    ...Array.from({length: 11}, (_, i) => `Basic ${i + 1}`),
+    ...Array.from({length: 12}, (_, i) => `Complex ${i + 1}`),
+    ...Array.from({length: 12}, (_, i) => `Chaos ${i + 1}`)
+  ];
+  const lagBanks = {
+    time: timeIds.map((id, i) => ({ id, label: timeLabels[i] })),
+    volume: [
+      ['open', 'Empty'], ['gate-d', '2 Beat Gate'], ['gate-b', '1 Beat Gate'], ['gate-a', '1/2 Bt Gate'],
+      ['gate-third', '1/3 Bt Gate'], ['gate', '1/4 Bt Gate'], ['pulse-a', '1/6 Bt Gate'], ['pulse-b', '1/8 Bt Gate'],
+      ['chop-a', 'Trance Gt 1'], ['chop-b', 'Trance Gt 2'], ['chop-c', 'Trance Gt 3'], ['chop-d', 'Trance Gt 4'],
+      ['pump-a', 'Saw Gate 1'], ['pump-b', 'Saw Gate 2'], ['first-step', '1st Step'], ['first-fade', '1st Stp Fade'],
+      ['pulse-c', '2 Step Gate'], ['off-beat', 'Off Beat'], ['duck-a', '1/4 Dynamic'], ['chop', '1/4 Swing'],
+      ['gate-out', '1/4 Gate Out'], ['gate-in', '1/4 Gate In'], ['speed-up', 'Spd Up Gate'], ['slow-down', 'Slw Dn Gate'],
+      ['end-fade', 'End Fade'], ['end-gate', 'End Gate'], ['trem-a', 'Tremelo Slw'], ['trem-d', 'Tremelo Fst'],
+      ['pump', 'Sidechain'], ['drum-loop', 'Drum Loop'], ['trem-c', 'Copter'], ['trem-b', 'AM'],
+      ['fade-a', 'Fade In'], ['fade-b', 'Fade Out'], ['fade-out-in', 'Fade Out In'], ['mute', 'Mute']
+    ].map(([id, label]) => ({ id, label }))
+  };
+  function lagPattern(kind, name) {
+    const [family, letter] = name.split('-');
+    const variant = Math.max(0, ['a', 'b', 'c', 'd'].indexOf(letter));
+    const clamp01 = n => Math.max(0, Math.min(1, n));
+    const jumps = [
+      [0,0,0,.18,.18,.18,.08,.08,.30,.30,.30,.16,.16,.26,.26,0],
+      [0,0,0,0,.14,.14,.14,.10,.10,.10,.32,.32,.25,.29,.32,0],
+      [0,.22,.22,.22,.10,.10,.36,.36,.36,.18,.18,.28,.28,.40,.40,.10],
+      [0,0,.12,.12,.28,.28,.16,.16,.42,.42,.25,.25,.35,.35,.12,.12]
+    ];
+    return Array.from({ length: 16 }, (_, step) => {
+      const f = step / 15;
+      if (kind === 'time') {
+        if (name === 'live') return 0;
+        if (name === 'half') return step / 32;
+        if (name === 'reverse') return (step % 8) / 8;
+        if (name === 'stutter') return Math.floor(step / 4) / 4;
+        if (family === 'slow') return f * [.125, .25, .375, .75][variant];
+        if (family === 'rev') { const period = [2, 4, 8, 16][variant]; return (step % period) / period; }
+        if (family === 'rept') { const period = [8, 4, 2, 1][variant]; return Math.floor(step / period) * period / 16; }
+        if (family === 'ramp') return .8 * Math.pow(f, [.5, 1.5, 2, 3][variant]);
+        if (family === 'bounce') return .5 * (1 - Math.cos(2 * Math.PI * f * (variant + 1))) * [.4, .5, .7, .9][variant];
+        if (family === 'jump') return jumps[variant][step];
+        if (family === 'warp') return clamp01(.6 * f + .12 * Math.sin(2 * Math.PI * f * (variant + 1)) + .04 * variant);
+        if (family === 'slice') { const period = [2, 4, 8, 16][variant]; return clamp01(Math.floor(step / period) * period / 16 + .35 * (step % period) / period); }
+        return 0;
+      }
+      if (name === 'open') return 1;
+      if (name === 'mute') return 0;
+      if (name === 'gate-third') return (step * 3 % 8) < 4 ? 1 : 0;
+      if (name === 'gate-out') return step % 4 < 2 ? 1 - f : 0;
+      if (name === 'gate-in') return step % 4 < 2 ? f : 0;
+      if (name === 'first-step') return step === 0 ? 1 : 0;
+      if (name === 'first-fade') return clamp01(1 - step / 4);
+      if (name === 'off-beat') return step % 4 >= 2 ? 1 : 0;
+      if (name === 'speed-up') return [1,1,0,0,1,1,0,0,1,0,0,1,0,1,0,1][step];
+      if (name === 'slow-down') return [1,0,1,0,1,0,0,1,0,0,1,1,0,0,1,1][step];
+      if (name === 'end-fade') return step < 12 ? 1 : (15 - step) / 3;
+      if (name === 'end-gate') return step < 12 ? 1 : 0;
+      if (name === 'drum-loop') return [1,1,0,1,0,1,1,0,1,0,1,1,0,1,0,1][step];
+      if (name === 'fade-out-in') return Math.abs(2 * f - 1);
+      if (name === 'gate') return step % 2 === 0 ? 1 : 0;
+      if (name === 'pump') return .12 + .88 * (step % 4) / 3;
+      if (name === 'chop') return [2, 4, 7].includes(step % 8) ? 0 : 1;
+      if (family === 'gate') { const period = [2, 4, 6, 8][variant]; return step % period < Math.ceil(period / 2) ? 1 : 0; }
+      if (family === 'pump') { const period = [2, 4, 8, 16][variant]; return .12 + .88 * (step % period) / (period - 1); }
+      if (family === 'fade') return [f, 1 - f, f * f, (1 - f) * (1 - f)][variant];
+      if (family === 'pulse') { const period = [4, 4, 8, 8][variant], width = [1, 2, 2, 4][variant]; return step % period < width ? 1 : .08; }
+      if (family === 'chop') return ([0xf0f0, 0xa5a5, 0xeeee, 0x9090][variant] >> step) & 1;
+      if (family === 'swell') return clamp01(.08 + .92 * Math.pow(Math.sin(Math.PI * f), [1, 2, .5, 3][variant]));
+      if (family === 'duck') { const period = [4, 4, 8, 8][variant]; return step % period <= variant % 2 ? .15 : 1; }
+      if (family === 'trem') return .55 + .45 * Math.cos(2 * Math.PI * f * (variant + 1));
+      return 1;
+    });
+  }
+  function lagPatternUsesLines(kind, name) {
+    const family = name.split('-')[0];
+    return kind === 'time' ? !['stutter', 'rept', 'jump', 'slice'].includes(family)
+      : ['pump', 'fade', 'swell', 'trem'].includes(family) || ['first-fade', 'end-fade'].includes(name);
+  }
+  function defaultLag() {
+    // Example curves, not a claim about the shipped plug-in's defaults.
+    return { enabled: false, cycle: '1', bpm: 120, mix: 100, mode: 'time',
+      time: lagPattern('time', 'jump-b'), volume: lagPattern('volume', 'open'),
+      timePattern: 'jump-b', volumePattern: 'open', timeSmooth: false, volumeSmooth: false,
+      timeSelected: 0, volumeSelected: 0 };
+  }
+
+  const state = { lag: defaultLag() };
+  const $ = selector => document.querySelector(selector);
+  const $$ = selector => [...document.querySelectorAll(selector)];
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  // Laggify is an interactive HTML sketch only; it does not process or save audio.
+  const lagKinds = ['time', 'volume'];
+  const lagView = { left: 10, top: 10, width: 780, height: 580, totalWidth: 800, totalHeight: 600 };
+  function buildLagBanks() {
+    lagKinds.forEach(kind => {
+      const bank = $(`#lag-${kind}-bank`);
+      lagBanks[kind].forEach(pattern => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.dataset.lagPattern = `${kind}:${pattern.id}`;
+        button.textContent = pattern.label;
+        button.title = `${kind.toUpperCase()} / ${pattern.label} — illustrative preview curve`;
+        button.setAttribute('aria-label', `${kind} preset ${pattern.label}, preview only`);
+        button.setAttribute('aria-pressed', 'false'); bank.append(button);
+      });
+    });
+  }
+  function lagLabel(kind, id) {
+    return (lagBanks[kind].find(item => item.id === id) || { label: 'CUSTOM' }).label;
+  }
+  function renderLaggify() {
+    const lag = state.lag, power = $('#lag-enabled'), active = lag.mode;
+    power.setAttribute('aria-pressed', String(lag.enabled));
+    power.setAttribute('aria-label', `${lag.enabled ? 'Bypass' : 'Enable'} Laggify`);
+    power.textContent = lag.enabled ? 'LAG ON' : 'LAG OFF';
+    $('#lag-cycle').value = lag.cycle;
+    $('#lag-cycle-readout').textContent = $('#lag-cycle').selectedOptions[0].textContent;
+    $('#lag-bpm').value = String(lag.bpm);
+    $('#lag-mix').value = String(lag.mix); $('#lag-mix-output').textContent = `${lag.mix}%`;
+    $('#lag-mix').setAttribute('aria-valuetext', `${lag.mix}% wet`);
+    $$('[data-lag-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.lagMode === active)));
+    $$('[data-lag-pattern]').forEach(button => {
+      const [kind, name] = button.dataset.lagPattern.split(':');
+      button.setAttribute('aria-pressed', String(lag[`${kind}Pattern`] === name));
+    });
+    $$('[data-lag-set-smooth]').forEach(button => {
+      const selected = button.dataset.lagSetSmooth === (lag[`${active}Smooth`] ? 'line' : 'step');
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    // SVG elements do not reflect the HTML .hidden property; toggle the attribute.
+    $('#lag-time-graph').toggleAttribute('hidden', active !== 'time');
+    $('#lag-volume-graph').toggleAttribute('hidden', active !== 'volume');
+    $('#lag-axis-top').textContent = active === 'time' ? 'LIVE' : '100%';
+    $('#lag-axis-bottom').textContent = active === 'time' ? '1 CYCLE BACK' : '0%';
+    $('#lag-footbar').dataset.kind = active;
+    $('.lag-tools').dataset.kind = active;
+    $('#lag-current-title').textContent = `${active.toUpperCase()} / ${lagLabel(active, lag[`${active}Pattern`])}`;
+    lagKinds.forEach(renderLagLane);
+    const selected = lag[`${active}Selected`], amount = Math.round(lag[active][selected] * 100);
+    $('#lag-readout').textContent = `STEP ${String(selected + 1).padStart(2, '0')} / ${amount}%${active === 'time' ? ' BACK' : ''}`;
+  }
+  function renderLagLane(kind) {
+    const lag = state.lag, values = lag[kind], svg = $(`#lag-${kind}-graph`);
+    const smooth = lag[`${kind}Smooth`], selected = lag[`${kind}Selected`];
+    const { left, top, width, height } = lagView, x = step => left + width * step / 16;
+    const y = value => top + height * (kind === 'time' ? value : 1 - value);
+    let path = `M${x(0).toFixed(2)} ${y(values[0]).toFixed(2)}`;
+    let points = `<circle class="lag-point" cx="${x(0).toFixed(2)}" cy="${y(values[0]).toFixed(2)}" r="4"/>`;
+    for (let i = 1; i < 16; i++) {
+      // Large returns are retriggers rather than long interpolated sweeps.
+      if (!smooth || values[i - 1] - values[i] > .5) path += ` H${x(i).toFixed(2)}`;
+      path += ` L${x(i).toFixed(2)} ${y(values[i]).toFixed(2)}`;
+      points += `<circle class="lag-point" cx="${x(i).toFixed(2)}" cy="${y(values[i]).toFixed(2)}" r="4"/>`;
+    }
+    path += ` H${x(16).toFixed(2)}`;
+    svg.querySelector('[data-curve]').setAttribute('d', path);
+    svg.querySelector('[data-fill]').setAttribute('d', `${path} L${x(16)} ${kind === 'time' ? top : top + height} L${left} ${kind === 'time' ? top : top + height} Z`);
+    svg.querySelector('[data-points]').innerHTML = points;
+    const selection = svg.querySelector('[data-selection]');
+    selection.setAttribute('x', String(x(selected))); selection.setAttribute('y', String(top));
+    selection.setAttribute('width', String(width / 16)); selection.setAttribute('height', String(height));
+  }
+  function buildLagLane(kind) {
+    const svg = $(`#lag-${kind}-graph`), { left, top, width, height, totalWidth, totalHeight } = lagView;
+    let grid = '', major = '';
+    for (let i = 0; i <= 16; i++) {
+      const x = (left + width * i / 16).toFixed(2), part = `M${x} ${top}V${top + height}`;
+      if (i % 4 === 0) major += part; else grid += part;
+    }
+    for (let i = 1; i < 8; i++) {
+      const part = `M${left} ${(top + height * i / 8).toFixed(2)}H${left + width}`;
+      if (i % 2 === 0) major += part; else grid += part;
+    }
+    svg.querySelector('[data-grid]').setAttribute('d', grid);
+    svg.querySelector('[data-grid-major]').setAttribute('d', major);
+    let drag = null;
+    const changeFromPointer = event => {
+      const box = svg.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const px = (event.clientX - box.left) / box.width * totalWidth;
+      const py = (event.clientY - box.top) / box.height * totalHeight;
+      const step = Math.floor(clamp((px - left) / width, 0, .999999) * 16);
+      const vertical = clamp((py - top) / height, 0, 1);
+      const value = kind === 'time' ? vertical : 1 - vertical;
+      const from = drag.step === null ? step : drag.step, distance = Math.abs(step - from);
+      const direction = step >= from ? 1 : -1;
+      for (let i = 0; i <= distance; i++) {
+        const fraction = distance ? i / distance : 1;
+        state.lag[kind][from + i * direction] = drag.step === null ? value : drag.value + (value - drag.value) * fraction;
+      }
+      drag.step = step; drag.value = value;
+      state.lag[`${kind}Selected`] = step; state.lag[`${kind}Pattern`] = 'custom';
+      renderLaggify();
+    };
+    svg.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault(); svg.focus({ preventScroll: true });
+      drag = { id: event.pointerId, step: null, value: 0 };
+      svg.setPointerCapture(event.pointerId); changeFromPointer(event);
+    });
+    svg.addEventListener('pointermove', event => { if (drag && drag.id === event.pointerId) changeFromPointer(event); });
+    svg.addEventListener('pointerup', event => { if (drag && drag.id === event.pointerId) drag = null; });
+    svg.addEventListener('pointercancel', () => { drag = null; });
+    svg.addEventListener('lostpointercapture', () => { drag = null; });
+    svg.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const lag = state.lag, key = `${kind}Selected`;
+      if (event.key === 'Home') lag[key] = 0;
+      else if (event.key === 'End') lag[key] = 15;
+      else if (event.key === 'ArrowLeft') lag[key] = Math.max(0, lag[key] - 1);
+      else if (event.key === 'ArrowRight') lag[key] = Math.min(15, lag[key] + 1);
+      else {
+        const up = event.key === 'ArrowUp' ? 1 : -1;
+        const delta = .05 * up * (kind === 'time' ? -1 : 1);
+        lag[kind][lag[key]] = clamp(lag[kind][lag[key]] + delta, 0, 1);
+        lag[`${kind}Pattern`] = 'custom';
+      }
+      renderLaggify();
+    });
+  }
+  function applyLagPattern(kind, name) {
+    state.lag.mode = kind; state.lag[kind] = lagPattern(kind, name);
+    state.lag[`${kind}Pattern`] = name;
+    state.lag[`${kind}Smooth`] = lagPatternUsesLines(kind, name);
+    renderLaggify();
+  }
+  buildLagBanks(); lagKinds.forEach(buildLagLane);
+  $$('[data-lag-pattern]').forEach(button => button.addEventListener('click', () => {
+    const [kind, name] = button.dataset.lagPattern.split(':'); applyLagPattern(kind, name);
+  }));
+  $$('[data-lag-mode]').forEach(button => button.addEventListener('click', () => {
+    state.lag.mode = button.dataset.lagMode; renderLaggify();
+  }));
+  $$('[data-lag-set-smooth]').forEach(button => button.addEventListener('click', () => {
+    state.lag[`${state.lag.mode}Smooth`] = button.dataset.lagSetSmooth === 'line'; renderLaggify();
+  }));
+  $('#lag-reset').addEventListener('click', () => applyLagPattern(state.lag.mode, state.lag.mode === 'time' ? 'live' : 'open'));
+  $('#lag-enabled').addEventListener('click', () => { state.lag.enabled = !state.lag.enabled; renderLaggify(); });
+  $('#lag-cycle').addEventListener('change', event => { state.lag.cycle = event.target.value; renderLaggify(); });
+  $('#lag-bpm').addEventListener('change', event => {
+    const number = Number(event.target.value);
+    state.lag.bpm = Number.isFinite(number) && event.target.value.trim() ? Math.round(clamp(number, 30, 400)) : 120;
+    renderLaggify();
+  });
+  $('#lag-mix').addEventListener('input', event => { state.lag.mix = Number(event.target.value); renderLaggify(); });
+
+  // Preview the same seven size choices used by VANTA. The real VST host
+  // will control its native window; this HTML only scales the mockup.
+  let previewScale = 100;
+  const instrument = $('.instrument'), resizeOverlay = $('#resize-overlay'), resizeDialog = $('#resize-dialog'), resizeTrigger = $('#resize-trigger');
+  function updatePreviewDimensions() {
+    const bodyStyle = getComputedStyle(document.body);
+    const available = document.documentElement.clientWidth - parseFloat(bodyStyle.paddingLeft) - parseFloat(bodyStyle.paddingRight);
+    const baseWidth = Math.max(1, Math.min(1060, available));
+    instrument.style.width = `${baseWidth}px`;
+    document.documentElement.style.setProperty('--preview-scale', String(previewScale / 100));
+  }
+  function updateResizeSelection() {
+    $('#resize-current').textContent = `CURRENT ${previewScale}%`;
+    $$('[data-resize]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.resize) === previewScale)));
+  }
+  function positionResizeDialog() {
+    if (resizeOverlay.hidden) return;
+    const bounds = instrument.getBoundingClientRect();
+    const scale = bounds.width / instrument.offsetWidth || 1;
+    const left = Math.max(0, bounds.left), right = Math.min(window.innerWidth, bounds.right);
+    const top = Math.max(0, bounds.top), bottom = Math.min(window.innerHeight, bounds.bottom);
+    // Center on the visible portion of a large or partially scrolled editor.
+    const visibleWidth = Math.max(1, right - left), visibleHeight = Math.max(1, bottom - top);
+    const centreX = right > left ? left + visibleWidth / 2 : bounds.left + bounds.width / 2;
+    const centreY = bottom > top ? top + visibleHeight / 2 : bounds.top + bounds.height / 2;
+    resizeDialog.style.maxWidth = `${Math.max(1, (visibleWidth - 20) / scale)}px`;
+    resizeDialog.style.maxHeight = `${Math.max(1, (visibleHeight - 20) / scale)}px`;
+    resizeDialog.style.left = `${(centreX - bounds.left) / scale}px`;
+    resizeDialog.style.top = `${(centreY - bounds.top) / scale}px`;
+  }
+  function showResizeMenu(show) {
+    resizeOverlay.hidden = !show; resizeTrigger.setAttribute('aria-expanded', String(show));
+    [...instrument.children].forEach(child => { if (child !== resizeOverlay) child.inert = show; });
+    if (show) { updateResizeSelection(); positionResizeDialog(); resizeDialog.focus({preventScroll:true}); }
+    else resizeTrigger.focus({preventScroll:true});
+  }
+  function setPreviewScale(percent) {
+    previewScale = Math.round(clamp(percent, 60, 150));
+    updatePreviewDimensions(); updateResizeSelection();
+  }
+  function fitPreviewScale() {
+    const bodyStyle = getComputedStyle(document.body);
+    const availableWidth = Math.max(1, document.documentElement.clientWidth - parseFloat(bodyStyle.paddingLeft) - parseFloat(bodyStyle.paddingRight));
+    const availableHeight = Math.max(1, window.innerHeight - 96);
+    const fit = Math.min(availableWidth / instrument.offsetWidth, availableHeight / instrument.offsetHeight);
+    return clamp(Math.floor(fit * 20) * 5, 60, 150);
+  }
+  resizeTrigger.addEventListener('click', () => showResizeMenu(true));
+  $('#resize-close').addEventListener('click', () => showResizeMenu(false));
+  document.addEventListener('pointerdown', event => {
+    if (!resizeOverlay.hidden && !resizeDialog.contains(event.target)) showResizeMenu(false);
+  });
+  resizeDialog.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); showResizeMenu(false); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = [...resizeDialog.querySelectorAll('button:not(:disabled)')];
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === resizeDialog)) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  $$('[data-resize]').forEach(button => button.addEventListener('click', () => {
+    showResizeMenu(false); setPreviewScale(Number(button.dataset.resize));
+  }));
+  $('#resize-fit').addEventListener('click', () => { const fit = fitPreviewScale(); showResizeMenu(false); setPreviewScale(fit); });
+  window.addEventListener('resize', () => { updatePreviewDimensions(); positionResizeDialog(); });
+  window.addEventListener('scroll', positionResizeDialog, {passive:true});
+  updatePreviewDimensions(); updateResizeSelection();
+  renderLaggify();
+})();
+</script>
+</body>
+</html>

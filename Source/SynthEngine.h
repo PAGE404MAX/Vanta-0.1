@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Parameters.h"
+#include "Effects.h"
 #include "WaveTable.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -26,6 +27,7 @@ private:
     SharedParameters parameters;
     juce::Synthesiser synth;
     juce::Reverb reverb;
+    PostEffects postEffects;
     juce::AudioBuffer<float> delayBuffer;
     double sampleRate = 44100.0;
     int delayWritePosition = 0;

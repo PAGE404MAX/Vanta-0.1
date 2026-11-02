@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VantaBeta VERSION 0.11.0 LANGUAGES C CXX)
+project(VantaBeta VERSION 0.12.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,7 +36,7 @@ juce_add_plugin(VantaBeta
     PLUGIN_MANUFACTURER_CODE Vnta
     PLUGIN_CODE Vntb
     FORMATS VST3 Standalone
-    PRODUCT_NAME "Vanta Beta 0.11"
+    PRODUCT_NAME "Vanta Beta 0.12"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
@@ -48,7 +48,8 @@ target_sources(VantaBeta PRIVATE
     Source/PluginEditor.cpp
     Source/PresetCodec.cpp
     Source/PresetImporter.cpp
-    Source/SynthEngine.cpp)
+    Source/SynthEngine.cpp
+    Source/Effects.cpp)
 target_include_directories(VantaBeta PRIVATE Source)
 target_compile_definitions(VantaBeta PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(VantaBeta PRIVATE juce::juce_audio_utils juce::juce_dsp zlibstatic libzstd_static
@@ -58,14 +59,21 @@ option(VANTA_BUILD_TESTS "Build VANTA's engine, preset and editor tests" ON)
 if(VANTA_BUILD_TESTS)
     enable_testing()
     juce_add_console_app(VantaTests PRODUCT_NAME "VantaTests")
-    target_sources(VantaTests PRIVATE tests/VantaTests.cpp Source/SynthEngine.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp)
+    target_sources(VantaTests PRIVATE tests/VantaTests.cpp Source/SynthEngine.cpp Source/Effects.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp)
     target_include_directories(VantaTests PRIVATE Source)
     target_compile_definitions(VantaTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(VantaTests PRIVATE juce::juce_audio_basics juce::juce_core zlibstatic libzstd_static)
     add_test(NAME VantaTests COMMAND VantaTests)
 
+    juce_add_console_app(VantaEffectsTests PRODUCT_NAME "VantaEffectsTests")
+    target_sources(VantaEffectsTests PRIVATE tests/EffectsTests.cpp Source/Effects.cpp)
+    target_include_directories(VantaEffectsTests PRIVATE Source)
+    target_compile_definitions(VantaEffectsTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_link_libraries(VantaEffectsTests PRIVATE juce::juce_audio_basics juce::juce_core)
+    add_test(NAME VantaEffectsTests COMMAND VantaEffectsTests)
+
     juce_add_console_app(VantaImporterTests PRODUCT_NAME "VantaImporterTests")
-    target_sources(VantaImporterTests PRIVATE tests/PresetImporterTests.cpp Source/SynthEngine.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp)
+    target_sources(VantaImporterTests PRIVATE tests/PresetImporterTests.cpp Source/SynthEngine.cpp Source/Effects.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp)
     target_include_directories(VantaImporterTests PRIVATE Source)
     target_compile_definitions(VantaImporterTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(VantaImporterTests PRIVATE juce::juce_audio_basics juce::juce_core zlibstatic libzstd_static)
@@ -76,7 +84,7 @@ if(VANTA_BUILD_TESTS)
     juce_add_console_app(VantaEditorTests PRODUCT_NAME "VantaEditorTests")
     juce_generate_juce_header(VantaEditorTests)
     target_sources(VantaEditorTests PRIVATE tests/VantaEditorTests.cpp
-        Source/Plugin.cpp Source/PluginEditor.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp Source/SynthEngine.cpp)
+        Source/Plugin.cpp Source/PluginEditor.cpp Source/PresetCodec.cpp Source/PresetImporter.cpp Source/SynthEngine.cpp Source/Effects.cpp)
     target_include_directories(VantaEditorTests PRIVATE Source)
     target_compile_definitions(VantaEditorTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
     target_link_libraries(VantaEditorTests PRIVATE juce::juce_audio_utils juce::juce_dsp zlibstatic libzstd_static)

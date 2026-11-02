@@ -7,23 +7,23 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP -or $env:RUNNER_OS -ne 
     throw 'Installer test requires an isolated GitHub-hosted Windows runner.'
 }
 
-$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.11.vst3').Path
-$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.11.exe').Path
-$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.11-Setup.exe').Path
+$sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.12.vst3').Path
+$sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.12.exe').Path
+$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.12-Setup.exe').Path
 $standardRoot = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3'
-$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.11-installer-test'
+$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.12-installer-test'
 $customRoot = Join-Path $env:RUNNER_TEMP 'Vanta-custom-vst3-test'
 $unscannedRoot = Join-Path $env:RUNNER_TEMP 'Vanta-unscanned-vst3-test'
 $linkTarget = Join-Path $env:RUNNER_TEMP 'Vanta-junction-target-test'
 $linkedRoot = Join-Path $env:RUNNER_TEMP 'Vanta-junction-root-test'
 $outsideData = Join-Path $env:RUNNER_TEMP 'Vanta-projects-preservation-test'
-$installedBundle = Join-Path $standardRoot 'Vanta Beta 0.11.vst3'
-$installedApp = Join-Path $destination 'Vanta Beta 0.11.exe'
-$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.11.lnk'
-$uninstallShortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Uninstall Vanta Beta 0.11.lnk'
+$installedBundle = Join-Path $standardRoot 'Vanta Beta 0.12.vst3'
+$installedApp = Join-Path $destination 'Vanta Beta 0.12.exe'
+$shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Vanta Beta 0.12.lnk'
+$uninstallShortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Uninstall Vanta Beta 0.12.lnk'
 $unrelated = Join-Path $standardRoot 'Other Synth - Vanta installer test.vst3'
 $similarName = Join-Path $standardRoot 'Vanta Beta 0.6 not-a-vanta-plugin.vst3'
-$registryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{BB5FAC9C-152F-4E29-8720-EF74C2AFFFFB}_is1'
+$registryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
 
 function Bundle([string]$Root, [int]$Beta) { Join-Path $Root "Vanta Beta 0.$Beta.vst3" }
 function Binary([string]$Root, [int]$Beta) {
@@ -56,7 +56,7 @@ function Start-Checked([string]$Executable, [string[]]$Arguments, [string]$Log, 
     }
 }
 function Install-Test([string]$Name, [string[]]$More = @(), [int]$Expected = 0) {
-    $log = Join-Path $env:RUNNER_TEMP "vanta-0.11-$Name.log"
+    $log = Join-Path $env:RUNNER_TEMP "vanta-0.12-$Name.log"
     $args = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$destination`"", "/LOG=`"$log`"") + $More
     Start-Checked $setup $args $log $Expected
     return $log
@@ -64,7 +64,7 @@ function Install-Test([string]$Name, [string[]]$More = @(), [int]$Expected = 0) 
 function Uninstall-Test([string]$Name, [string[]]$More = @()) {
     $uninstaller = Get-ChildItem -LiteralPath $destination -Filter 'unins*.exe' -File | Select-Object -First 1
     if (!$uninstaller) { throw 'The uninstaller was not created.' }
-    $log = Join-Path $env:RUNNER_TEMP "vanta-0.11-$Name.log"
+    $log = Join-Path $env:RUNNER_TEMP "vanta-0.12-$Name.log"
     $args = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$log`"") + $More
     Start-Checked $uninstaller.FullName $args $log
     return $log
@@ -79,7 +79,7 @@ function Remove-TestJunction([string]$Path) {
     }
 }
 
-$betaPaths = @(1..12 | ForEach-Object { Bundle $standardRoot $_ })
+$betaPaths = @(1..13 | ForEach-Object { Bundle $standardRoot $_ })
 $guardPaths = @($destination, $customRoot, $unscannedRoot, $linkTarget, $linkedRoot, $outsideData,
     $shortcut, $uninstallShortcut, $unrelated, $similarName) + $betaPaths
 foreach ($path in $guardPaths) {
@@ -95,9 +95,10 @@ try {
     New-TestBundle $standardRoot 6 'Important Project.flp'
     New-TestBundle $standardRoot 8
     New-TestBundle $standardRoot 10
+    New-TestBundle $standardRoot 11
     New-TestBundle $customRoot 5 'Contents\User Preset.vanta'
     New-TestBundle $unscannedRoot 8 'Manual copy.txt'
-    New-TestBundle $standardRoot 12 'future version.txt'
+    New-TestBundle $standardRoot 13 'future version.txt'
     [IO.File]::WriteAllText($unrelated, 'other plugin')
     [IO.File]::WriteAllText($similarName, 'not an exact beta name')
     $project = Join-Path $outsideData 'My Project.flp'
@@ -110,10 +111,10 @@ try {
     # Without explicit permission, silent setup logs old plugins but keeps them.
     $log = Install-Test 'initial'
     if (!(Select-String -LiteralPath $log -SimpleMatch 'VANTA older plugin detected' -Quiet)) { throw 'Old plugin detection was not logged.' }
-    foreach ($beta in @(1, 6, 8, 10)) { Assert-Present (Bundle $standardRoot $beta) 'Silent setup removed an old plugin without consent' }
+    foreach ($beta in @(1, 6, 8, 10, 11)) { Assert-Present (Bundle $standardRoot $beta) 'Silent setup removed an old plugin without consent' }
     Assert-Present (Binary $customRoot 5) 'Custom folder was touched without being selected'
 
-    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.11.vst3'
+    $pluginBinary = Join-Path $installedBundle 'Contents\x86_64-win\Vanta Beta 0.12.vst3'
     Assert-Present $pluginBinary 'Installed x64 VST3 binary is missing'
     $files = @(Get-ChildItem -LiteralPath $sourceBundle -File -Recurse)
     if ($files.Count -eq 0) { throw 'The build produced an empty VST3 bundle.' }
@@ -147,11 +148,11 @@ try {
     $unsafeMarker = Join-Path $notices 'DO NOT TOUCH.flp'
     [IO.File]::WriteAllText($unsafeMarker, 'user data')
     try {
-        $guardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.11-guard-setup.log'
+        $guardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.12-guard-setup.log'
         $guardArgs = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/REMOVEOLDVANTA', "/DIR=`"$destination`"", "/LOG=`"$guardLog`"")
         $guardSetup = Start-Process -FilePath $setup -ArgumentList $guardArgs -Wait -PassThru
         if ($guardSetup.ExitCode -eq 0) { throw 'Setup accepted an unexpected current app file layout.' }
-        $uninstallGuardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.11-guard-uninstall.log'
+        $uninstallGuardLog = Join-Path $env:RUNNER_TEMP 'vanta-0.12-guard-uninstall.log'
         $guardUninstall = Start-Process -FilePath $uninstallerTarget -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/REMOVEOLDVANTA', "/LOG=`"$uninstallGuardLog`"") -Wait -PassThru
         if ($guardUninstall.ExitCode -eq 0) { throw 'Uninstaller accepted an unexpected current app file layout.' }
         foreach ($path in @($unsafeMarker, $pluginBinary, $installedApp, (Binary $standardRoot 8))) { Assert-Present $path 'Guard did not preserve an existing file' }
@@ -185,15 +186,29 @@ try {
     [IO.File]::WriteAllText($currentUserFile, 'keep me during cleanup and uninstall')
     $customArg = "/VANTASCANDIR=`"$customRoot`""
     $log = Install-Test 'cleanup' @('/REMOVEOLDVANTA', $customArg)
-    foreach ($beta in @(1, 8, 10)) { Assert-Absent (Bundle $standardRoot $beta) 'Old plugin copy should be removed' }
+    foreach ($beta in @(1, 8, 10, 11)) { Assert-Absent (Bundle $standardRoot $beta) 'Old plugin copy should be removed' }
     Assert-Absent (Binary $standardRoot 6) 'Old 0.6 module should be removed'
     Assert-Present (Join-Path (Bundle $standardRoot 6) 'Important Project.flp') 'Project inside old bundle must be preserved'
     Assert-Absent (Binary $customRoot 5) 'Selected custom-folder plugin should be removed'
     Assert-Present (Join-Path (Bundle $customRoot 5) 'Contents\User Preset.vanta') 'Preset inside custom bundle must be preserved'
-    foreach ($path in @($pluginBinary, $currentUserFile, $installedApp, (Binary $standardRoot 12), (Binary $unscannedRoot 8), $unrelated, $similarName, $project, $preset, $oldStandalone)) {
+    foreach ($path in @($pluginBinary, $currentUserFile, $installedApp, (Binary $standardRoot 13), (Binary $unscannedRoot 8), $unrelated, $similarName, $project, $preset, $oldStandalone)) {
         Assert-Present $path 'Current, future, unrelated, unselected or user data was touched'
     }
     if (!(Select-String -LiteralPath $log -SimpleMatch 'VANTA cleanup preserved extra files' -Quiet)) { throw 'Preserved user data was not reported.' }
+
+    # Exercise every historical name in both roots. The fixed candidate array
+    # must be large enough for all 22 possible recognised copies.
+    foreach ($beta in 1..11) {
+        New-TestBundle $standardRoot $beta
+        New-TestBundle $customRoot $beta
+    }
+    $null = Install-Test 'all-historical-copies' @('/REMOVEOLDVANTA', $customArg)
+    foreach ($beta in 1..11) {
+        Assert-Absent (Binary $standardRoot $beta) 'Standard old copy was not cleaned'
+        Assert-Absent (Binary $customRoot $beta) 'Custom old copy was not cleaned'
+    }
+    Assert-Present $pluginBinary 'Current plugin was damaged by full cleanup'
+    Assert-Present (Binary $standardRoot 13) 'Future plugin was damaged by full cleanup'
 
     # An in-use module must be reported as a failure, not silently destroyed.
     New-TestBundle $standardRoot 9
@@ -236,7 +251,7 @@ try {
     New-TestBundle $standardRoot 8 'Saved Preset.vanta'
     $null = Uninstall-Test 'uninstall-keep-old'
     foreach ($path in @($pluginBinary, $installedApp, $shortcut, $uninstallShortcut, $registryKey)) { Assert-Absent $path 'Normal uninstall did not remove an installed item' }
-    foreach ($path in @((Binary $standardRoot 8), $currentUserFile, (Binary $standardRoot 12), (Binary $unscannedRoot 8), $project, $preset, $oldStandalone)) { Assert-Present $path 'Normal uninstall touched retained data or an older plugin' }
+    foreach ($path in @((Binary $standardRoot 8), $currentUserFile, (Binary $standardRoot 13), (Binary $unscannedRoot 8), $project, $preset, $oldStandalone)) { Assert-Present $path 'Normal uninstall touched retained data or an older plugin' }
 
     # Reinstall and explicitly ask the uninstaller to clean old copies, including
     # a separately selected custom VST3 folder.
@@ -246,7 +261,7 @@ try {
     Assert-Absent $pluginBinary 'Uninstall must remove the current plugin'
     Assert-Absent (Binary $standardRoot 8) 'Explicit uninstall cleanup must remove old plugin'
     Assert-Absent (Binary $customRoot 10) 'Explicit uninstall cleanup must remove custom old plugin'
-    foreach ($path in @((Join-Path (Bundle $standardRoot 8) 'Saved Preset.vanta'), (Join-Path (Bundle $customRoot 10) 'User Project.flp'), $currentUserFile, (Binary $standardRoot 12), (Binary $unscannedRoot 8), $project, $preset, $oldStandalone)) {
+    foreach ($path in @((Join-Path (Bundle $standardRoot 8) 'Saved Preset.vanta'), (Join-Path (Bundle $customRoot 10) 'User Project.flp'), $currentUserFile, (Binary $standardRoot 13), (Binary $unscannedRoot 8), $project, $preset, $oldStandalone)) {
         Assert-Present $path 'Uninstall cleanup touched retained data'
     }
     foreach ($path in @($installedApp, $shortcut, $uninstallShortcut, $registryKey)) { Assert-Absent $path 'Final uninstall did not remove an installed item' }

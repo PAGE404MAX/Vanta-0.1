@@ -297,6 +297,7 @@ void SynthEngine::prepare(double rate, int maximumBlockSize)
     sampleRate = rate > 0.0 ? rate : 44100.0;
     synth.setCurrentPlaybackSampleRate(sampleRate);
     reverb.setSampleRate(sampleRate);
+    postEffects.prepare(sampleRate);
     delayBuffer.setSize(2, static_cast<int>(std::ceil(sampleRate * 1.5)) + juce::jmax(1, maximumBlockSize) + 2);
     reset();
 }
@@ -304,6 +305,7 @@ void SynthEngine::reset()
 {
     synth.allNotesOff(0, false);
     reverb.reset();
+    postEffects.reset();
     delayBuffer.clear();
     delayWritePosition = 0;
     distortionState[0] = distortionState[1] = 0.0f;
@@ -329,8 +331,9 @@ void SynthEngine::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& mi
     rp.roomSize = 0.12f + 0.86f * values[reverbSize];
     rp.damping = 0.8f * (1.0f - values[reverbDecay]);
     // JUCE's reverb scales wet by 3 and dry by 2 internally.
-    rp.wetLevel = values[reverbMix] / 3.0f;
-    rp.dryLevel = 0.5f * (1.0f - values[reverbMix]);
+    const auto reverbWet = values[reverbEnabled] >= 0.5f ? values[reverbMix] : 0.0f;
+    rp.wetLevel = reverbWet / 3.0f;
+    rp.dryLevel = 0.5f * (1.0f - reverbWet);
     rp.width = 1.0f;
     rp.freezeMode = 0.0f;
     reverb.setParameters(rp);
@@ -342,9 +345,9 @@ void SynthEngine::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& mi
     if (delayBuffer.getNumSamples() == 0) { buffer.applyGain(values[level]); return; }
     const int delayLength = delayBuffer.getNumSamples();
     const int delaySamples = juce::jlimit(1, delayLength - 1, static_cast<int>(values[delayTime] * sampleRate));
-    const float delayMixValue = values[delayMix];
+    const float delayMixValue = values[delayEnabled] >= 0.5f ? values[delayMix] : 0.0f;
     const float feedback = values[delayFeedback];
-    const float distortionMixValue = values[distortionMix];
+    const float distortionMixValue = values[distortionEnabled] >= 0.5f ? values[distortionMix] : 0.0f;
     const float drive = values[distortionDrive];
     const float normalisation = 1.0f / std::tanh(drive);
     const double toneFrequency = 400.0 + 14000.0 * values[distortionTone];
@@ -395,5 +398,6 @@ void SynthEngine::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& mi
         }
         if (++delayWritePosition == delayLength) delayWritePosition = 0;
     }
+    postEffects.process(buffer, values);
 }
 }

@@ -1,6 +1,6 @@
 # Third-party notices
 
-VANTA uses JUCE 8.0.6 (GPL or commercial licensing; see https://juce.com/get-juce/ and https://github.com/juce-framework/JUCE/blob/8.0.6/LICENSE.md), zlib 1.3.1, and Zstandard 1.5.6. zlib and Zstandard are statically linked. Their notices follow. Review applicable JUCE licensing requirements before distributing VANTA.
+VANTA uses JUCE 8.0.6 (AGPLv3 or commercial licensing; see https://juce.com/get-juce/ and https://github.com/juce-framework/JUCE/blob/8.0.6/LICENSE.md), zlib 1.3.1, and Zstandard 1.5.6. zlib and Zstandard are statically linked. Their notices follow. Review applicable JUCE licensing requirements before distributing VANTA.
 
 ## zlib 1.3.1
 

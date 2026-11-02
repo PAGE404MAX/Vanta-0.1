@@ -40,16 +40,16 @@ public static class VantaUi {
 }
 '@
 
-$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.11-Setup.exe').Path
+$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.12-Setup.exe').Path
 $root = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3'
-$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.11-interactive-installer-test'
+$destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.12-interactive-installer-test'
 $bundle9 = Join-Path $root 'Vanta Beta 0.9.vst3'
 $bundle8 = Join-Path $root 'Vanta Beta 0.8.vst3'
-$current = Join-Path $root 'Vanta Beta 0.11.vst3'
+$current = Join-Path $root 'Vanta Beta 0.12.vst3'
 $programs = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta'
-$shortcut = Join-Path $programs 'Vanta Beta 0.11.lnk'
-$uninstallShortcut = Join-Path $programs 'Uninstall Vanta Beta 0.11.lnk'
-$reg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{BB5FAC9C-152F-4E29-8720-EF74C2AFFFFB}_is1'
+$shortcut = Join-Path $programs 'Vanta Beta 0.12.lnk'
+$uninstallShortcut = Join-Path $programs 'Uninstall Vanta Beta 0.12.lnk'
+$reg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
 $guard = @($destination, $bundle9, $bundle8, $current, $shortcut, $uninstallShortcut, $reg)
 foreach ($path in $guard) {
     if (Test-Path -LiteralPath $path) { throw "UI test path already exists: $path" }
@@ -84,7 +84,7 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
-            $wizard = [VantaUi]::Top() | Where-Object { $_.ClassName -eq 'TWizardForm' -and $_.Text -match 'Vanta Beta 0\.11' } | Select-Object -First 1
+            $wizard = [VantaUi]::Top() | Where-Object { $_.ClassName -eq 'TWizardForm' -and $_.Text -match 'Vanta Beta 0\.12' } | Select-Object -First 1
             if ($wizard) {
                 $idle = 0
                 $controls = @([VantaUi]::Children($wizard.Handle))
@@ -146,7 +146,7 @@ function Run-UninstallUi([bool]$Confirm, [string]$Name) {
                 $text = ($window.Text + ' ' + (($controls | ForEach-Object { $_.Text }) -join ' '))
                 $buttonName = ''
                 if ($text -match 'check one additional VST3 folder') { $buttonName = 'No'; $extraSeen = $true }
-                elseif ($text -match 'Remove older VANTA Beta 0\.1 through 0\.10') { $buttonName = 'Yes'; $oldSeen = $true }
+                elseif ($text -match 'Remove older VANTA Beta 0\.1 through 0\.11') { $buttonName = 'Yes'; $oldSeen = $true }
                 elseif ($text -match 'Are you sure you want to completely remove') {
                     $buttonName = if ($Confirm) { 'Yes' } else { 'No' }
                     $confirmationSeen = $true
@@ -190,7 +190,7 @@ try {
     if (!(Test-Path -LiteralPath (Test-Binary $bundle8 8)) -or !(Test-Path -LiteralPath $current)) { throw 'Cancelling uninstall removed a plugin.' }
     Run-UninstallUi $true 'confirm-uninstall'
     if (Test-Path -LiteralPath (Test-Binary $bundle8 8)) { throw 'Interactive uninstall did not remove the old plugin.' }
-    if (Test-Path -LiteralPath (Test-Binary $current 11)) { throw 'Interactive uninstall did not remove the current plugin.' }
+    if (Test-Path -LiteralPath (Test-Binary $current 12)) { throw 'Interactive uninstall did not remove the current plugin.' }
     if (!(Test-Path -LiteralPath $preset)) { throw 'Interactive cleanup removed a user preset.' }
     Write-Host 'Interactive installer/uninstaller test passed: checkbox opt-out/default, cancellation, confirmation and preservation.'
 } finally {
