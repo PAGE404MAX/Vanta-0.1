@@ -386,8 +386,8 @@ begin
     Log('VANTA cleanup incomplete. Close DAWs and retry. Details:' + #13#10 + CleanupFailures);
     if not CleanupIsSilent then
     begin
-      MessageText := 'Some older VANTA plugin copies could not be removed. Close FL Studio and other audio programs, then retry. Linked or unrecognised folders are never deleted automatically.' +
-        #13#10#13#10 + CleanupFailures;
+      MessageText := 'Some older VANTA plugin copies could not be removed. Close FL Studio and other audio programs, then retry. Linked or unrecognised folders are never deleted automatically.' + #13#10#13#10 +
+        CleanupFailures;
       MsgBox(MessageText, mbError, MB_OK);
     end;
   end;
@@ -395,8 +395,8 @@ begin
   begin
     Log('VANTA cleanup kept extra files in:' + #13#10 + PreservedFolders);
     if not CleanupIsSilent then
-      MsgBox('Older VANTA plugin binaries were removed. Extra files, including any projects or presets inside their folders, were kept in:' +
-        #13#10#13#10 + PreservedFolders, mbInformation, MB_OK);
+      MsgBox('Older VANTA plugin binaries were removed. Extra files, including any projects or presets inside their folders, were kept in:' + #13#10#13#10 +
+        PreservedFolders, mbInformation, MB_OK);
   end;
   if (not CleanupFailed) and (PreservedFolders = '') then
     Log('VANTA cleanup completed successfully.');
@@ -493,7 +493,7 @@ var
   Problem: String;
 begin
   Result := True;
-  if CurPageID = ExtraFolderPage.ID then
+  if (not WizardSilent) and (CurPageID = ExtraFolderPage.ID) then
   begin
     if not NormalizeExtraRoot(ExtraFolderEdit.Text, SelectedExtraRoot, Problem) then
     begin
