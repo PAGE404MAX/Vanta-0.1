@@ -46,8 +46,20 @@ jobs:
           try {
             ./scripts/test-installer.ps1 -SkipLaunch
           } catch {
-            $message = ($_ | Out-String).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Installer cleanup test failed::$message"
+            exit 1
+          }
+
+      - name: Test the visible setup and uninstall prompts
+        shell: pwsh
+        timeout-minutes: 8
+        run: |
+          try {
+            ./scripts/test-installer-ui.ps1
+          } catch {
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Installer UI test failed::$message"
             exit 1
           }
 
