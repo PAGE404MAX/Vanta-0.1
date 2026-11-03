@@ -105,9 +105,13 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
                 $next = Button $controls 'Next'
                 if (!$next) { $next = Button $controls 'Next >' }
                 $onReviewPage = @($controls | Where-Object { $_.Text -eq 'Remove older VANTA plugins' }).Count -gt 0
-                # Do not race through a page while its controls are still being
-                # created, and never click a stale Next button twice.
-                if ($page -ne $lastClickedPage -and !($onReviewPage -and !$choice)) {
+                $onReadyPage = @($controls | Where-Object { $_.Text -eq 'Ready to Install' }).Count -gt 0
+                $onFinishPage = @($controls | Where-Object { $_.Text -like 'Completing the Vanta Beta 0.13 Setup Wizard*' }).Count -gt 0
+                # Inno can show the next page's text before updating the button
+                # caption. Wait for Install/Finish on those pages instead of
+                # clicking a stale Next and racing through the wizard.
+                if ($page -ne $lastClickedPage -and !($onReviewPage -and !$choice) `
+                    -and !($onReadyPage -and !$install) -and !($onFinishPage -and !$finish)) {
                     if ($finish) { [VantaUi]::Click($finish.Handle); $finishedClicked = $true; $lastClickedPage = $page }
                     elseif ($install -and $reviewSeen) { [VantaUi]::Click($install.Handle); $lastClickedPage = $page }
                     elseif ($next) { [VantaUi]::Click($next.Handle); $lastClickedPage = $page }
@@ -190,7 +194,7 @@ try {
     if (!(Test-Path -LiteralPath (Test-Binary $bundle8 8)) -or !(Test-Path -LiteralPath $current)) { throw 'Cancelling uninstall removed a plugin.' }
     Run-UninstallUi $true 'confirm-uninstall'
     if (Test-Path -LiteralPath (Test-Binary $bundle8 8)) { throw 'Interactive uninstall did not remove the old plugin.' }
-    if (Test-Path -LiteralPath (Test-Binary $current 12)) { throw 'Interactive uninstall did not remove the current plugin.' }
+    if (Test-Path -LiteralPath (Test-Binary $current 13)) { throw 'Interactive uninstall did not remove the current plugin.' }
     if (!(Test-Path -LiteralPath $preset)) { throw 'Interactive cleanup removed a user preset.' }
     Write-Host 'Interactive installer/uninstaller test passed: checkbox opt-out/default, cancellation, confirmation and preservation.'
 } finally {
