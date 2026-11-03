@@ -1,0 +1,50 @@
+# Temporary verification job: record hashes from the last released suite so the
+# next installer can safely distinguish an unchanged 0.13.1 from a replacement.
+name: Verify previously released suite hashes
+on:
+  push:
+    paths:
+      - .github/workflows/suite-legacy-hashes.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  hashes:
+    runs-on: windows-latest
+    steps:
+      - name: Collect released VANTA
+        uses: actions/download-artifact@v8
+        with:
+          name: suite-build-vanta
+          run-id: 41577087672
+          github-token: ${{ github.token }}
+          path: legacy/vanta
+      - name: Collect released Laggify
+        uses: actions/download-artifact@v8
+        with:
+          name: suite-build-laggify
+          run-id: 41577087672
+          github-token: ${{ github.token }}
+          path: legacy/laggify
+      - name: Collect released Sidechain
+        uses: actions/download-artifact@v8
+        with:
+          name: suite-build-sidechain
+          run-id: 41577087672
+          github-token: ${{ github.token }}
+          path: legacy/sidechain
+      - name: Report trusted 0.13.1 file hashes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = [ordered]@{
+            SynthBinary = 'legacy/vanta/VST3/Vanta Beta 0.13.vst3/Contents/x86_64-win/Vanta Beta 0.13.vst3'
+            SynthInfo = 'legacy/vanta/VST3/Vanta Beta 0.13.vst3/Contents/Resources/moduleinfo.json'
+            Standalone = 'legacy/vanta/Standalone/Vanta Beta 0.13.exe'
+            LaggifyBinary = 'legacy/laggify/Contents/x86_64-win/Laggify.vst3'
+            LaggifyInfo = 'legacy/laggify/Contents/Resources/moduleinfo.json'
+            SidechainBinary = 'legacy/sidechain/Contents/x86_64-win/VANTA Sidechain.vst3'
+            SidechainInfo = 'legacy/sidechain/Contents/Resources/moduleinfo.json'
+          }
+          $pairs = foreach ($item in $files.GetEnumerator()) { $item.Key + '=' + (Get-FileHash -LiteralPath $item.Value -Algorithm SHA256).Hash }
+          Write-Output ('::notice title=Released suite hashes::' + ($pairs -join ';'))
