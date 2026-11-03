@@ -20,7 +20,9 @@ switch ($Part) {
     }
     'laggify' {
         Checked 'Configure Laggify' 'cmake' @('-S','Laggify VST Effect','-B','build/laggify','-A','x64')
-        Checked 'Build Laggify and tests' 'cmake' @('--build','build/laggify','--config','Release','--target','LaggifyEngineTests','LaggifyProcessorTests','LaggifyVST3Tests','--parallel','2')
+        Checked 'Build Laggify engine and editor tests' 'cmake' @('--build','build/laggify','--config','Release','--target','LaggifyEngineTests','LaggifyProcessorTests','--parallel','2')
+        Checked 'Build Laggify VST3' 'cmake' @('--build','build/laggify','--config','Release','--target','LaggifyFx_VST3','--parallel','2')
+        Checked 'Build Laggify VST3 host tests' 'cmake' @('--build','build/laggify','--config','Release','--target','LaggifyVST3Tests','--parallel','2')
         Checked 'Test Laggify' 'ctest' @('--test-dir','build/laggify','-C','Release','--output-on-failure','--no-tests=error')
     }
     'sidechain' {
