@@ -465,6 +465,39 @@ begin
     IsRealFile(AddBackslash(StandardRoot()) + 'VANTA Sidechain.vst3\Contents\x86_64-win\VANTA Sidechain.vst3');
 end;
 
+function InstalledFileMatches(const Path, Expected: String): Boolean;
+begin
+  { Missing files are safe to repair or uninstall. Replacements are not ours. }
+  Result := False;
+  if not PathExists(Path) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  if not IsRealFile(Path) then Exit;
+  try
+    Result := CompareText(GetSHA256OfFile(Path), Expected) = 0;
+  except
+    Log('Could not verify the installed suite file: ' + Path);
+  end;
+end;
+
+function SuiteInstalledFilesMatch(): Boolean;
+var
+  Synth, Laggify, Sidechain: String;
+begin
+  Synth := AddBackslash(StandardRoot()) + 'Vanta Beta 0.13.vst3\Contents';
+  Laggify := AddBackslash(StandardRoot()) + 'Laggify.vst3\Contents';
+  Sidechain := AddBackslash(StandardRoot()) + 'VANTA Sidechain.vst3\Contents';
+  Result := InstalledFileMatches(AddBackslash(Synth) + 'x86_64-win\Vanta Beta 0.13.vst3', '{#SynthBinaryHash}') and
+    InstalledFileMatches(AddBackslash(Synth) + 'Resources\moduleinfo.json', '{#SynthInfoHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\Vanta Beta 0.13.exe'), '{#StandaloneHash}') and
+    InstalledFileMatches(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}') and
+    InstalledFileMatches(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}') and
+    InstalledFileMatches(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}') and
+    InstalledFileMatches(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}');
+end;
+
 function LegacyLaggifyRegistered(): Boolean;
 begin
   Result := RegKeyExists(HKLM64, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{096E7B0E-1C14-4696-B9A7-6402B2571F91}_is1');
@@ -530,7 +563,7 @@ begin
   Result := CurrentBundlePathsAreSafe() and CurrentAppPathsAreSafe() and
     IsRealFile(Binary) and IsRealFile(ExpandConstant('{app}\Vanta Beta 0.13.exe'));
 #ifdef SuiteBuild
-  Result := Result and SuiteBinariesExist();
+  Result := Result and SuiteBinariesExist() and SuiteInstalledFilesMatch();
 #endif
 end;
 
@@ -693,6 +726,8 @@ begin
     Result := 'VANTA 0.13 or a suite is already registered in another folder or is an unrecognised version. Choose its existing app folder to upgrade it in place, or uninstall it safely first.'
   else if LegacyLaggifyRegistered() then
     Result := 'The separately installed Laggify has its own uninstaller. Close your DAW, uninstall the old Laggify from Windows Settings, then run Vanta Suite Setup again. Your projects and presets are not removed.'
+  else if IsRealFile(ExpandConstant('{app}\Vanta-suite-installed.txt')) and not SuiteInstalledFilesMatch() then
+    Result := 'An installed suite plugin, manifest or standalone app has been replaced or cannot be verified. Back up and move that changed file aside before repairing; setup will not overwrite an unowned replacement.'
   else if UnownedEffectExists() then
     Result := 'An existing plugin or suite-named app file is not owned by this setup. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
 #endif
@@ -748,13 +783,13 @@ begin
 #endif
   if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe()
 #ifdef SuiteBuild
-    or not SuitePathsAreSafe()
+    or not SuitePathsAreSafe() or not SuiteInstalledFilesMatch()
 #endif
     then
   begin
     Log('VANTA uninstall stopped: the current app or VST3 location is linked, unexpected, or inaccessible.');
     if not UninstallSilent then
-      MsgBox('The current VANTA app or VST3 location is linked, unexpected, or inaccessible. The uninstaller stopped to protect its target. Resolve the location and retry.', mbError, MB_OK);
+      MsgBox('A current VANTA app or VST3 location is linked, unexpected, inaccessible, or contains a changed file. The uninstaller stopped to protect it. Back up and move replacements aside, resolve unsafe paths, then retry.', mbError, MB_OK);
     Exit;
   end;
 

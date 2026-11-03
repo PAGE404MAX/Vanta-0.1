@@ -151,6 +151,20 @@ try {
     foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain))) { Present $path }
     Remove-Item -LiteralPath $laggifyReg -Recurse -Force
 
+    # A different plugin at an owned path is not ours to overwrite/delete.
+    $changedBinary = Binary $sidechain; $heldBinary = Join-Path $outside 'held-real-sidechain.vst3'
+    Move-Item -LiteralPath $changedBinary -Destination $heldBinary
+    [IO.File]::WriteAllText($changedBinary, 'foreign replacement - preserve')
+    try {
+        Setup $setup $app $false; Uninstall $app $false
+        if ([IO.File]::ReadAllText($changedBinary) -ne 'foreign replacement - preserve') { throw 'A replacement module was touched.' }
+        foreach ($path in @((Binary $synth), (Binary $laggify), $project, $preset)) { Present $path }
+    } finally {
+        if (Test-Path -LiteralPath $changedBinary) { Move-Item -LiteralPath $changedBinary -Destination (Join-Path $outside 'preserved-replacement.vst3') }
+        if (Test-Path -LiteralPath $heldBinary) { Move-Item -LiteralPath $heldBinary -Destination $changedBinary }
+    }
+    Present (Join-Path $outside 'preserved-replacement.vst3')
+
     # A changed path after installation must stop both reinstall and uninstall.
     $contents = Join-Path $sidechain 'Contents'; $heldContents = Join-Path $outside 'held-sidechain-contents'
     Move-Item -LiteralPath $contents -Destination $heldContents

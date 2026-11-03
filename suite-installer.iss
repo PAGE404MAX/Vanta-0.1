@@ -6,6 +6,15 @@
 #define StandaloneExe "build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe"
 #define LaggifyBundle "build\laggify\LaggifyFx_artefacts\Release\VST3\Laggify.vst3"
 #define SidechainBundle "build\sidechain\VantaSidechainFx_artefacts\Release\VST3\VANTA Sidechain.vst3"
+; Embed hashes of the files this specific build owns. The uninstaller can
+; then refuse to delete an unrelated replacement at the same path.
+#define SynthBinaryHash GetSHA256OfFile(PluginBundle + "\Contents\x86_64-win\Vanta Beta 0.13.vst3")
+#define SynthInfoHash GetSHA256OfFile(PluginBundle + "\Contents\Resources\moduleinfo.json")
+#define StandaloneHash GetSHA256OfFile(StandaloneExe)
+#define LaggifyBinaryHash GetSHA256OfFile(LaggifyBundle + "\Contents\x86_64-win\Laggify.vst3")
+#define LaggifyInfoHash GetSHA256OfFile(LaggifyBundle + "\Contents\Resources\moduleinfo.json")
+#define SidechainBinaryHash GetSHA256OfFile(SidechainBundle + "\Contents\x86_64-win\VANTA Sidechain.vst3")
+#define SidechainInfoHash GetSHA256OfFile(SidechainBundle + "\Contents\Resources\moduleinfo.json")
 
 [Setup]
 ; This intentionally upgrades the existing VANTA 0.13 setup, rather than
