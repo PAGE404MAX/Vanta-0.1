@@ -1,5 +1,5 @@
 #define AppName "Vanta Suite"
-#define AppVersion "0.13.1"
+#define AppVersion "0.13.2"
 #define CurrentBeta 13
 #define SuiteBuild
 #define PluginBundle "build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3"
@@ -22,6 +22,27 @@
 #define JuceLicenseHash GetSHA256OfFile("Laggify VST Effect\third-party\JUCE-LICENSE.md")
 #define VstLicenseHash GetSHA256OfFile("Laggify VST Effect\third-party\VST3-SDK-LICENSE.txt")
 
+; Trust the previous published suite only when its exact bytes still match.
+; Fixture builds use deliberately different old files; shipping builds use
+; hashes from the released suite 0.13.1 (Actions run 41577087672).
+#ifdef SuiteTestLegacyFixture
+#define LegacySynthBinaryHash GetSHA256OfFile("build\legacy-fixture\Vanta Beta 0.13.vst3\Contents\x86_64-win\Vanta Beta 0.13.vst3")
+#define LegacySynthInfoHash GetSHA256OfFile("build\legacy-fixture\Vanta Beta 0.13.vst3\Contents\Resources\moduleinfo.json")
+#define LegacyStandaloneHash GetSHA256OfFile("build\legacy-fixture\Vanta Beta 0.13.exe")
+#define LegacyLaggifyBinaryHash GetSHA256OfFile("build\legacy-fixture\Laggify.vst3\Contents\x86_64-win\Laggify.vst3")
+#define LegacyLaggifyInfoHash GetSHA256OfFile("build\legacy-fixture\Laggify.vst3\Contents\Resources\moduleinfo.json")
+#define LegacySidechainBinaryHash GetSHA256OfFile("build\legacy-fixture\VANTA Sidechain.vst3\Contents\x86_64-win\VANTA Sidechain.vst3")
+#define LegacySidechainInfoHash GetSHA256OfFile("build\legacy-fixture\VANTA Sidechain.vst3\Contents\Resources\moduleinfo.json")
+#else
+#define LegacySynthBinaryHash "A279C0BEB663747F3786F7D372EE25406CD98CB14B11105C0A8384845D4F4998"
+#define LegacySynthInfoHash "FB0222EF8CEFB9BA48A4771987FED5A12A1D417C9E492DA8BEA1CFCE9CB07DE6"
+#define LegacyStandaloneHash "C78E447B47256481B39772B94FF423685D07E49D83884DFF47F177430FF15C13"
+#define LegacyLaggifyBinaryHash "5769A354E93A3474FCF02C6A97D63DA55276EC251446A260905B6C3402CD40BB"
+#define LegacyLaggifyInfoHash "5DAFC97D89045C9089F689A107A86901B88FCD3BD3E64C8C1B50FFCD94D1C727"
+#define LegacySidechainBinaryHash "41747C0E5F9134F955527C3BDFEDBCD9B6C92303A542574CD986CDDAF47A5C2A"
+#define LegacySidechainInfoHash "CD94406B84D69121B87B127828CBD08547B8AFC2CEBCC952BD0020CA1C44509E"
+#endif
+
 [Setup]
 ; This intentionally upgrades the existing VANTA 0.13 setup, rather than
 ; creating a second uninstaller that would own the same synth files.
@@ -31,6 +52,7 @@ AppVersion={#AppVersion}
 AppPublisher=Vanta
 DefaultDirName={autopf}\Vanta\Vanta Beta 0.13
 DisableProgramGroupPage=yes
+DisableStartupPrompt=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin

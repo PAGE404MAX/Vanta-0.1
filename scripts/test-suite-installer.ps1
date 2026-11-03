@@ -1,4 +1,4 @@
-param([switch]$SkipLaunch)
+param([switch]$SkipLaunch, [switch]$TestLegacyFixture)
 $ErrorActionPreference = 'Stop'
 # This test writes to the system VST3 and Start Menu folders. Never run it on
 # a user's computer: it is strictly for disposable GitHub-hosted Windows VMs.
@@ -214,7 +214,35 @@ try {
     Uninstall $app $true @('/REMOVEOLDVANTA')
     foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain), $oldBinary, $synthReg)) { Absent $path }
     foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
-    Write-Host 'Suite tests passed: legacy migration guard, exact in-place upgrade, unmanaged collision, junctions/ancestors, three bundle hashes, repair, opt-out/opt-in and preserved user data.'
+    if ($TestLegacyFixture) {
+        # The old suite fixture has genuinely different binaries and manifests.
+        # An upgrade must accept that known build, but not a foreign replacement.
+        $legacySuite = (Resolve-Path 'installer-output\Legacy-Suite-0.13.1-Fixture.exe').Path
+        Setup $legacySuite $app
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.13.1') { throw 'Legacy suite fixture has the wrong registered version.' }
+        $oldSideHash = (Get-FileHash -LiteralPath (Binary $sidechain)).Hash
+        $newSideHash = (Get-FileHash -LiteralPath 'build\sidechain\VantaSidechainFx_artefacts\Release\VST3\VANTA Sidechain.vst3\Contents\x86_64-win\VANTA Sidechain.vst3').Hash
+        if ($oldSideHash -eq $newSideHash) { throw 'Legacy and current fixture must have different bytes.' }
+        $oldModule = Binary $sidechain; $heldModule = Join-Path $outside 'held-legacy-sidechain.vst3'
+        Move-Item -LiteralPath $oldModule -Destination $heldModule
+        [IO.File]::WriteAllText($oldModule, 'foreign file, not a legacy release')
+        try {
+            Setup $setup $app $false
+            if ([IO.File]::ReadAllText($oldModule) -ne 'foreign file, not a legacy release') { throw 'Legacy upgrade overwrote an unrelated file.' }
+        } finally {
+            Remove-Item -LiteralPath $oldModule -Force -ErrorAction SilentlyContinue
+            Move-Item -LiteralPath $heldModule -Destination $oldModule
+        }
+        Setup $setup $app
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.13.2') { throw 'The previous suite was not upgraded in place.' }
+        if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
+        Present (Uninstaller $app)
+        foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
+        Uninstall $app
+        foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain), $synthReg)) { Absent $path }
+        foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
+    }
+    Write-Host 'Suite tests passed: previous-release migration, unowned replacement guard, junctions, repairs, cleanup consent and preserved user data.'
 } finally {
     Remove-Junction (Join-Path $sidechain 'Contents'); Remove-Junction $sidechain; Remove-Junction $parentLink
     foreach ($path in $paths) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }

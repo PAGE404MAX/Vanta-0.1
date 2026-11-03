@@ -29,6 +29,15 @@ jobs:
           $app = 'build/VantaBeta_artefacts/Release/Standalone'
           New-Item -ItemType Directory -Path $app -Force | Out-Null
           Set-Content -LiteralPath (Join-Path $app 'Vanta Beta 0.13.exe') -Value 'Disposable test app'
+          # A prior suite with different bytes exercises real upgrade logic.
+          foreach ($name in @('Vanta Beta 0.13.vst3', 'Laggify.vst3', 'VANTA Sidechain.vst3')) {
+            $dir = Join-Path 'build/legacy-fixture' $name
+            $arch = Join-Path $dir 'Contents/x86_64-win'; $resources = Join-Path $dir 'Contents/Resources'
+            New-Item -ItemType Directory -Path $arch, $resources -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $arch $name) -Value "Legacy suite module $name"
+            Set-Content -LiteralPath (Join-Path $resources 'moduleinfo.json') -Value "Legacy suite metadata $name"
+          }
+          Set-Content -LiteralPath 'build/legacy-fixture/Vanta Beta 0.13.exe' -Value 'Legacy suite standalone'
       - name: Install Inno Setup if needed
         shell: pwsh
         run: |
@@ -37,8 +46,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
-          foreach ($file in @('installer.iss', 'Laggify VST Effect/installer/Laggify.iss', 'suite-installer.iss')) {
-            $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" $file 2>&1 | Out-String -Width 4096)
+          foreach ($file in @('installer.iss', 'Laggify VST Effect/installer/Laggify.iss', 'scripts/test-fixtures/legacy-suite-0.13.1.iss', 'suite-installer.iss')) {
+            $defines = if ($file -eq 'suite-installer.iss') { @('/DSuiteTestLegacyFixture') } else { @() }
+            $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" @defines $file 2>&1 | Out-String -Width 4096)
             $code = $LASTEXITCODE; Write-Output $output
             if ($code -ne 0) {
               $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
@@ -49,7 +59,7 @@ jobs:
         shell: pwsh
         timeout-minutes: 10
         run: |
-          try { ./scripts/test-suite-installer.ps1 -SkipLaunch }
+          try { ./scripts/test-suite-installer.ps1 -SkipLaunch -TestLegacyFixture }
           catch {
             $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Suite installer test failed::$message"; exit 1

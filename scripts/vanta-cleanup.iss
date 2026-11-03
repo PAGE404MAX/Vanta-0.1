@@ -9,10 +9,10 @@ const
   AttributeReparsePoint = $400;
 
 var
-  ExtraFolderPage, OldCopiesPage: TWizardPage;
-  ExtraFolderEdit: TNewEdit;
-  OldCopiesMemo: TNewMemo;
-  RemoveOldCheck: TNewCheckBox;
+  ReviewFolderEdit: TNewEdit;
+  ReviewMemo: TNewMemo;
+  ReviewSummary: TNewStaticText;
+  ReviewRemoveButton: TNewButton;
   OldPaths, OldRoots: array[0..63] of String;
   OldVersions: array[0..63] of Integer;
   OldCount: Integer;
@@ -482,6 +482,14 @@ begin
   end;
 end;
 
+function InstalledFileMatchesCurrentOrLegacy(const Path, CurrentHash, LegacyHash: String): Boolean;
+begin
+  { Both hashes are known VANTA suite builds, not an arbitrary replacement. }
+  Result := InstalledFileMatches(Path, CurrentHash);
+  if (not Result) and (LegacyHash <> '') then
+    Result := InstalledFileMatches(Path, LegacyHash);
+end;
+
 function SuiteInstalledFilesMatch(): Boolean;
 var
   Synth, Laggify, Sidechain: String;
@@ -489,13 +497,13 @@ begin
   Synth := AddBackslash(StandardRoot()) + 'Vanta Beta 0.13.vst3\Contents';
   Laggify := AddBackslash(StandardRoot()) + 'Laggify.vst3\Contents';
   Sidechain := AddBackslash(StandardRoot()) + 'VANTA Sidechain.vst3\Contents';
-  Result := InstalledFileMatches(AddBackslash(Synth) + 'x86_64-win\Vanta Beta 0.13.vst3', '{#SynthBinaryHash}') and
-    InstalledFileMatches(AddBackslash(Synth) + 'Resources\moduleinfo.json', '{#SynthInfoHash}') and
-    InstalledFileMatches(ExpandConstant('{app}\Vanta Beta 0.13.exe'), '{#StandaloneHash}') and
-    InstalledFileMatches(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}') and
-    InstalledFileMatches(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}') and
-    InstalledFileMatches(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}') and
-    InstalledFileMatches(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}') and
+  Result := InstalledFileMatchesCurrentOrLegacy(AddBackslash(Synth) + 'x86_64-win\Vanta Beta 0.13.vst3', '{#SynthBinaryHash}', '{#LegacySynthBinaryHash}') and
+    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Synth) + 'Resources\moduleinfo.json', '{#SynthInfoHash}', '{#LegacySynthInfoHash}') and
+    InstalledFileMatchesCurrentOrLegacy(ExpandConstant('{app}\Vanta Beta 0.13.exe'), '{#StandaloneHash}', '{#LegacyStandaloneHash}') and
+    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}', '{#LegacyLaggifyBinaryHash}') and
+    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}', '{#LegacyLaggifyInfoHash}') and
+    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}', '{#LegacySidechainBinaryHash}') and
+    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}', '{#LegacySidechainInfoHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Vanta-suite-installed.txt'), '{#MarkerHash}') and
     InstalledFileMatches(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'), '{#NoticesHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Laggify-third-party-notices.md'), '{#LaggifyNoticesHash}') and
@@ -523,7 +531,7 @@ begin
   Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1';
   Result := False;
   if not RegQueryStringValue(HKLM64, Key, 'DisplayVersion', Version) then Exit;
-  if (Version <> '0.13.0') and (Version <> '0.13.1') then Exit;
+  if (Version <> '0.13.0') and (Version <> '0.13.1') and (Version <> '0.13.2') then Exit;
   if not RegQueryStringValue(HKLM64, Key, 'InstallLocation', PreviousPath) or (Trim(PreviousPath) = '') then
     if not RegQueryStringValue(HKLM64, Key, 'Inno Setup: App Path', PreviousPath) then Exit;
   if Trim(PreviousPath) = '' then Exit;
@@ -609,113 +617,222 @@ begin
     Log('VANTA cleanup completed successfully.');
 end;
 
-procedure BrowseExtraFolder(Sender: TObject);
+{ A yes answer only starts a search. Removal is a separate, explicit choice
+  after the full list has been reviewed. Setup/uninstall cancellation still
+  happens before any older files are changed. }
+function AskToFindOldVsts(const DuringUninstall: Boolean): Boolean;
+var
+  ContinueText: String;
+begin
+  if DuringUninstall then
+    ContinueText := 'No keeps old versions and continues to the uninstall confirmation.'
+  else
+    ContinueText := 'No keeps old versions and continues setup.';
+  Result := MsgBox('Uninstall any old VANTA VSTs?' + #13#10#13#10 +
+    'Yes searches the standard VST3 folder and lets you review the results. You can also search one additional folder. Nothing is removed yet.' + #13#10#13#10 +
+    ContinueText, mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
+procedure ScanRequestedFolders(const RequestedExtra: String);
+var
+  Problem: String;
+begin
+  if NormalizeExtraRoot(RequestedExtra, SelectedExtraRoot, Problem) then
+    ScanOldCopies(SelectedExtraRoot)
+  else
+  begin
+    SelectedExtraRoot := '';
+    ScanOldCopies('');
+    AppendLine(ScanIssues, Problem + ' ' + RequestedExtra);
+  end;
+end;
+
+procedure RefreshReview();
+var
+  Text: String;
+begin
+  Text := ReviewText();
+  if OldCount = 0 then
+  begin
+    if Text <> '' then Text := #13#10#13#10 + Text;
+    Text := 'No older VANTA VSTs found in the searched folder(s).' + Text;
+  end;
+  ReviewMemo.Text := Text;
+  ReviewSummary.Caption := 'Found ' + IntToStr(OldCount) +
+    ' older VANTA VST candidate(s). Review the paths before choosing what to do.';
+  ReviewRemoveButton.Enabled := OldCount > 0;
+end;
+
+procedure ReviewFolderChanged(Sender: TObject);
+begin
+  { Do not let an unsearched pasted path look as if it was included. }
+  if CompareText(Trim(ReviewFolderEdit.Text), SelectedExtraRoot) <> 0 then
+  begin
+    ReviewSummary.Caption := 'Click Search to include the folder you entered before removing anything.';
+    ReviewRemoveButton.Enabled := False;
+  end
+  else
+    RefreshReview();
+end;
+
+procedure SearchReviewFolder(Sender: TObject);
+var
+  Folder, Problem: String;
+begin
+  if not NormalizeExtraRoot(ReviewFolderEdit.Text, Folder, Problem) then
+  begin
+    MsgBox(Problem, mbError, MB_OK);
+    Exit;
+  end;
+  SelectedExtraRoot := Folder;
+  ScanOldCopies(SelectedExtraRoot);
+  ReviewFolderEdit.Text := SelectedExtraRoot;
+  RefreshReview();
+end;
+
+procedure BrowseReviewFolder(Sender: TObject);
 var
   Folder: String;
 begin
-  Folder := Trim(ExtraFolderEdit.Text);
-  if BrowseForFolder('Choose an additional VST3 folder to check for old VANTA plugins', Folder, False) then
-    ExtraFolderEdit.Text := Folder;
+  Folder := Trim(ReviewFolderEdit.Text);
+  if BrowseForFolder('Choose an additional VST3 folder to search for old VANTA plugins', Folder, False) then
+  begin
+    ReviewFolderEdit.Text := Folder;
+    SearchReviewFolder(Sender);
+  end;
+end;
+
+function ReviewOldVsts(const RequestedExtra: String): Boolean;
+var
+  Form: TSetupForm;
+  LabelText: TNewStaticText;
+  SearchButton, BrowseButton, KeepButton: TNewButton;
+begin
+  Result := False;
+#if Ver >= EncodeVer(6, 6, 0)
+  Form := CreateCustomForm(580, 440, False, False);
+#else
+  Form := CreateCustomForm;
+  Form.ClientWidth := ScaleX(580);
+  Form.ClientHeight := ScaleY(440);
+#endif
+  try
+    Form.Caption := 'Older VANTA VSTs found';
+    ReviewSummary := TNewStaticText.Create(Form);
+    ReviewSummary.Parent := Form;
+    ReviewSummary.Left := ScaleX(12);
+    ReviewSummary.Top := ScaleY(12);
+    ReviewSummary.Width := Form.ClientWidth - ScaleX(24);
+    ReviewSummary.Height := ScaleY(36);
+    ReviewSummary.AutoSize := False;
+    ReviewSummary.WordWrap := True;
+
+    ReviewMemo := TNewMemo.Create(Form);
+    ReviewMemo.Parent := Form;
+    ReviewMemo.Left := ScaleX(12);
+    ReviewMemo.Top := ScaleY(50);
+    ReviewMemo.Width := Form.ClientWidth - ScaleX(24);
+    ReviewMemo.Height := ScaleY(205);
+    ReviewMemo.ReadOnly := True;
+    ReviewMemo.WordWrap := False;
+    ReviewMemo.ScrollBars := ssBoth;
+
+    LabelText := TNewStaticText.Create(Form);
+    LabelText.Parent := Form;
+    LabelText.Left := ScaleX(12);
+    LabelText.Top := ScaleY(264);
+    LabelText.Width := Form.ClientWidth - ScaleX(24);
+    LabelText.Height := ScaleY(20);
+    LabelText.AutoSize := False;
+    LabelText.Caption := 'Additional VST3 folder (optional):';
+
+    ReviewFolderEdit := TNewEdit.Create(Form);
+    ReviewFolderEdit.Parent := Form;
+    ReviewFolderEdit.Left := ScaleX(12);
+    ReviewFolderEdit.Top := ScaleY(286);
+    ReviewFolderEdit.Width := Form.ClientWidth - ScaleX(201);
+    ReviewFolderEdit.Height := ScaleY(23);
+    ReviewFolderEdit.Text := RequestedExtra;
+    ReviewFolderEdit.OnChange := @ReviewFolderChanged;
+
+    SearchButton := TNewButton.Create(Form);
+    SearchButton.Parent := Form;
+    SearchButton.Caption := 'Search';
+    SearchButton.Left := Form.ClientWidth - ScaleX(180);
+    SearchButton.Top := ScaleY(285);
+    SearchButton.Width := ScaleX(78);
+    SearchButton.Height := ScaleY(25);
+    SearchButton.OnClick := @SearchReviewFolder;
+
+    BrowseButton := TNewButton.Create(Form);
+    BrowseButton.Parent := Form;
+    BrowseButton.Caption := 'Browse...';
+    BrowseButton.Left := Form.ClientWidth - ScaleX(96);
+    BrowseButton.Top := ScaleY(285);
+    BrowseButton.Width := ScaleX(84);
+    BrowseButton.Height := ScaleY(25);
+    BrowseButton.OnClick := @BrowseReviewFolder;
+
+    LabelText := TNewStaticText.Create(Form);
+    LabelText.Parent := Form;
+    LabelText.Left := ScaleX(12);
+    LabelText.Top := ScaleY(319);
+    LabelText.Width := Form.ClientWidth - ScaleX(24);
+    LabelText.Height := ScaleY(58);
+    LabelText.AutoSize := False;
+    LabelText.WordWrap := True;
+    LabelText.Caption := 'The standard VST3 folder is always checked. Only recognised VANTA Beta 0.1-0.12 plugin binaries and their generated metadata may be removed. Projects, presets, other plugins and standalone apps are kept.';
+
+    ReviewRemoveButton := TNewButton.Create(Form);
+    ReviewRemoveButton.Parent := Form;
+    ReviewRemoveButton.Caption := 'Remove listed VSTs';
+    ReviewRemoveButton.Width := ScaleX(166);
+    ReviewRemoveButton.Height := ScaleY(26);
+    ReviewRemoveButton.Left := Form.ClientWidth - ScaleX(333);
+    ReviewRemoveButton.Top := Form.ClientHeight - ScaleY(38);
+    ReviewRemoveButton.ModalResult := mrOk;
+
+    KeepButton := TNewButton.Create(Form);
+    KeepButton.Parent := Form;
+    KeepButton.Caption := 'Keep / Continue';
+    KeepButton.Width := ScaleX(149);
+    KeepButton.Height := ScaleY(26);
+    KeepButton.Left := Form.ClientWidth - ScaleX(161);
+    KeepButton.Top := Form.ClientHeight - ScaleY(38);
+    KeepButton.ModalResult := mrCancel;
+    KeepButton.Default := True;
+    KeepButton.Cancel := True;
+    Form.ActiveControl := KeepButton;
+
+    RefreshReview();
+    ReviewFolderChanged(nil);
+    Result := Form.ShowModal() = mrOk;
+  finally
+    if ReviewFolderEdit <> nil then ReviewFolderEdit.OnChange := nil;
+    Form.Free();
+    ReviewFolderEdit := nil;
+    ReviewMemo := nil;
+    ReviewSummary := nil;
+    ReviewRemoveButton := nil;
+  end;
 end;
 
 procedure InitializeWizard();
 var
-  LabelText: TNewStaticText;
-  BrowseButton: TNewButton;
-  Problem: String;
+  Extra: String;
 begin
   CleanupIsSilent := WizardSilent;
   CleanupRequested := False;
   CleanupFailed := False;
-  ExtraFolderPage := CreateCustomPage(wpSelectDir, 'Check another plugin folder (optional)',
-    'VANTA automatically checks the standard Windows VST3 folder.');
-  LabelText := TNewStaticText.Create(ExtraFolderPage);
-  LabelText.Parent := ExtraFolderPage.Surface;
-  LabelText.AutoSize := False;
-  LabelText.WordWrap := True;
-  LabelText.Left := 0;
-  LabelText.Top := 0;
-  LabelText.Width := ExtraFolderPage.SurfaceWidth;
-  LabelText.Height := ScaleY(70);
-  LabelText.Caption := 'If you manually put older VANTA plugins in another VST3 folder, choose that folder too. Leave this blank otherwise. Only exact VANTA beta names are checked; your presets and projects are kept.';
-  ExtraFolderEdit := TNewEdit.Create(ExtraFolderPage);
-  ExtraFolderEdit.Parent := ExtraFolderPage.Surface;
-  ExtraFolderEdit.Left := 0;
-  ExtraFolderEdit.Top := ScaleY(80);
-  ExtraFolderEdit.Width := ExtraFolderPage.SurfaceWidth - ScaleX(90);
-  ExtraFolderEdit.Text := SwitchValue('/VANTASCANDIR=');
-  BrowseButton := TNewButton.Create(ExtraFolderPage);
-  BrowseButton.Parent := ExtraFolderPage.Surface;
-  BrowseButton.Left := ExtraFolderEdit.Width + ScaleX(8);
-  BrowseButton.Top := ExtraFolderEdit.Top - ScaleY(1);
-  BrowseButton.Width := ScaleX(82);
-  BrowseButton.Height := ScaleY(23);
-  BrowseButton.Caption := 'Browse...';
-  BrowseButton.OnClick := @BrowseExtraFolder;
-
-  OldCopiesPage := CreateCustomPage(ExtraFolderPage.ID, 'Remove older VANTA plugins',
-    'Old copies share a plugin ID and can make a DAW load the wrong beta.');
-  LabelText := TNewStaticText.Create(OldCopiesPage);
-  LabelText.Parent := OldCopiesPage.Surface;
-  LabelText.AutoSize := False;
-  LabelText.WordWrap := True;
-  LabelText.Left := 0;
-  LabelText.Top := 0;
-  LabelText.Width := OldCopiesPage.SurfaceWidth;
-  LabelText.Height := ScaleY(52);
-  LabelText.Caption := 'After Beta 0.13 installs, VANTA can remove the listed old plugin binaries. Other files, presets, projects, and older standalone apps are kept.';
-  OldCopiesMemo := TNewMemo.Create(OldCopiesPage);
-  OldCopiesMemo.Parent := OldCopiesPage.Surface;
-  OldCopiesMemo.Left := 0;
-  OldCopiesMemo.Top := ScaleY(55);
-  OldCopiesMemo.Width := OldCopiesPage.SurfaceWidth;
-  OldCopiesMemo.Height := OldCopiesPage.SurfaceHeight - ScaleY(97);
-  OldCopiesMemo.ReadOnly := True;
-  OldCopiesMemo.WordWrap := False;
-  OldCopiesMemo.ScrollBars := ssBoth;
-  RemoveOldCheck := TNewCheckBox.Create(OldCopiesPage);
-  RemoveOldCheck.Parent := OldCopiesPage.Surface;
-  RemoveOldCheck.Left := 0;
-  RemoveOldCheck.Top := OldCopiesPage.SurfaceHeight - ScaleY(32);
-  RemoveOldCheck.Width := OldCopiesPage.SurfaceWidth;
-  RemoveOldCheck.Height := ScaleY(22);
-  RemoveOldCheck.Caption := 'Remove the older VANTA plugin copies listed above';
-  RemoveOldCheck.Checked := True;
-
-  { Custom pages are skipped in silent setup; scan explicitly for automation. }
+  Extra := SwitchValue('/VANTASCANDIR=');
   if WizardSilent then
+    { Keep the existing unattended scan and explicit /REMOVEOLDVANTA policy. }
+    ScanRequestedFolders(Extra)
+  else if AskToFindOldVsts(False) then
   begin
-    if NormalizeExtraRoot(ExtraFolderEdit.Text, SelectedExtraRoot, Problem) then
-      ScanOldCopies(SelectedExtraRoot)
-    else
-    begin
-      ScanOldCopies('');
-      AppendLine(ScanIssues, Problem + ' ' + ExtraFolderEdit.Text);
-    end;
+    ScanRequestedFolders(Extra);
+    CleanupRequested := ReviewOldVsts(Extra);
   end;
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  Problem: String;
-begin
-  Result := True;
-  if (not WizardSilent) and (CurPageID = ExtraFolderPage.ID) then
-  begin
-    if not NormalizeExtraRoot(ExtraFolderEdit.Text, SelectedExtraRoot, Problem) then
-    begin
-      MsgBox(Problem, mbError, MB_OK);
-      Result := False;
-      Exit;
-    end;
-    ScanOldCopies(SelectedExtraRoot);
-    OldCopiesMemo.Text := ReviewText();
-  end;
-end;
-
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  Result := (PageID = OldCopiesPage.ID) and (OldCount = 0) and (ScanIssues = '');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -744,9 +861,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep <> ssPostInstall then Exit;
   if WizardSilent then
-    CleanupRequested := HasSwitch('/REMOVEOLDVANTA')
-  else
-    CleanupRequested := RemoveOldCheck.Checked;
+    CleanupRequested := HasSwitch('/REMOVEOLDVANTA');
   if not CleanupRequested then
   begin
     Log('VANTA cleanup was not selected; older plugins were kept.');
@@ -772,7 +887,7 @@ end;
 
 function InitializeUninstall(): Boolean;
 var
-  Extra, Problem, Question: String;
+  Extra: String;
 begin
   Result := False;
   CleanupIsSilent := UninstallSilent;
@@ -801,28 +916,15 @@ begin
   end;
 
   Extra := SwitchValue('/VANTASCANDIR=');
-  if (not UninstallSilent) and (Extra = '') then
-    if MsgBox('VANTA also checks the standard VST3 folder for older plugin copies. Do you want to check one additional VST3 folder?', mbConfirmation, MB_YESNO) = IDYES then
-      if not BrowseForFolder('Choose the additional VST3 folder', Extra, False) then Extra := '';
-  if NormalizeExtraRoot(Extra, SelectedExtraRoot, Problem) then
-    ScanOldCopies(SelectedExtraRoot)
-  else
-  begin
-    ScanOldCopies('');
-    AppendLine(ScanIssues, Problem + ' ' + Extra);
-  end;
-
   if UninstallSilent then
-    CleanupRequested := HasSwitch('/REMOVEOLDVANTA')
-  else if (OldCount > 0) or (ScanIssues <> '') then
   begin
-    Question := 'Remove older VANTA Beta 0.1 through 0.12 plugin copies too?' + #13#10#13#10 +
-      'Found ' + IntToStr(OldCount) + ' candidate(s). Standard folder:' + #13#10 + StandardRoot();
-    if SelectedExtraRoot <> '' then Question := Question + #13#10#13#10 + 'Additional folder:' + #13#10 + SelectedExtraRoot;
-    Question := Question + #13#10#13#10 +
-      'Only recognised VANTA plugin binaries and generated metadata are removed. Extra files, presets, projects and older standalone apps stay. Linked or unrecognised copies are skipped.';
-    if ScanIssues <> '' then Question := Question + #13#10#13#10 + 'Some folders could not be searched; the uninstaller will report them.';
-    CleanupRequested := MsgBox(Question, mbConfirmation, MB_YESNO) = IDYES;
+    ScanRequestedFolders(Extra);
+    CleanupRequested := HasSwitch('/REMOVEOLDVANTA');
+  end
+  else if AskToFindOldVsts(True) then
+  begin
+    ScanRequestedFolders(Extra);
+    CleanupRequested := ReviewOldVsts(Extra);
   end;
   Result := True;
 end;

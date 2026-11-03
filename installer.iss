@@ -12,6 +12,7 @@ AppVersion={#AppVersion}
 AppPublisher=Vanta
 DefaultDirName={autopf}\Vanta\Vanta Beta 0.13
 DisableProgramGroupPage=yes
+DisableStartupPrompt=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
