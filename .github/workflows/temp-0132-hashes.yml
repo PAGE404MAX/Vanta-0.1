@@ -1,5 +1,8 @@
 name: Verify published 0.13.2 suite hashes
-on: workflow_dispatch
+on:
+  push:
+    paths: ['.github/workflows/temp-0132-hashes.yml']
+  workflow_dispatch:
 permissions:
   actions: read
   contents: read
