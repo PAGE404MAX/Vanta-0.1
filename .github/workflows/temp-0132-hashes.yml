@@ -1,0 +1,40 @@
+name: Verify published 0.13.2 suite hashes
+on: workflow_dispatch
+permissions:
+  actions: read
+  contents: read
+jobs:
+  hashes:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - name: Download the previously published suite
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41580072836 --repo "${{ github.repository }}" --name "VANTA SUITE HERE" --dir old-suite
+          if ($LASTEXITCODE -ne 0) { throw 'Could not retrieve the published 0.13.2 suite.' }
+      - name: Install it and report exact owned-file hashes
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:RUNNER_TEMP 'vanta-suite-0132'
+          $installer = Get-ChildItem old-suite -Filter '*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'Previous installer missing.' }
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/DIR=`"$app`"") -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Previous setup failed: $($p.ExitCode)" }
+          $vst = Join-Path ${env:CommonProgramFiles} 'VST3'
+          $paths = [ordered]@{
+            SynthBinary = Join-Path $vst 'Vanta Beta 0.13.vst3/Contents/x86_64-win/Vanta Beta 0.13.vst3'
+            SynthInfo = Join-Path $vst 'Vanta Beta 0.13.vst3/Contents/Resources/moduleinfo.json'
+            Standalone = Join-Path $app 'Vanta Beta 0.13.exe'
+            LaggifyBinary = Join-Path $vst 'Laggify.vst3/Contents/x86_64-win/Laggify.vst3'
+            LaggifyInfo = Join-Path $vst 'Laggify.vst3/Contents/Resources/moduleinfo.json'
+            SidechainBinary = Join-Path $vst 'VANTA Sidechain.vst3/Contents/x86_64-win/VANTA Sidechain.vst3'
+            SidechainInfo = Join-Path $vst 'VANTA Sidechain.vst3/Contents/Resources/moduleinfo.json'
+          }
+          foreach ($entry in $paths.GetEnumerator()) {
+            if (!(Test-Path -LiteralPath $entry.Value -PathType Leaf)) { throw "Missing $($entry.Key) at $($entry.Value)" }
+            $hash = (Get-FileHash -LiteralPath $entry.Value -Algorithm SHA256).Hash
+            Write-Output "::notice title=0.13.2 $($entry.Key)::$hash"
+          }
