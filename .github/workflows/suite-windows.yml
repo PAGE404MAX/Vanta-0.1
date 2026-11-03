@@ -1,0 +1,93 @@
+name: Build VANTA Suite for Windows
+
+on: [push, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  installer-tests:
+    # Exercise setup/uninstall independently while the real three-plugin build
+    # runs. These disposable VM fixtures deliberately write to the VST3 folder.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create tiny installation fixtures
+        shell: pwsh
+        run: |
+          $bundles = @(
+            @{ Dir = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.13.vst3'; Name = 'Vanta Beta 0.13.vst3' },
+            @{ Dir = 'build/laggify/LaggifyFx_artefacts/Release/VST3/Laggify.vst3'; Name = 'Laggify.vst3' },
+            @{ Dir = 'build/sidechain/VantaSidechainFx_artefacts/Release/VST3/VANTA Sidechain.vst3'; Name = 'VANTA Sidechain.vst3' }
+          )
+          foreach ($bundle in $bundles) {
+            $arch = Join-Path $bundle.Dir 'Contents/x86_64-win'; $resources = Join-Path $bundle.Dir 'Contents/Resources'
+            New-Item -ItemType Directory -Path $arch, $resources -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $arch $bundle.Name) -Value 'Disposable test VST3 module'
+            Set-Content -LiteralPath (Join-Path $resources 'moduleinfo.json') -Value '{"test":true}'
+          }
+          $app = 'build/VantaBeta_artefacts/Release/Standalone'
+          New-Item -ItemType Directory -Path $app -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $app 'Vanta Beta 0.13.exe') -Value 'Disposable test app'
+      - name: Install Inno Setup if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --yes --no-progress }
+      - name: Compile all installer fixtures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          foreach ($file in @('installer.iss', 'Laggify VST Effect/installer/Laggify.iss', 'suite-installer.iss')) {
+            $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" $file 2>&1 | Out-String -Width 4096)
+            $code = $LASTEXITCODE; Write-Output $output
+            if ($code -ne 0) {
+              $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+              Write-Output "::error title=Installer compilation failed::$escaped"; exit $code
+            }
+          }
+      - name: Test safe migration, install and uninstall
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          try { ./scripts/test-suite-installer.ps1 -SkipLaunch }
+          catch {
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Suite installer test failed::$message"; exit 1
+          }
+      - name: Test visible setup and uninstall wizard
+        shell: pwsh
+        timeout-minutes: 8
+        run: |
+          try { ./scripts/test-suite-ui.ps1 }
+          catch {
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Suite wizard test failed::$message"; exit 1
+          }
+
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Inno Setup if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --yes --no-progress }
+      - name: Build and test the three products and setup
+        shell: pwsh
+        run: ./scripts/build-suite.ps1
+      - name: Exercise actual suite installer and standalone
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          try { ./scripts/test-suite-installer.ps1 }
+          catch {
+            $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Suite install/launch/uninstall failed::$message"; exit 1
+          }
+      - name: Upload the single installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: VANTA SUITE HERE
+          path: installer-output/Vanta-Suite-Setup.exe
+          if-no-files-found: error

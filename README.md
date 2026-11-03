@@ -1,6 +1,6 @@
 # Vanta Beta 0.13
 
-VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Studio and other hosts and as a standalone application. Beta 0.13 adds Delay and Hold to the shared amplitude envelope, alongside Attack, Decay, Sustain and Release. Beta 0.12 expanded the nine-module effects rack. **Laggify** is a separate VST3 mixer-insert effect, not a synth tab or a standalone instrument. VANTA retains the uninstaller, resize menu and **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2. Converted sounds are approximations, not sound-for-sound reproductions.
+VANTA is an experimental Windows x64 instrument, available as a VST3 and standalone application. The VANTA Suite setup now also installs **Laggify** and **VANTA Sidechain** as independent mixer-insert VST3 effects. The synth remains Beta 0.13; its Delay and Hold amp-envelope controls, resize menu and **experimental, partial preset conversion** for Vital, Serum 1 and Serum 2 are retained. Converted sounds are approximations, not sound-for-sound reproductions.
 
 ![Beta 0.13 amp-envelope controls](docs/vanta-beta-0.13-amp-envelope.png)
 
@@ -8,9 +8,23 @@ VANTA is an experimental Windows x64 instrument, available as a VST3 for FL Stud
 
 View the [resize menu](docs/vanta-beta-0.10-resize-menu.png), [main editor](docs/vanta-beta-0.10-vst-main.png) or [oscillator page](docs/vanta-beta-0.10-vst-oscillators.png). These are off-screen native-editor test snapshots; fonts and host framing may differ on Windows. The [Laggify HTML](design/laggify-ui-concept.html) is a no-audio design concept.
 
-## Install and play
+## Install all three
 
-The Windows build produces `Vanta-Beta-0.13-Setup.exe`, a standalone application and a VST3 bundle. The installer is unsigned. **Back up DAW projects and close FL Studio and other audio programs before installing.** The betas share a VST3 ID, so duplicate copies can confuse a plugin scan.
+Download **VANTA SUITE HERE** from the successful Windows suite build and run `Vanta-Suite-Setup.exe`. This single unsigned setup wizard installs VANTA Beta 0.13 (VST3 and standalone), Laggify 0.2 (VST3), and VANTA Sidechain 0.1 (VST3). **Back up DAW projects and close FL Studio and other audio programs first.** Windows may warn because the installer is unsigned; rescan plugins after installation.
+
+If VANTA 0.13 is already installed by its original setup, the suite upgrades that exact installation and replaces its uninstall entry, retaining the synth's plugin/parameter IDs. If the separate Laggify installer is registered, the suite stops rather than take over a VST3 still owned by a second uninstaller. Uninstall the old separate Laggify through Windows Settings first, then run the suite setup. Your DAW projects and presets are not removed. If the wizard detects a manually installed Laggify/Sidechain VST3 or a conflicting suite-named app file, back it up and move it aside before retrying; it will not silently overwrite it. Don't run the old separate Laggify installer over the suite. If you do, uninstall the separate copy and repair the suite before uninstalling the suite.
+
+### Uninstall the suite
+
+Open **Start > Vanta > Uninstall Vanta Suite**, or **Settings > Apps > Installed apps > VANTA Suite > Uninstall**. One uninstaller removes the suite's installed VANTA standalone, all three VST3 files, and shortcuts. It offers optional cleanup of recognised older VANTA plugin copies. Projects, user presets, other plugins and unknown files are retained; a plugin folder may remain if it contains additional files. A linked/junction or inaccessible installation path stops setup/uninstall rather than being traversed. Existing, separate older VANTA standalone entries are left alone. Reinstall/repair the suite if an old uninstaller removed a suite file.
+
+### Use VANTA Sidechain
+
+Put **VANTA Sidechain** on the destination (for example, bass) mixer track. In FL Studio, select the kick track, right-click the bass track's send arrow and choose **Sidechain to this track**. In the wrapper's **Settings → Processing**, map the external Sidechain input if needed; select **VOLUME → SIDECHAIN** in the effect and lower the threshold until the kick triggers it. See the [Sidechain guide](Sidechain%20VST%20Effect/README.md) for its 12 effects, multiband curves, STEP DRAW, MIDI and sync. FL Studio itself has not yet been verified.
+
+## VANTA install and play details
+
+The original VANTA-only Windows build also produces `Vanta-Beta-0.13-Setup.exe`, a standalone application and a VST3 bundle. The betas share a VST3 ID, so duplicate copies can confuse a plugin scan.
 
 Setup checks the standard Windows VST3 folder for exact `Vanta Beta 0.1.vst3` through `Vanta Beta 0.12.vst3` names. You can also choose one additional VST3 folder. It shows the detected copies and defaults to **Remove the older VANTA plugin copies**; untick that option if you want to keep them. Cleanup happens only after the new app and VST3 have installed. It removes recognised old plugin binaries and their generated metadata, while keeping other files, including projects and presets even if they were placed inside a plugin folder. Beta 0.13 and future versions are not targeted. Linked/junction and unrecognised layouts are not followed or recursively deleted; some unusual or renamed copies may require manual removal.
 
@@ -22,9 +36,9 @@ Launch **Vanta > Vanta Beta 0.13** from the Start Menu. In the standalone window
 
 These keys span C4–E5. The VST3 receives MIDI from the host; the standalone keyboard does not inject notes into a VST3 instance.
 
-### Uninstall VANTA
+### Uninstall the older VANTA-only setup
 
-Open **Start > Vanta > Uninstall Vanta Beta 0.13**, or use **Settings > Apps > Installed apps > Vanta Beta 0.13 > Uninstall**. The uninstaller removes this beta's installed standalone app, VST3 files and shortcuts. It can also check one additional VST3 folder and asks whether to remove recognised older plugin copies; choosing no leaves them alone. Projects, presets, extra files and earlier standalone apps are not deleted. A folder with extra user files may remain after its plugin binary is removed. If a folder is a link/junction or has an unrecognised layout, it is not automatically removed. Manually copied or renamed files outside the selected folders are not discovered.
+If you installed the older VANTA-only setup rather than the suite, open **Start > Vanta > Uninstall Vanta Beta 0.13**, or use **Settings > Apps > Installed apps > Vanta Beta 0.13 > Uninstall**. The uninstaller removes this beta's installed standalone app, VST3 files and shortcuts. It can also check one additional VST3 folder and asks whether to remove recognised older plugin copies; choosing no leaves them alone. Projects, presets, extra files and earlier standalone apps are not deleted. A folder with extra user files may remain after its plugin binary is removed. If a folder is a link/junction or has an unrecognised layout, it is not automatically removed. Manually copied or renamed files outside the selected folders are not discovered.
 
 For unattended deployment, silent setup and uninstall **do not remove old plugin copies by default**. Explicitly add `/REMOVEOLDVANTA` to opt in and optionally `/VANTASCANDIR="C:\path\to\VST3"` to include one additional existing, non-linked folder. Add `/LOG="C:\path\to\vanta.log"` to capture details. If requested setup cleanup is incomplete, setup returns exit code `20` after installing the new version; close the DAW or resolve the reported path and retry. Silent uninstallation reports cleanup problems in its log. These options remove old plugin files, not older standalone apps or registry entries.
 
@@ -42,7 +56,7 @@ The three original effects keep their previous mix settings and default to enabl
 
 ## Separate Laggify effect
 
-Laggify is an independent VST3 **mixer insert**, built from [`Laggify VST Effect`](Laggify%20VST%20Effect/README.md) with its own installer and download. It processes the audio of whichever mixer track or bus you put it on, not just VANTA. It is not inside the VANTA instrument. Version 0.2 adds independent time/volume mixes, HOLD, a scratch clock, ATT/REL/TNS and an enlarged bank view. See the [Laggify guide](Laggify%20VST%20Effect/README.md) for controls, sync and limitations.
+Laggify is an independent VST3 **mixer insert**, built from [`Laggify VST Effect`](Laggify%20VST%20Effect/README.md) and included in the suite installer. Its previous standalone installer is a legacy option. It processes the audio of whichever mixer track or bus you put it on, not just VANTA. It is not inside the VANTA instrument. Version 0.2 adds independent time/volume mixes, HOLD, a scratch clock, ATT/REL/TNS and an enlarged bank view. See the [Laggify guide](Laggify%20VST%20Effect/README.md) for controls, sync and limitations.
 
 ## Importing presets
 
@@ -75,7 +89,7 @@ Existing plugin and parameter IDs are retained. OSC A's original two-choice `wav
 
 ## Build and test on Windows
 
-The VANTA GitHub Actions workflow builds the VST3 and standalone, runs engine/effects/importer/editor tests and an off-screen VST3 host-view resize/DPI test, creates the installer, and tests consent, duplicate cleanup, custom folders, preserved data, locked files, junctions, reinstall, standalone launch, shortcuts and uninstall on disposable Windows runners. It does **not** test a real audio device, MIDI hardware or FL Studio. A separate workflow builds and tests the independent Laggify installer.
+The VANTA GitHub Actions workflow builds the VST3 and standalone, runs engine/effects/importer/editor tests and an off-screen VST3 host-view resize/DPI test, creates the installer, and tests consent, duplicate cleanup, custom folders, preserved data, locked files, junctions, reinstall, standalone launch, shortcuts and uninstall on disposable Windows runners. It does **not** test a real audio device, MIDI hardware or FL Studio. Separate workflows also build Laggify and the combined suite. The suite's Windows tests exercise the sidechain VST3 input, visible uninstall wizard, migration guard and preservation of unrelated files; they do not replace testing in FL Studio.
 
 For a local build, install Visual Studio C++ tools, CMake 3.22+ and Inno Setup 6. Configuration fetches pinned JUCE 8.0.6, zlib 1.3.1 and Zstandard 1.5.6 sources.
 
@@ -91,5 +105,18 @@ ctest --test-dir build -C Release --output-on-failure
 cmake --build build --config Release --target VantaBeta_Standalone --parallel
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
 ```
+
+To build the combined installer, also run:
+
+```powershell
+cmake -S "Laggify VST Effect" -B build/laggify -A x64
+cmake --build build/laggify --config Release --target LaggifyFx_VST3 --parallel 2
+cmake -S "Sidechain VST Effect" -B build/sidechain -A x64
+cmake --build build/sidechain --config Release --target SidechainVST3Tests SidechainEngineTests SidechainProcessorTests --parallel 2
+ctest --test-dir build/sidechain -C Release --output-on-failure
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" suite-installer.iss
+```
+
+The three plugin identities remain independent. The synth is unchanged from 0.13; the suite version is 0.13.1 and Sidechain is a new 0.1 product.
 
 The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.13` and the standard `C:\Program Files\Common Files\VST3` folder. After installing, test audio/MIDI devices, import/save/reopen and DAW project restoration at low volume. See [third-party notices](THIRD_PARTY_NOTICES.md) and review JUCE licensing obligations before distribution.

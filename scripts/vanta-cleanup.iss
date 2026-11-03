@@ -60,13 +60,40 @@ begin
   Result := WinFileAttributes(Path) <> -1;
 end;
 
+{ Check every existing directory, not just the final component. This also
+  protects an optional scan folder or custom app path beneath a junction. }
+function DirectoryChainIsSafe(const Path: String): Boolean;
+var
+  Current, Parent: String;
+  Attr, ErrorCode: Integer;
+begin
+  Result := False;
+  if Trim(Path) = '' then Exit;
+  Current := RemoveBackslashUnlessRoot(ExpandFileName(Path));
+  while Current <> '' do
+  begin
+    Attr := WinFileAttributes(Current);
+    if Attr = -1 then
+    begin
+      ErrorCode := DLLGetLastError;
+      if (ErrorCode <> 2) and (ErrorCode <> 3) then Exit;
+    end
+    else if ((Attr and AttributeDirectory) = 0) or ((Attr and AttributeReparsePoint) <> 0) then Exit;
+    if (Length(Current) = 3) and (Copy(Current, 2, 2) = ':\') then Break;
+    Parent := RemoveBackslashUnlessRoot(ExtractFileDir(Current));
+    if (Parent = '') or (CompareText(Parent, Current) = 0) then Break;
+    Current := Parent;
+  end;
+  Result := True;
+end;
+
 function IsRealDirectory(const Path: String): Boolean;
 var
   Attr: Integer;
 begin
   Attr := WinFileAttributes(Path);
   Result := (Attr <> -1) and ((Attr and AttributeDirectory) <> 0) and
-    ((Attr and AttributeReparsePoint) = 0);
+    ((Attr and AttributeReparsePoint) = 0) and DirectoryChainIsSafe(Path);
 end;
 
 function IsRealFile(const Path: String): Boolean;
@@ -75,7 +102,7 @@ var
 begin
   Attr := WinFileAttributes(Path);
   Result := (Attr <> -1) and ((Attr and AttributeDirectory) = 0) and
-    ((Attr and AttributeReparsePoint) = 0);
+    ((Attr and AttributeReparsePoint) = 0) and DirectoryChainIsSafe(ExtractFileDir(Path));
 end;
 
 function ExistingDirectoryIsSafe(const Path: String): Boolean;
@@ -91,6 +118,7 @@ begin
   else
     Result := ((Attr and AttributeDirectory) <> 0) and
       ((Attr and AttributeReparsePoint) = 0);
+  Result := Result and DirectoryChainIsSafe(Path);
 end;
 
 function ExistingFileIsSafe(const Path: String): Boolean;
@@ -106,6 +134,7 @@ begin
   else
     Result := ((Attr and AttributeDirectory) = 0) and
       ((Attr and AttributeReparsePoint) = 0);
+  Result := Result and DirectoryChainIsSafe(ExtractFileDir(Path));
 end;
 
 function IsAbsolutePath(const Path: String): Boolean;
@@ -396,7 +425,74 @@ begin
   Result := ExistingDirectoryIsSafe(ExpandConstant('{app}')) and
     ExistingFileIsSafe(ExpandConstant('{app}\Vanta Beta 0.13.exe')) and
     ExistingFileIsSafe(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'));
+#ifdef SuiteBuild
+  Result := Result and ExistingFileIsSafe(ExpandConstant('{app}\Vanta-suite-installed.txt')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\Laggify-third-party-notices.md')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\Sidechain-README.md')) and
+    ExistingDirectoryIsSafe(ExpandConstant('{app}\third-party')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\third-party\JUCE-LICENSE.md')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\third-party\VST3-SDK-LICENSE.txt'));
+#endif
 end;
+
+#ifdef SuiteBuild
+function SuiteBundlePathsAreSafe(const Name: String): Boolean;
+var
+  Root, Bundle, ContentsDir, ArchDir, ResourcesDir: String;
+begin
+  Root := StandardRoot();
+  Bundle := AddBackslash(Root) + Name;
+  ContentsDir := AddBackslash(Bundle) + 'Contents';
+  ArchDir := AddBackslash(ContentsDir) + 'x86_64-win';
+  ResourcesDir := AddBackslash(ContentsDir) + 'Resources';
+  Result := ExistingDirectoryIsSafe(Root) and ExistingDirectoryIsSafe(Bundle) and
+    ExistingDirectoryIsSafe(ContentsDir) and ExistingDirectoryIsSafe(ArchDir) and
+    ExistingDirectoryIsSafe(ResourcesDir) and
+    ExistingFileIsSafe(AddBackslash(ArchDir) + Name) and
+    ExistingFileIsSafe(AddBackslash(ResourcesDir) + 'moduleinfo.json');
+end;
+
+function SuitePathsAreSafe(): Boolean;
+begin
+  Result := SuiteBundlePathsAreSafe('Laggify.vst3') and
+    SuiteBundlePathsAreSafe('VANTA Sidechain.vst3');
+end;
+
+function SuiteBinariesExist(): Boolean;
+begin
+  Result := SuitePathsAreSafe() and
+    IsRealFile(AddBackslash(StandardRoot()) + 'Laggify.vst3\Contents\x86_64-win\Laggify.vst3') and
+    IsRealFile(AddBackslash(StandardRoot()) + 'VANTA Sidechain.vst3\Contents\x86_64-win\VANTA Sidechain.vst3');
+end;
+
+function LegacyLaggifyRegistered(): Boolean;
+begin
+  Result := RegKeyExists(HKLM64, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{096E7B0E-1C14-4696-B9A7-6402B2571F91}_is1');
+end;
+
+function UnownedBundleHasPlugin(const Name: String): Boolean;
+var
+  Bundle: String;
+begin
+  Bundle := AddBackslash(StandardRoot()) + Name + '\Contents';
+  Result := PathExists(AddBackslash(Bundle) + 'x86_64-win\' + Name) or
+    PathExists(AddBackslash(Bundle) + 'Resources\moduleinfo.json') or
+    PathExists(AddBackslash(Bundle) + 'moduleinfo.json');
+end;
+
+function UnownedEffectExists(): Boolean;
+begin
+  { A previous suite installation carries a marker in the same app folder.
+    Protect an unowned binary/manifest, but allow data-only directories left
+    by a prior uninstall. Extra files are never recursively removed. }
+  Result := (not IsRealFile(ExpandConstant('{app}\Vanta-suite-installed.txt'))) and
+    (UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
+     PathExists(ExpandConstant('{app}\Laggify-third-party-notices.md')) or
+     PathExists(ExpandConstant('{app}\Sidechain-README.md')) or
+     PathExists(ExpandConstant('{app}\third-party\JUCE-LICENSE.md')) or
+     PathExists(ExpandConstant('{app}\third-party\VST3-SDK-LICENSE.txt')));
+end;
+#endif
 
 function InstalledCurrentBinaryExists(): Boolean;
 var
@@ -406,6 +502,9 @@ begin
     '\Contents\x86_64-win\' + BundleName(CurrentBetaNumber);
   Result := CurrentBundlePathsAreSafe() and CurrentAppPathsAreSafe() and
     IsRealFile(Binary) and IsRealFile(ExpandConstant('{app}\Vanta Beta 0.13.exe'));
+#ifdef SuiteBuild
+  Result := Result and SuiteBinariesExist();
+#endif
 end;
 
 procedure RunOldCleanup();
@@ -556,7 +655,18 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe() then
+  begin
     Result := 'The Beta 0.13 app or VST3 location contains a link/junction, an unexpected item, or cannot be inspected. Setup will not overwrite it. Resolve the location and retry.';
+    Exit;
+  end;
+#ifdef SuiteBuild
+  if not SuitePathsAreSafe() then
+    Result := 'A Laggify or Sidechain VST3 path is linked, unexpected, or inaccessible. Setup stopped to protect your files.'
+  else if LegacyLaggifyRegistered() then
+    Result := 'The separately installed Laggify has its own uninstaller. Close your DAW, uninstall the old Laggify from Windows Settings, then run Vanta Suite Setup again. Your projects and presets are not removed.'
+  else if UnownedEffectExists() then
+    Result := 'An existing effect or suite-named app file is not owned by this suite. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
+#endif
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -597,7 +707,21 @@ begin
   CleanupIsSilent := UninstallSilent;
   CleanupRequested := False;
   CleanupFailed := False;
-  if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe() then
+#ifdef SuiteBuild
+  if LegacyLaggifyRegistered() then
+  begin
+    Log('Suite uninstall stopped: a separate Laggify installer is registered for the same plugin path.');
+    if not UninstallSilent then
+      MsgBox('A separate Laggify installation was detected. Close your DAW, uninstall the separate Laggify from Windows Settings, then run Vanta Suite Setup to repair the suite before uninstalling it.', mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+#endif
+  if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe()
+#ifdef SuiteBuild
+    or not SuitePathsAreSafe()
+#endif
+    then
   begin
     Log('VANTA uninstall stopped: the current app or VST3 location is linked, unexpected, or inaccessible.');
     if not UninstallSilent then

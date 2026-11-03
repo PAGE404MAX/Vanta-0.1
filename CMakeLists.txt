@@ -104,3 +104,11 @@ if(VANTA_BUILD_TESTS)
         add_test(NAME VantaVST3Tests COMMAND VantaVST3Tests "$<TARGET_FILE:VantaBeta_VST3>")
     endif()
 endif()
+
+# Optional convenience target; VANTA Sidechain remains an independent VST3
+# with its own plugin ID and can also be configured from its own directory.
+option(VANTA_BUILD_SIDECHAIN "Also build the independent VANTA Sidechain VST3" OFF)
+if(VANTA_BUILD_SIDECHAIN)
+    enable_testing()
+    add_subdirectory("Sidechain VST Effect" sidechain)
+endif()

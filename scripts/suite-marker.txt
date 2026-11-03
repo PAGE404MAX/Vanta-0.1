@@ -1,0 +1,1 @@
+VANTA Suite installation marker. This package owns VANTA 0.13, Laggify 0.2 and VANTA Sidechain 0.1 installed by its setup wizard.
