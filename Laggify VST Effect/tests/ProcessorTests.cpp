@@ -106,8 +106,20 @@ void testProcessor()
     check(p.isBusesLayoutSupported(layout), "Mono input/output is supported");
     layout.outputBuses.set(0, juce::AudioChannelSet::stereo());
     check(!p.isBusesLayoutSupported(layout), "Mismatched input/output layouts are rejected");
-    check(p.getParameters().size() == 38 && p.currentPattern(true) == 15 && p.currentPattern(false) == 0,
-          "Stable independent parameters and default reference pattern are present");
+    check(p.getParameters().size() == 45 && p.currentPattern(true) == 15 && p.currentPattern(false) == 0,
+          "Original parameters plus seven independent controls are present");
+    juce::StringArray expected{"enabled", "mix", "bpm", "cycle", "timeSmooth", "volumeSmooth"};
+    for (bool time : {true, false})
+        for (int i = 0; i < laggify::steps; ++i)
+            expected.add(LaggifyProcessor::pointId(time, i));
+    expected.addArray({"timeMix", "volumeMix", "attack", "release", "tension", "hold", "scratch"});
+    bool order = expected.size() == p.getParameters().size();
+    for (int i = 0; i < expected.size(); ++i)
+    {
+        const auto* id = dynamic_cast<juce::AudioProcessorParameterWithID*>(p.getParameters()[i]);
+        order &= id != nullptr && id->paramID == expected[i];
+    }
+    check(order, "Original parameter IDs and ordering are unchanged, with new controls appended");
     p.applyPattern(true, 1);
     p.applyPattern(false, 35);
     auto s = p.currentSettings();
@@ -119,8 +131,17 @@ void testProcessor()
           "Host-automated point values show custom without disturbing the other bank");
     p.setParameterValue("mix", .63f);
     p.setParameterValue("enabled", 1);
+    p.setParameterValue("timeMix", .37f);
+    p.setParameterValue("volumeMix", .72f);
+    p.setParameterValue("attack", 123.4f);
+    p.setParameterValue("release", 567.8f);
+    p.setParameterValue("tension", -.4f);
+    p.setParameterValue("hold", 1);
+    p.setParameterValue("scratch", .25f);
+    check(std::isinf(p.getTailLengthSeconds()), "A latched HOLD reports an infinite tail to the host");
     p.setEditorScalePercent(125);
     p.setEditTime(false);
+    p.setShowBanksOnly(true);
     juce::MemoryBlock state;
     p.getStateInformation(state);
     LaggifyProcessor restored;
@@ -130,6 +151,40 @@ void testProcessor()
               restored.currentPattern(true) == -1 && restored.currentPattern(false) == 35 &&
               restored.editorScalePercent() == 125 && !restored.editTime(),
           "Host state round-trips curves, mix, selected bank and UI size");
+    check(std::abs(rs.timeMix - .37f) < .002f && std::abs(rs.volumeMix - .72f) < .002f &&
+              std::abs(rs.attackMs - 123.4f) < .2f && std::abs(rs.releaseMs - 567.8f) < .2f &&
+              std::abs(rs.tension + .4f) < .002f && rs.hold && std::abs(rs.scratch - .25f) < .002f &&
+              restored.showBanksOnly() && std::isinf(restored.getTailLengthSeconds()),
+          "Host state round-trips the new controls and bank view");
+    // Construct a 0.1-shaped state with none of the new parameter IDs.
+    auto legacy = p.state.copyState();
+    for (int i = legacy.getNumChildren() - 1; i >= 0; --i)
+    {
+        const auto id = legacy.getChild(i).getProperty("id").toString();
+        if (juce::StringArray{"timeMix", "volumeMix", "attack", "release", "tension", "hold", "scratch"}.contains(id))
+            legacy.removeChild(i, nullptr);
+    }
+    legacy.removeProperty("banksOnly", nullptr);
+    legacy.setProperty("scale", 125, nullptr);
+    legacy.setProperty("timePreset", -1, nullptr);
+    legacy.setProperty("volumePreset", 35, nullptr);
+    legacy.setProperty("editTime", 0, nullptr);
+    juce::MemoryBlock oldState;
+    if (auto xml = legacy.createXml())
+        juce::AudioProcessor::copyXmlToBinary(*xml, oldState);
+    LaggifyProcessor migrated;
+    migrated.setParameterValue("timeMix", .1f);
+    migrated.setParameterValue("attack", 400);
+    migrated.setParameterValue("hold", 1);
+    migrated.setShowBanksOnly(true);
+    migrated.setStateInformation(oldState.getData(), static_cast<int>(oldState.getSize()));
+    const auto old = migrated.currentSettings();
+    check(std::abs(old.time[5] - .777f) < .002f && old.volume[2] == 0 && old.enabled &&
+              std::abs(old.mix - .63f) < .002f && old.timeMix == 1 && old.volumeMix == 1 &&
+              old.attackMs == 4 && old.releaseMs == 4 && old.tension == 0 && !old.hold && old.scratch == 0 &&
+              migrated.editorScalePercent() == 125 && !migrated.editTime() && migrated.currentPattern(false) == 35 &&
+              !migrated.showBanksOnly() && !std::isinf(migrated.getTailLengthSeconds()),
+          "0.1 states restore with neutral defaults for every new control");
     const auto before = restored.currentSettings();
     char broken[] = {1, 2, 3, 4};
     restored.setStateInformation(broken, 4);
@@ -190,6 +245,24 @@ void testEditor(const juce::File& dir)
     }
     check(bankNames && find(*editor, "laggify-curve"), "All 72 named bank buttons and the large graph are visible");
     snapshot(*editor, dir, "laggify-time.png");
+    click(*editor, "bank-view");
+    layout(*editor);
+    auto* enlarged = find(*editor, "time-preset-0");
+    check(p.showBanksOnly() && find(*editor, "laggify-curve") == nullptr && enlarged != nullptr &&
+              enlarged->getHeight() > 25 && find(*editor, "volume-preset-35") != nullptr,
+          "Bank view hides the graph and enlarges all preset buttons");
+    checkHit(*editor, "time-preset-35");
+    checkHit(*editor, "volume-preset-35");
+    snapshot(*editor, dir, "laggify-banks.png");
+    juce::MemoryBlock banksState;
+    p.getStateInformation(banksState);
+    LaggifyProcessor banksRestored;
+    banksRestored.setStateInformation(banksState.getData(), static_cast<int>(banksState.getSize()));
+    check(banksRestored.showBanksOnly(), "Bank view persists in the host state");
+    click(*editor, "bank-view");
+    layout(*editor);
+    check(!p.showBanksOnly() && find(*editor, "laggify-curve") != nullptr,
+          "Show graph returns to the editable curve layout");
     click(*editor, "volume-preset-35");
     check(!p.editTime() && p.currentPattern(false) == 35,
           "Selecting Mute switches to volume and updates the processor");
@@ -247,6 +320,54 @@ void testEditor(const juce::File& dir)
     check(std::abs(p.currentSettings().mix - .44f) < .002f && p.currentSettings().fallbackBpm == 95 &&
               p.currentSettings().cycle == 2,
           "Mix, BPM and cycle controls update their parameters");
+    auto slider = [&](const char* id)
+    {
+        return dynamic_cast<juce::Slider*>(find(*editor, id));
+    };
+    auto* timeMix = slider("parameter-time-mix");
+    auto* volumeMix = slider("parameter-volume-mix");
+    auto* attack = slider("parameter-attack");
+    auto* release = slider("parameter-release");
+    auto* tension = slider("parameter-tension");
+    auto* scratch = slider("parameter-scratch");
+    auto* hold = dynamic_cast<juce::TextButton*>(find(*editor, "parameter-hold"));
+    check(timeMix && volumeMix && attack && release && tension && scratch && hold,
+          "Both mixes, ATT, REL, TNS, HOLD and scratch are visible native controls");
+    timeMix->setValue(.25, juce::sendNotificationSync);
+    volumeMix->setValue(.75, juce::sendNotificationSync);
+    attack->setValue(120, juce::sendNotificationSync);
+    release->setValue(360, juce::sendNotificationSync);
+    tension->setValue(-.5, juce::sendNotificationSync);
+    scratch->setValue(.4, juce::sendNotificationSync);
+    hold->setToggleState(true, juce::sendNotificationSync);
+    const auto controlled = p.currentSettings();
+    check(std::abs(controlled.timeMix - .25f) < .002f && std::abs(controlled.volumeMix - .75f) < .002f &&
+              std::abs(controlled.attackMs - 120) < .2f && std::abs(controlled.releaseMs - 360) < .2f &&
+              std::abs(controlled.tension + .5f) < .002f && std::abs(controlled.scratch - .4f) < .002f &&
+              controlled.hold,
+          "New native controls update their independent processor parameters");
+    click(*editor, "scratch-reset");
+    check(p.currentSettings().scratch == 0, "LIVE resets the scratch clock");
+    GestureListener scratchGesture;
+    auto* scratchParameter = p.state.getParameter("scratch");
+    check(scratchParameter != nullptr, "Scratch automation parameter exists");
+    scratchParameter->addListener(&scratchGesture);
+    const juce::Point<float> scratchStart(19, 25), scratchEnd(19, -55);
+    auto scratchEvent = [&](juce::Point<float> pt, bool dragged)
+    {
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), pt,
+                                juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f,
+                                0.0f, scratch, scratch, now, scratchStart, now, 1, dragged);
+    };
+    scratch->mouseDown(scratchEvent(scratchStart, false));
+    scratch->mouseDrag(scratchEvent(scratchEnd, true));
+    scratch->mouseUp(scratchEvent(scratchEnd, true));
+    scratchParameter->removeListener(&scratchGesture);
+    check(scratchGesture.begins == 1 && scratchGesture.ends == 1 && scratchGesture.changes > 0 &&
+              p.currentSettings().scratch > .2f,
+          "Dragging the scratch clock changes audio state with balanced host gestures");
+    scratch->mouseDoubleClick(scratchEvent(scratchStart, false));
+    check(p.currentSettings().scratch == 0, "Double-click also resets the scratch clock");
     juce::MemoryBlock edited;
     p.getStateInformation(edited);
     LaggifyProcessor reopened;
@@ -267,6 +388,10 @@ void testEditor(const juce::File& dir)
     checkHit(*editor, "resize-logo");
     checkHit(*editor, "time-preset-35");
     checkHit(*editor, "laggify-curve");
+    checkHit(*editor, "parameter-hold");
+    checkHit(*editor, "parameter-scratch");
+    checkHit(*editor, "parameter-tension");
+    checkHit(*editor, "bank-view");
     click(*editor, "resize-logo");
     auto* overlay = find(*editor, "resize-overlay");
     check(overlay && overlay->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)) &&

@@ -9,6 +9,7 @@ class LaggifyLook final : public juce::LookAndFeel_V4
     void drawButtonText(juce::Graphics&, juce::TextButton&, bool, bool) override;
     void drawLinearSlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider::SliderStyle,
                           juce::Slider&) override;
+    void drawRotarySlider(juce::Graphics&, int, int, int, int, float, float, float, juce::Slider&) override;
 };
 
 class LaggifyEditor final : public juce::AudioProcessorEditor, private juce::Timer
@@ -43,13 +44,16 @@ class LaggifyEditor final : public juce::AudioProcessorEditor, private juce::Tim
     std::unique_ptr<CurveEditor> curve;
     std::unique_ptr<ResizeOverlay> overlay;
     juce::TextButton logo, timeMode, volumeMode, enabled, timeTool, volumeTool, lineTool, stepTool, reset;
+    juce::TextButton hold, scratchReset, bankView;
     std::array<juce::TextButton, laggify::bankSize> timePresets, volumePresets;
     juce::ComboBox cycle;
-    juce::Slider bpm, mix;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment;
+    juce::Slider bpm, mix, timeMix, volumeMix, attack, release, tension, scratch;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment, holdAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> cycleAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> bpmAttachment, mixAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> bpmAttachment, mixAttachment, timeMixAttachment,
+        volumeMixAttachment, attackAttachment, releaseAttachment, tensionAttachment, scratchAttachment;
     int lastScale = 100, lastWidth = 0, lastHeight = 0;
+    bool lastBanksOnly = false;
     bool awaitingHostResize = false, resizeRequestFromUser = false, hostResizeRejected = false;
     juce::uint32 resizeRequestTime = 0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaggifyEditor)

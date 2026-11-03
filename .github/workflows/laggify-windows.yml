@@ -71,6 +71,6 @@ jobs:
       - name: Upload separate Laggify installer
         uses: actions/upload-artifact@v7
         with:
-          name: LAGGIFY 0.1 HERE
-          path: installer-output/Laggify-0.1-Setup.exe
+          name: LAGGIFY 0.2 HERE
+          path: installer-output/Laggify-0.2-Setup.exe
           if-no-files-found: error

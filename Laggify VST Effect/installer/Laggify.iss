@@ -1,5 +1,5 @@
 #define AppName "Laggify"
-#define AppVersion "0.1"
+#define AppVersion "0.2"
 #define BundleDir "..\..\build\laggify\LaggifyFx_artefacts\Release\VST3\Laggify.vst3"
 
 [Setup]
@@ -15,7 +15,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 DisableProgramGroupPage=yes
 OutputDir=..\..\installer-output
-OutputBaseFilename=Laggify-0.1-Setup
+OutputBaseFilename=Laggify-0.2-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

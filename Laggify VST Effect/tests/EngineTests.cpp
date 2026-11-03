@@ -206,10 +206,171 @@ void testAudio()
     check(std::all_of(bad.begin(), bad.end(), [](float x) { return std::isfinite(x); }),
           "Invalid input, timing and parameters cannot poison the audio history");
 }
+
+void testExtraControls()
+{
+    constexpr int lowRate = 1000;
+    auto mixed = [](float timeMix, float volumeMix, float overall)
+    {
+        laggify::TimeVolumeEngine engine;
+        engine.prepare(lowRate);
+        laggify::Settings s;
+        s.time.fill(.25f);
+        s.volume.fill(.5f);
+        s.timeMix = timeMix;
+        s.volumeMix = volumeMix;
+        s.mix = overall;
+        std::vector<float> history(2000, .8f);
+        process(engine, history, s, {120, 0, false});
+        s.enabled = true;
+        std::vector<float> input(200, .2f);
+        process(engine, input, s, {120, 0, false});
+        return input[150];
+    };
+    check(std::abs(mixed(0, 0, 1) - .2f) < .002f, "Independent time and volume mixes both reach dry");
+    check(std::abs(mixed(1, 0, 1) - .8f) < .002f, "Time mix can apply history without the volume envelope");
+    check(std::abs(mixed(0, 1, 1) - .1f) < .002f, "Volume mix can apply gain without the time effect");
+    check(std::abs(mixed(1, 1, 1) - .4f) < .002f, "Full time and volume mixes combine independently");
+    check(std::abs(mixed(1, 1, .5f) - .3f) < .002f, "Overall mix still blends the combined effect");
+
+    laggify::TimeVolumeEngine scratch;
+    scratch.prepare(lowRate);
+    laggify::Settings x;
+    std::vector<float> prior(2000, .7f);
+    process(scratch, prior, x, {120, 0, false});
+    x.enabled = true;
+    x.scratch = .25f;
+    std::vector<float> moving(250, .2f);
+    process(scratch, moving, x, {120, 0, false});
+    check(std::abs(moving[200] - .7f) < .002f, "Scratch clock reads a quarter-cycle back from live audio");
+    x.scratch = 0;
+    std::vector<float> reset(100, .2f);
+    process(scratch, reset, x, {120, 0, false});
+    check(std::abs(reset[80] - .2f) < .002f, "Resetting scratch returns to live input");
+
+    auto transition = [](bool rising, float milliseconds, float tns)
+    {
+        laggify::TimeVolumeEngine engine;
+        engine.prepare(lowRate);
+        laggify::Settings s;
+        s.enabled = true;
+        s.attackMs = rising ? milliseconds : 0;
+        s.releaseMs = rising ? 0 : milliseconds;
+        s.tension = tns;
+        s.volume.fill(rising ? 0.0f : 1.0f);
+        std::vector<float> warm(100, 1.0f);
+        process(engine, warm, s, {120, 0, false});
+        s.volume.fill(rising ? 1.0f : 0.0f);
+        std::vector<float> result(450, 1.0f);
+        process(engine, result, s, {120, 0, false});
+        return result;
+    };
+    const auto attack = transition(true, 200, 0), release = transition(false, 400, 0);
+    check(attack[99] > .37f && attack[99] < .42f && attack[199] > .61f && attack[199] < .65f,
+          "ATT controls the volume rise time");
+    check(release[199] > .59f && release[199] < .62f && release[399] > .35f && release[399] < .39f,
+          "REL independently controls the volume fall time");
+    check(transition(true, 0, 0)[10] > .999f && transition(false, 0, 0)[10] < .001f,
+          "Zero attack and release respond immediately");
+    const auto curvedSlow = transition(true, 200, 1), curvedFast = transition(true, 200, -1);
+    check(curvedSlow[99] < attack[99] - .1f && curvedFast[99] > attack[99] + .1f,
+          "TNS bends stepped attack and release transitions in both directions");
+    auto line = [](float tns)
+    {
+        laggify::TimeVolumeEngine engine;
+        engine.prepare(lowRate);
+        laggify::Settings s;
+        s.enabled = true;
+        s.attackMs = s.releaseMs = 0;
+        s.volumeSmooth = true;
+        s.tension = tns;
+        s.volume[0] = 0;
+        s.volume[1] = 1;
+        std::vector<float> input(120, 1.0f);
+        process(engine, input, s, {120, 0, true});
+        return input[60];
+    };
+    check(line(1) < line(0) - .12f && line(-1) > line(0) + .12f,
+          "TNS bends line-mode volume segments without moving their endpoints");
+    check(laggify::bend(0, -1) == 0 && laggify::bend(1, 1) == 1 && laggify::bend(.5f, 0) == .5f,
+          "Tension preserves segment endpoints and neutral linear interpolation");
+
+    laggify::TimeVolumeEngine held;
+    held.prepare(lowRate);
+    laggify::Settings hold;
+    hold.cycle = 0; // 2 beats at 120 BPM = 1000 samples
+    std::vector<float> left(2000), right(2000);
+    for (int i = 0; i < 2000; ++i)
+    {
+        left[i] = .1f + .0004f * (i % 1000);
+        right[i] = -.05f - .0002f * (i % 1000);
+    }
+    const auto originalLeft = left, originalRight = right;
+    float* capture[] = {left.data(), right.data()};
+    held.process(capture, 2, 2000, hold, {120, 0, false});
+    hold.enabled = hold.hold = true;
+    std::vector<float> loopL(22000, .01f), loopR(22000, .02f);
+    float* loop[] = {loopL.data(), loopR.data()};
+    held.process(loop, 2, static_cast<int>(loopL.size()), hold, {120, 0, false});
+    bool repeats = true;
+    for (int i = 0; i < 1000; ++i)
+        repeats &= std::abs(loopL[1000 + i] - originalLeft[1000 + i]) < .00001f &&
+                   std::abs(loopR[1000 + i] - originalRight[1000 + i]) < .00001f &&
+                   std::abs(loopL[21000 + i] - loopL[1000 + i]) < .00001f &&
+                   std::abs(loopR[21000 + i] - loopR[1000 + i]) < .00001f;
+    check(repeats, "HOLD repeats the last captured stereo cycle beyond the history-buffer length");
+    // A saved HOLD can be on before any input exists. It must wait for a full
+    // cycle instead of freezing an empty buffer, even inside a large block.
+    laggify::TimeVolumeEngine pending;
+    pending.prepare(lowRate);
+    laggify::Settings pendingSettings;
+    pendingSettings.cycle = 0;
+    pendingSettings.enabled = pendingSettings.hold = true;
+    std::vector<float> startup(1200, .4f);
+    std::fill(startup.begin() + 1000, startup.end(), .1f);
+    process(pending, startup, pendingSettings, {120, 0, false});
+    check(std::abs(startup[500] - .4f) < .001f && std::abs(startup[1020] - .4f) < .001f,
+          "HOLD waits for one fresh cycle then captures sample-accurately within a block");
+    pendingSettings.hold = false;
+    std::vector<float> resumePending(20, .3f);
+    process(pending, resumePending, pendingSettings, {120, 0, false});
+    pendingSettings.hold = true;
+    std::vector<float> beforeFreshCycle(900, .2f);
+    process(pending, beforeFreshCycle, pendingSettings, {120, 0, false});
+    check(std::abs(beforeFreshCycle[500] - .2f) < .001f,
+          "A new HOLD waits for fresh contiguous audio after releasing a frozen loop");
+    hold.hold = false;
+    std::vector<float> resumed(100, .3f);
+    process(held, resumed, hold, {120, 0, false});
+    check(std::abs(resumed[50] - .3f) < .0001f, "Releasing HOLD returns to the incoming track");
+    hold.hold = true;
+    hold.scratch = 1;
+    std::vector<float> changedTempo(500, .4f);
+    process(held, changedTempo, hold, {400, 0, false});
+    check(std::all_of(changedTempo.begin(), changedTempo.end(), [](float v) { return std::isfinite(v); }),
+          "Held audio remains bounded when tempo and scratch offset change");
+    std::vector<float> bypass(100, .9f);
+    float* bypassChannels[] = {bypass.data()};
+    held.process(bypassChannels, 1, static_cast<int>(bypass.size()), hold, {120, 0, false}, true);
+    check(std::all_of(bypass.begin(), bypass.end(), [](float v) { return v == .9f; }),
+          "Host hard bypass releases HOLD and stays bit-identical");
+
+    laggify::TimeVolumeEngine invalid;
+    invalid.prepare(lowRate);
+    laggify::Settings bad;
+    bad.enabled = bad.hold = true;
+    bad.scratch = bad.timeMix = bad.volumeMix = bad.tension = bad.attackMs = bad.releaseMs =
+        std::numeric_limits<float>::quiet_NaN();
+    std::vector<float> safe(500, .3f);
+    process(invalid, safe, bad, {120, 0, false});
+    check(std::all_of(safe.begin(), safe.end(), [](float v) { return std::isfinite(v); }),
+          "Malformed new control values cannot poison held audio");
+}
 } // namespace
 int main()
 {
     testPatterns();
     testAudio();
+    testExtraControls();
     std::cout << "Laggify core engine tests passed.\n";
 }

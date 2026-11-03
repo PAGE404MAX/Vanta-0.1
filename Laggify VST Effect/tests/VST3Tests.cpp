@@ -18,6 +18,7 @@
 #include <dlfcn.h>
 #endif
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
@@ -366,6 +367,10 @@ int main(int argc, char** argv)
           "Connect component and controller");
 
     ParamID enabledId = 0, volumeId = 0, bypassId = 0;
+    const std::array<const char16*, 7> extraNames{u"Time Mix", u"Volume Mix", u"Attack", u"Release", u"Tension",
+                                                   u"Hold", u"Scratch"};
+    std::array<ParamID, 7> extraIds{};
+    std::array<bool, 7> gotExtras{};
     bool gotEnabled = false, gotVolume = false, gotBypass = false;
     for (int32 i = 0; i < controller->getParameterCount(); ++i)
     {
@@ -387,8 +392,16 @@ int main(int argc, char** argv)
             bypassId = parameter.id;
             gotBypass = true;
         }
+        for (std::size_t j = 0; j < extraNames.size(); ++j)
+            if (titleIs(parameter.title, extraNames[j]))
+            {
+                extraIds[j] = parameter.id;
+                gotExtras[j] = (parameter.flags & ParameterInfo::kCanAutomate) != 0;
+            }
     }
     check(gotEnabled && gotVolume && gotBypass, "Power, host bypass and curve points are exposed as VST3 parameters");
+    check(std::all_of(gotExtras.begin(), gotExtras.end(), [](bool b) { return b; }),
+          "Time/volume mixes, ATT, REL, TNS, HOLD and scratch are all host-automatable");
     constexpr int samples = 2048;
     float inLeft[samples], inRight[samples], outLeft[samples]{}, outRight[samples]{};
     for (int i = 0; i < samples; ++i)
@@ -429,6 +442,36 @@ int main(int argc, char** argv)
     check(audio->process(data) == kResultOk, "Process VST3 host automation");
     check(std::abs(outLeft[samples - 1]) < 0.01f && std::abs(outRight[samples - 1]) < 0.01f,
           "Automated volume point audibly gates live stereo input");
+    changes.queues[0].id = extraIds[1]; // Volume Mix
+    changes.queues[0].value = 0.0;
+    changes.queues[1].id = enabledId;
+    changes.queues[1].value = 1.0;
+    check(audio->process(data) == kResultOk && std::abs(outLeft[samples - 1] - .4f) < .01f &&
+              std::abs(outRight[samples - 1] + .3f) < .01f,
+          "VST3 automation independently removes the volume envelope");
+    StateStream controlsState;
+    check(component->getState(&controlsState) == kResultOk && !controlsState.bytes.empty(),
+          "Save VST3 state containing the new controls");
+    changes.queues[0].value = 1.0;
+    check(audio->process(data) == kResultOk && std::abs(outLeft[samples - 1]) < .01f,
+          "Restoring volume mix automation audibly re-enables gating");
+    controlsState.position = 0;
+    check(component->setState(&controlsState) == kResultOk, "Restore VST3 state containing the new controls");
+    data.inputParameterChanges = nullptr;
+    check(audio->process(data) == kResultOk && std::abs(outLeft[samples - 1] - .4f) < .01f,
+          "Restored VST3 volume mix changes the actual audio");
+    data.inputParameterChanges = &changes;
+    changes.queues[0].id = extraIds[5]; // Hold
+    changes.queues[0].value = 1.0;
+    check(audio->process(data) == kResultOk && audio->getTailSamples() == kInfiniteTail,
+          "Automating HOLD reports its infinite loop tail to the VST3 host");
+    changes.queues[0].value = 0.0;
+    check(audio->process(data) == kResultOk && audio->getTailSamples() != kInfiniteTail,
+          "Releasing HOLD restores a finite tail");
+    changes.queues[0].id = extraIds[1];
+    changes.queues[0].value = 1.0;
+    check(audio->process(data) == kResultOk && std::abs(outLeft[samples - 1]) < .01f,
+          "Volume gate resumes after HOLD");
     changes.queues[0].id = bypassId;
     changes.queues[0].value = 1.0;
     changes.queues[1].id = enabledId;

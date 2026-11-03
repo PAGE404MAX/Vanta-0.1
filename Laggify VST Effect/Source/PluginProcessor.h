@@ -3,6 +3,7 @@
 #include "TimeVolumeEngine.h"
 #include <array>
 #include <atomic>
+#include <limits>
 
 class LaggifyProcessor final : public juce::AudioProcessor
 {
@@ -25,7 +26,10 @@ class LaggifyProcessor final : public juce::AudioProcessor
     }
     double getTailLengthSeconds() const override
     {
-        return 16.0;
+        return hold != nullptr && enabled != nullptr && hold->load(std::memory_order_relaxed) >= .5f &&
+                       enabled->load(std::memory_order_relaxed) >= .5f
+                   ? std::numeric_limits<double>::infinity()
+                   : 16.0;
     }
     bool acceptsMidi() const override
     {
@@ -84,6 +88,14 @@ class LaggifyProcessor final : public juce::AudioProcessor
     {
         editingTime.store(time, std::memory_order_relaxed);
     }
+    bool showBanksOnly() const noexcept
+    {
+        return banksOnly.load(std::memory_order_relaxed);
+    }
+    void setShowBanksOnly(bool show) noexcept
+    {
+        banksOnly.store(show, std::memory_order_relaxed);
+    }
 
     juce::AudioProcessorValueTreeState state;
 
@@ -96,9 +108,16 @@ class LaggifyProcessor final : public juce::AudioProcessor
     std::atomic<float>* cycle = nullptr;
     std::atomic<float>* timeSmooth = nullptr;
     std::atomic<float>* volumeSmooth = nullptr;
+    std::atomic<float>* timeMix = nullptr;
+    std::atomic<float>* volumeMix = nullptr;
+    std::atomic<float>* attack = nullptr;
+    std::atomic<float>* release = nullptr;
+    std::atomic<float>* tension = nullptr;
+    std::atomic<float>* hold = nullptr;
+    std::atomic<float>* scratch = nullptr;
     std::array<std::atomic<float>*, laggify::steps> times{}, volumes{};
     std::array<juce::RangedAudioParameter*, laggify::steps> timeParams{}, volumeParams{};
     std::atomic<int> timePreset{15}, volumePreset{0}, uiScale{100};
-    std::atomic<bool> editingTime{true};
+    std::atomic<bool> editingTime{true}, banksOnly{false};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaggifyProcessor)
 };

@@ -111,7 +111,8 @@ void LaggifyLook::drawButtonText(juce::Graphics& g, juce::TextButton& b, bool ov
     if (role == "logo" || role == "line" || role == "step")
         return;
     const bool bank = role == "time" || role == "volume";
-    const float size = bank ? 8.0f : role == "close" ? 14.0f : role == "mode" || role == "volmode" ? 10.0f : 9.0f;
+    const float size = bank ? (b.getHeight() > 25 ? 11.0f : 8.0f)
+                            : role == "close" ? 14.0f : role == "mode" || role == "volmode" ? 10.0f : 9.0f;
     auto colour = b.getToggleState() ? primary : secondary;
     if (over)
         colour = primary;
@@ -131,6 +132,37 @@ void LaggifyLook::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h
     g.setColour(accent);
     g.fillRoundedRectangle(static_cast<float>(x), centre - 2, std::max(0.0f, pos - x), 4, 2);
     g.fillEllipse(pos - 5, centre - 5, 10, 10);
+}
+void LaggifyLook::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float position, float start,
+                                   float end, juce::Slider& slider)
+{
+    const auto area = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y), static_cast<float>(w),
+                                              static_cast<float>(h)).reduced(3.0f);
+    const float radius = std::min(area.getWidth(), area.getHeight()) * .5f - 1.0f;
+    const float cx = area.getCentreX(), cy = area.getCentreY();
+    const auto colour = slider.getProperties()["lane"].toString() == "volume" ? gold : accent;
+    g.setColour(juce::Colour(0xff251616));
+    g.fillEllipse(cx - radius + 3, cy - radius + 3, 2 * radius - 6, 2 * radius - 6);
+    juce::Path track;
+    track.addCentredArc(cx, cy, radius, radius, 0, start, end, true);
+    g.setColour(juce::Colour(0xff59352c));
+    g.strokePath(track, juce::PathStrokeType(2.0f));
+    juce::Path active;
+    active.addCentredArc(cx, cy, radius, radius, 0, start, start + position * (end - start), true);
+    g.setColour(colour);
+    g.strokePath(active, juce::PathStrokeType(2.0f));
+    const float angle = start + position * (end - start);
+    const float dx = std::sin(angle), dy = -std::cos(angle);
+    g.setColour(slider.isMouseOverOrDragging() ? primary : colour);
+    g.drawLine(cx + dx * radius * .32f, cy + dy * radius * .32f, cx + dx * radius * .76f,
+               cy + dy * radius * .76f, 1.5f);
+    if (slider.getProperties()["clock"].toString() == "yes")
+    {
+        // A small clock face makes the draggable scratch control distinct.
+        g.setColour(secondary.withAlpha(.55f));
+        g.drawEllipse(cx - radius * .55f, cy - radius * .55f, radius * 1.1f, radius * 1.1f, .7f);
+        g.fillEllipse(cx - 1.3f, cy - 1.3f, 2.6f, 2.6f);
+    }
 }
 
 class LaggifyEditor::Canvas final : public juce::Component
@@ -212,8 +244,22 @@ class LaggifyEditor::CurveEditor final : public juce::Component
         {
             const bool line = smooth && !(points[i - 1] - points[i] > .5f);
             if (!line)
+            {
                 path.lineTo(px(i), py(points[i - 1]));
-            path.lineTo(px(i), py(points[i]));
+                path.lineTo(px(i), py(points[i]));
+            }
+            else if (!time && std::abs(values.tension) > .0001f)
+            {
+                for (int j = 1; j <= 12; ++j)
+                {
+                    const float fraction = static_cast<float>(j) / 12.0f;
+                    const float bent = laggify::bend(fraction, values.tension);
+                    path.lineTo(px(i - 1) + (px(i) - px(i - 1)) * fraction,
+                                py(points[i - 1] + (points[i] - points[i - 1]) * bent));
+                }
+            }
+            else
+                path.lineTo(px(i), py(points[i]));
         }
         path.lineTo(px(16), py(points[15]));
         g.setColour(time ? accent : gold);
@@ -488,6 +534,24 @@ LaggifyEditor::LaggifyEditor(LaggifyProcessor& p) : AudioProcessorEditor(p), pro
     enabled.setTitle("Enable Laggify");
     enabledAttachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state, "enabled", enabled);
+    add(hold, "HOLD", "power", "parameter-hold");
+    hold.setClickingTogglesState(true);
+    hold.setTitle("Hold last cycle");
+    hold.setTooltip("Repeat the latest recorded cycle while HOLD is on");
+    holdAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state, "hold", hold);
+    add(scratchReset, "LIVE", "tool", "scratch-reset");
+    scratchReset.setTitle("Reset scratch offset");
+    scratchReset.setTooltip("Reset the scratch clock to live input");
+    scratchReset.onClick = [this] { processor.setParameterValue("scratch", 0.0f); };
+    add(bankView, "BANK VIEW", "tool", "bank-view");
+    bankView.setTitle("Toggle bank-only view");
+    bankView.setTooltip("Hide the graph and enlarge the preset banks, or show the graph again");
+    bankView.onClick = [this]
+    {
+        processor.setShowBanksOnly(!processor.showBanksOnly());
+        processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails{}.withNonParameterStateChanged(true));
+        refresh();
+    };
     add(timeTool, "T", "tool", "tool-time");
     timeTool.setTooltip("Edit time curve");
     timeTool.onClick = [this] { selectMode(true); };
@@ -559,6 +623,38 @@ LaggifyEditor::LaggifyEditor(LaggifyProcessor& p) : AudioProcessorEditor(p), pro
     mix.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     canvas->addAndMakeVisible(mix);
     mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "mix", mix);
+    auto knob = [this](juce::Slider& slider, const char* id, const char* title, const char* tooltip, bool volume,
+                       double initial)
+    {
+        slider.setComponentID(id);
+        slider.setTitle(title);
+        slider.setTooltip(tooltip);
+        slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        slider.setDoubleClickReturnValue(true, initial);
+        slider.setWantsKeyboardFocus(true);
+        slider.getProperties().set("lane", volume ? "volume" : "time");
+        canvas->addAndMakeVisible(slider);
+    };
+    knob(timeMix, "parameter-time-mix", "Time mix", "Time effect amount; double-click for 100%", false, 1.0);
+    knob(volumeMix, "parameter-volume-mix", "Volume mix", "Volume envelope amount; double-click for 100%", true,
+         1.0);
+    knob(attack, "parameter-attack", "Volume attack", "Gain rise time in milliseconds; double-click for 4 ms", true,
+         4.0);
+    knob(release, "parameter-release", "Volume release", "Gain fall time in milliseconds; double-click for 4 ms", true,
+         4.0);
+    knob(tension, "parameter-tension", "Volume tension", "Bend volume transitions; double-click for zero", true, 0.0);
+    knob(scratch, "parameter-scratch", "Scratch clock", "Drag to scrub backwards; LIVE or double-click resets", false,
+         0.0);
+    scratch.getProperties().set("clock", "yes");
+    auto attach = [this](const char* id, juce::Slider& slider)
+    { return std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, id, slider); };
+    timeMixAttachment = attach("timeMix", timeMix);
+    volumeMixAttachment = attach("volumeMix", volumeMix);
+    attackAttachment = attach("attack", attack);
+    releaseAttachment = attach("release", release);
+    tensionAttachment = attach("tension", tension);
+    scratchAttachment = attach("scratch", scratch);
     curve = std::make_unique<CurveEditor>(*this);
     canvas->addAndMakeVisible(*curve);
     overlay = std::make_unique<ResizeOverlay>(*this);
@@ -592,6 +688,14 @@ void LaggifyEditor::refresh()
 {
     const auto s = processor.currentSettings();
     const bool time = processor.editTime();
+    const bool banks = processor.showBanksOnly();
+    if (banks != lastBanksOnly)
+    {
+        lastBanksOnly = banks;
+        layoutCanvas();
+    }
+    bankView.setToggleState(banks, juce::dontSendNotification);
+    bankView.setButtonText(banks ? "SHOW GRAPH" : "BANK VIEW");
     const int ti = processor.currentPattern(true), vi = processor.currentPattern(false);
     timeMode.setToggleState(time, juce::dontSendNotification);
     volumeMode.setToggleState(!time, juce::dontSendNotification);
@@ -631,21 +735,48 @@ void LaggifyEditor::paintCanvas(juce::Graphics& g)
     panel(g, 16, 126, 968, 650, juce::Colour(0xff0c0909), juce::Colour(0xffd45a49));
     label(g, "01   TIME + VOLUME / CURVE EDITOR", 32, 136, 450, 21, 10, secondary, juce::Justification::centredLeft,
           true);
-    mono(g, "PRESET BANKS / ORIGINAL CURVES", 700, 136, 268, 21, 8, muted, juce::Justification::centredRight);
+    mono(g, "ORIGINAL CURVES", 690, 136, 145, 21, 8, muted, juce::Justification::centredRight);
     g.setColour(juce::Colour(0xff4b1d1d));
     g.drawHorizontalLine(164, 32, 968);
-    panel(g, 32, 174, 260, 556, surface);
-    panel(g, 292, 174, 32, 556, juce::Colour(0xff160e0e));
-    mono(g, "01 / TIME PRESETS", 39, 216, 190, 16, 9, accent);
-    mono(g, "36 SLOTS", 233, 216, 52, 16, 8, muted, juce::Justification::centredRight);
-    mono(g, "02 / VOLUME PRESETS", 39, 408, 190, 16, 9, gold);
-    mono(g, "36 SLOTS", 233, 408, 52, 16, 8, muted, juce::Justification::centredRight);
-    panel(g, 39, 602, 246, 68, dark);
-    mono(g, "CYCLE", 45, 610, 39, 20, 8, muted);
-    mono(g, "BPM*", 174, 610, 34, 20, 8, muted);
-    mono(g, "MIX", 45, 638, 37, 20, 8, muted);
-    mono(g, juce::String(processor.currentSettings().mix * 100.0f, 0) + "%", 250, 638, 30, 20, 8, secondary,
+    const bool banks = processor.showBanksOnly();
+    if (banks)
+    {
+        panel(g, 32, 174, 448, 450, surface);
+        panel(g, 520, 174, 448, 450, surface);
+        mono(g, "01 / TIME PRESETS", 39, 216, 275, 16, 9, accent);
+        mono(g, "36 SLOTS", 410, 216, 60, 16, 8, muted, juce::Justification::centredRight);
+        mono(g, "02 / VOLUME PRESETS", 527, 216, 275, 16, 9, gold);
+        mono(g, "36 SLOTS", 898, 216, 60, 16, 8, muted, juce::Justification::centredRight);
+        panel(g, 32, 630, 260, 65, dark);
+    }
+    else
+    {
+        panel(g, 32, 174, 260, 556, surface);
+        panel(g, 292, 174, 32, 556, juce::Colour(0xff160e0e));
+        mono(g, "01 / TIME PRESETS", 39, 216, 190, 16, 9, accent);
+        mono(g, "36 SLOTS", 233, 216, 52, 16, 8, muted, juce::Justification::centredRight);
+        mono(g, "02 / VOLUME PRESETS", 39, 408, 190, 16, 9, gold);
+        mono(g, "36 SLOTS", 233, 408, 52, 16, 8, muted, juce::Justification::centredRight);
+        panel(g, 39, 602, 246, 68, dark);
+    }
+    const int controlY = banks ? 638 : 610;
+    mono(g, "CYCLE", 45, controlY, 39, 20, 8, muted);
+    mono(g, "BPM*", 174, controlY, 34, 20, 8, muted);
+    mono(g, "MIX", 45, controlY + 28, 37, 20, 8, muted);
+    mono(g, juce::String(processor.currentSettings().mix * 100.0f, 0) + "%", 250, controlY + 28, 30, 20, 8, secondary,
          juce::Justification::centredRight);
+    panel(g, 324, 631, 644, 64, juce::Colour(0xff160e0e));
+    const auto dial = processor.currentSettings();
+    auto pct = [](float v) { return juce::String(juce::roundToInt(v * 100.0f)) + "%"; };
+    auto ms = [](float v) { return juce::String(v, std::abs(v - std::round(v)) < .05f ? 0 : 1) + "ms"; };
+    const std::array<juce::String, 6> captions{
+        {"TIME " + pct(dial.timeMix), "VOL " + pct(dial.volumeMix), "ATT " + ms(dial.attackMs),
+         "REL " + ms(dial.releaseMs), "TNS " + pct(dial.tension), "SCR " + pct(dial.scratch)}};
+    for (int i = 0; i < 6; ++i)
+        mono(g, captions[static_cast<std::size_t>(i)], 330 + i * 72, 674, 68, 13, 8,
+             i >= 1 && i <= 4 ? gold : accent, juce::Justification::centred);
+    mono(g, "LAST CYCLE", 777, 674, 79, 13, 8, muted, juce::Justification::centred);
+    mono(g, "RESET CLOCK", 867, 674, 91, 13, 8, muted, juce::Justification::centred);
     panel(g, 324, 695, 644, 35, juce::Colour(0xff201011));
     const bool time = processor.editTime();
     const int index = processor.currentPattern(time);
@@ -672,25 +803,55 @@ void LaggifyEditor::paintCanvas(juce::Graphics& g)
 void LaggifyEditor::layoutCanvas()
 {
     logo.setBounds(20, 19, 38, 38);
-    timeMode.setBounds(39, 181, 183, 30);
-    enabled.setBounds(228, 181, 57, 30);
-    for (int i = 0; i < laggify::bankSize; ++i)
+    bankView.setBounds(849, 133, 119, 25);
+    const bool banks = processor.showBanksOnly();
+    if (banks)
     {
-        const int x = 39 + (i % 4) * 62, y = 236 + (i / 4) * 19;
-        timePresets[i].setBounds(x, y, 60, 18);
-        volumePresets[i].setBounds(x, y + 192, 60, 18);
+        timeMode.setBounds(39, 181, 370, 30);
+        enabled.setBounds(415, 181, 57, 30);
+        volumeMode.setBounds(527, 181, 431, 30);
+        for (int i = 0; i < laggify::bankSize; ++i)
+        {
+            const int x = (i % 4) * 108, y = 236 + (i / 4) * 42;
+            timePresets[i].setBounds(39 + x, y, 102, 34);
+            volumePresets[i].setBounds(527 + x, y, 102, 34);
+        }
+        cycle.setBounds(83, 637, 86, 22);
+        bpm.setBounds(207, 637, 72, 22);
+        mix.setBounds(84, 666, 158, 20);
     }
-    cycle.setBounds(83, 609, 86, 22);
-    bpm.setBounds(207, 609, 72, 22);
-    mix.setBounds(84, 638, 158, 20);
-    volumeMode.setBounds(39, 682, 246, 31);
+    else
+    {
+        timeMode.setBounds(39, 181, 183, 30);
+        enabled.setBounds(228, 181, 57, 30);
+        volumeMode.setBounds(39, 682, 246, 31);
+        for (int i = 0; i < laggify::bankSize; ++i)
+        {
+            const int x = 39 + (i % 4) * 62, y = 236 + (i / 4) * 19;
+            timePresets[i].setBounds(x, y, 60, 18);
+            volumePresets[i].setBounds(x, y + 192, 60, 18);
+        }
+        cycle.setBounds(83, 609, 86, 22);
+        bpm.setBounds(207, 609, 72, 22);
+        mix.setBounds(84, 638, 158, 20);
+    }
     timeTool.setBounds(296, 181, 24, 25);
     volumeTool.setBounds(296, 210, 24, 25);
     lineTool.setBounds(296, 245, 24, 25);
     stepTool.setBounds(296, 274, 24, 25);
     reset.setBounds(296, 663, 24, 25);
+    for (auto* tool : {&timeTool, &volumeTool, &lineTool, &stepTool, &reset})
+        tool->setVisible(!banks);
     if (curve)
-        curve->setBounds(324, 174, 644, 521);
+    {
+        curve->setBounds(324, 174, 644, 456);
+        curve->setVisible(!banks);
+    }
+    std::array<juce::Slider*, 6> knobs{&timeMix, &volumeMix, &attack, &release, &tension, &scratch};
+    for (int i = 0; i < static_cast<int>(knobs.size()); ++i)
+        knobs[static_cast<std::size_t>(i)]->setBounds(344 + i * 72, 635, 39, 35);
+    hold.setBounds(777, 638, 79, 28);
+    scratchReset.setBounds(867, 638, 91, 28);
     if (overlay)
         overlay->setBounds(canvas->getLocalBounds());
 }

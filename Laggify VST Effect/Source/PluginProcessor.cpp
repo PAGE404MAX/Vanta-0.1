@@ -137,6 +137,13 @@ LaggifyProcessor::LaggifyProcessor()
     cycle = state.getRawParameterValue("cycle");
     timeSmooth = state.getRawParameterValue("timeSmooth");
     volumeSmooth = state.getRawParameterValue("volumeSmooth");
+    timeMix = state.getRawParameterValue("timeMix");
+    volumeMix = state.getRawParameterValue("volumeMix");
+    attack = state.getRawParameterValue("attack");
+    release = state.getRawParameterValue("release");
+    tension = state.getRawParameterValue("tension");
+    hold = state.getRawParameterValue("hold");
+    scratch = state.getRawParameterValue("scratch");
     for (int i = 0; i < laggify::steps; ++i)
     {
         const auto t = pointId(true, i), v = pointId(false, i);
@@ -170,6 +177,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout LaggifyProcessor::makeLayout
                 ParameterID{pointId(time, i), 1}, String(time ? "Time " : "Volume ") + String(i + 1),
                 NormalisableRange<float>{0.0f, 1.0f, .001f},
                 time ? initial.values[static_cast<std::size_t>(i)] : 1.0f));
+    // Append new IDs after the original 38 parameters, keeping the existing
+    // IDs and order intact for sessions and automation created in 0.1.
+    const auto percent = AudioParameterFloatAttributes()
+                             .withLabel("%")
+                             .withStringFromValueFunction([](float value, int) { return String(value * 100.0f, 1); })
+                             .withValueFromStringFunction([](const String& text) { return text.getFloatValue() / 100.0f; });
+    const auto milliseconds = AudioParameterFloatAttributes().withLabel("ms");
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"timeMix", 1}, "Time Mix",
+                                                     NormalisableRange<float>{0.0f, 1.0f, .001f}, 1.0f, percent));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"volumeMix", 1}, "Volume Mix",
+                                                     NormalisableRange<float>{0.0f, 1.0f, .001f}, 1.0f, percent));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"attack", 1}, "Attack",
+                                                     NormalisableRange<float>{0.0f, 500.0f, .1f}, 4.0f, milliseconds));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"release", 1}, "Release",
+                                                     NormalisableRange<float>{0.0f, 1000.0f, .1f}, 4.0f, milliseconds));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"tension", 1}, "Tension",
+                                                     NormalisableRange<float>{-1.0f, 1.0f, .001f}, 0.0f, percent));
+    layout.add(std::make_unique<AudioParameterBool>(ParameterID{"hold", 1}, "Hold", false));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"scratch", 1}, "Scratch",
+                                                     NormalisableRange<float>{0.0f, 1.0f, .001f}, 0.0f, percent));
     return layout;
 }
 void LaggifyProcessor::prepareToPlay(double rate, int)
@@ -194,6 +221,13 @@ laggify::Settings LaggifyProcessor::currentSettings() const noexcept
     s.cycle = static_cast<int>(std::round(std::clamp(read(cycle, 1), 0.0f, 2.0f)));
     s.timeSmooth = read(timeSmooth, 0) >= .5f;
     s.volumeSmooth = read(volumeSmooth, 0) >= .5f;
+    s.timeMix = read(timeMix, 1);
+    s.volumeMix = read(volumeMix, 1);
+    s.attackMs = read(attack, 4);
+    s.releaseMs = read(release, 4);
+    s.tension = read(tension, 0);
+    s.hold = read(hold, 0) >= .5f;
+    s.scratch = read(scratch, 0);
     for (int i = 0; i < laggify::steps; ++i)
     {
         s.time[i] = read(times[i], 0);
@@ -291,6 +325,7 @@ void LaggifyProcessor::getStateInformation(juce::MemoryBlock& data)
         tree.setProperty("timePreset", timePreset.load(std::memory_order_relaxed), nullptr);
         tree.setProperty("volumePreset", volumePreset.load(std::memory_order_relaxed), nullptr);
         tree.setProperty("editTime", editTime() ? 1 : 0, nullptr);
+        tree.setProperty("banksOnly", showBanksOnly() ? 1 : 0, nullptr);
         if (auto xml = tree.createXml())
             copyXmlToBinary(*xml, data);
     }
@@ -347,11 +382,13 @@ void LaggifyProcessor::setStateInformation(const void* data, int size)
         const int tp = boundedProperty(saved, "timePreset", -1, -1, laggify::bankSize - 1);
         const int vp = boundedProperty(saved, "volumePreset", -1, -1, laggify::bankSize - 1);
         const bool edit = boundedProperty(saved, "editTime", 1, 0, 1) != 0;
+        const bool banks = boundedProperty(saved, "banksOnly", 0, 0, 1) != 0;
         state.replaceState(clean);
         setEditorScalePercent(scale);
         timePreset.store(tp, std::memory_order_relaxed);
         volumePreset.store(vp, std::memory_order_relaxed);
         setEditTime(edit);
+        setShowBanksOnly(banks);
     }
     catch (...)
     {

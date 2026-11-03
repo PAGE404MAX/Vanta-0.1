@@ -40,7 +40,7 @@ The three original effects keep their previous mix settings and default to enabl
 
 ## Separate Laggify effect
 
-Laggify is an independent VST3 **mixer insert**, built from [`Laggify VST Effect`](Laggify%20VST%20Effect/README.md) with its own installer and download. It processes the audio of whichever mixer track or bus you put it on, not just VANTA. It is not inside the VANTA instrument. See the [Laggify guide](Laggify%20VST%20Effect/README.md) for controls, sync and limitations.
+Laggify is an independent VST3 **mixer insert**, built from [`Laggify VST Effect`](Laggify%20VST%20Effect/README.md) with its own installer and download. It processes the audio of whichever mixer track or bus you put it on, not just VANTA. It is not inside the VANTA instrument. Version 0.2 adds independent time/volume mixes, HOLD, a scratch clock, ATT/REL/TNS and an enlarged bank view. See the [Laggify guide](Laggify%20VST%20Effect/README.md) for controls, sync and limitations.
 
 ## Importing presets
 
