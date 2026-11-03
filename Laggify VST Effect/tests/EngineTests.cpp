@@ -210,7 +210,7 @@ void testAudio()
 void testExtraControls()
 {
     constexpr int lowRate = 1000;
-    auto mixed = [](float timeMix, float volumeMix, float overall)
+    auto mixed = [lowRate](float timeMix, float volumeMix, float overall)
     {
         laggify::TimeVolumeEngine engine;
         engine.prepare(lowRate);
@@ -248,7 +248,7 @@ void testExtraControls()
     process(scratch, reset, x, {120, 0, false});
     check(std::abs(reset[80] - .2f) < .002f, "Resetting scratch returns to live input");
 
-    auto transition = [](bool rising, float milliseconds, float tns)
+    auto transition = [lowRate](bool rising, float milliseconds, float tns)
     {
         laggify::TimeVolumeEngine engine;
         engine.prepare(lowRate);
@@ -275,7 +275,7 @@ void testExtraControls()
     const auto curvedSlow = transition(true, 200, 1), curvedFast = transition(true, 200, -1);
     check(curvedSlow[99] < attack[99] - .1f && curvedFast[99] > attack[99] + .1f,
           "TNS bends stepped attack and release transitions in both directions");
-    auto line = [](float tns)
+    auto line = [lowRate](float tns)
     {
         laggify::TimeVolumeEngine engine;
         engine.prepare(lowRate);
