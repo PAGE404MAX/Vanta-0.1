@@ -319,6 +319,30 @@ void testExtraControls()
                    std::abs(loopL[21000 + i] - loopL[1000 + i]) < .00001f &&
                    std::abs(loopR[21000 + i] - loopR[1000 + i]) < .00001f;
     check(repeats, "HOLD repeats the last captured stereo cycle beyond the history-buffer length");
+    // Place the write pointer near the start of the ring so the captured cycle
+    // crosses the end of its underlying storage, then scrub inside that loop.
+    laggify::TimeVolumeEngine wrap;
+    wrap.prepare(lowRate);
+    laggify::Settings wrapSettings;
+    wrapSettings.cycle = 0;
+    std::vector<float> wrapInput(16253);
+    for (int i = 0; i < static_cast<int>(wrapInput.size()); ++i)
+        wrapInput[static_cast<std::size_t>(i)] = .2f + .1f * std::sin(i * .017f);
+    const auto recordedInput = wrapInput;
+    process(wrap, wrapInput, wrapSettings, {120, 0, false});
+    wrapSettings.enabled = wrapSettings.hold = true;
+    std::vector<float> wrapped(3000, 0.0f);
+    process(wrap, wrapped, wrapSettings, {120, 0, false});
+    bool correctWrap = true;
+    for (int i = 0; i < 1000; ++i)
+        correctWrap &= std::abs(wrapped[1000 + i] - recordedInput[recordedInput.size() - 1000 + i]) < .00001f;
+    wrapSettings.scratch = .25f;
+    std::vector<float> shifted(100, 0.0f);
+    process(wrap, shifted, wrapSettings, {120, 0, false});
+    for (int i = 10; i < 100; ++i)
+        correctWrap &= std::abs(shifted[i] - recordedInput[recordedInput.size() - 1000 + (i - 250 + 1000) % 1000]) <
+                       .00001f;
+    check(correctWrap, "Held capture and scratch work across the history ring boundary");
     // A saved HOLD can be on before any input exists. It must wait for a full
     // cycle instead of freezing an empty buffer, even inside a large block.
     laggify::TimeVolumeEngine pending;

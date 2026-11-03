@@ -15,13 +15,46 @@ jobs:
         run: cmake -S "Laggify VST Effect" -B build/laggify -A x64
 
       - name: Build audio and editor tests
-        run: cmake --build build/laggify --config Release --target LaggifyEngineTests LaggifyProcessorTests --parallel 2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = (& cmake --build build/laggify --config Release --target LaggifyEngineTests LaggifyProcessorTests --parallel 2 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            if ($output.Length -gt 40000) { $output = $output.Substring($output.Length - 40000) }
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify test build failed::$escaped"
+            exit $code
+          }
 
       - name: Build the mixer-insert VST3
-        run: cmake --build build/laggify --config Release --target LaggifyFx_VST3 --parallel 2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = (& cmake --build build/laggify --config Release --target LaggifyFx_VST3 --parallel 2 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            if ($output.Length -gt 40000) { $output = $output.Substring($output.Length - 40000) }
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify VST3 build failed::$escaped"
+            exit $code
+          }
 
       - name: Build the VST3 host tests
-        run: cmake --build build/laggify --config Release --target LaggifyVST3Tests --parallel 2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = (& cmake --build build/laggify --config Release --target LaggifyVST3Tests --parallel 2 2>&1 | Out-String -Width 4096)
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -ne 0) {
+            if ($output.Length -gt 40000) { $output = $output.Substring($output.Length - 40000) }
+            $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Laggify VST3 host test build failed::$escaped"
+            exit $code
+          }
 
       - name: Run audio, state, editor and VST3 host tests
         shell: pwsh
