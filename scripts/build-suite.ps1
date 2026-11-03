@@ -29,8 +29,8 @@ switch ($Part) {
     }
     'sidechain' {
         Checked 'Configure Sidechain' 'cmake' @('-S','Sidechain VST Effect','-B','build/sidechain','-A','x64')
-        Checked 'Build Sidechain engine and editor tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainEngineTests','SidechainProcessorTests','--parallel','2')
         Checked 'Build Sidechain VST3' 'cmake' @('--build','build/sidechain','--config','Release','--target','VantaSidechainFx_VST3','--parallel','2')
+        Checked 'Build Sidechain engine and editor tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainEngineTests','SidechainProcessorTests','--parallel','2')
         Checked 'Build Sidechain VST3 host tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainVST3Tests','--parallel','2')
         Checked 'Test Sidechain' 'ctest' @('--test-dir','build/sidechain','-C','Release','--output-on-failure','--no-tests=error')
     }
