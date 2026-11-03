@@ -15,6 +15,12 @@
 #define LaggifyInfoHash GetSHA256OfFile(LaggifyBundle + "\Contents\Resources\moduleinfo.json")
 #define SidechainBinaryHash GetSHA256OfFile(SidechainBundle + "\Contents\x86_64-win\VANTA Sidechain.vst3")
 #define SidechainInfoHash GetSHA256OfFile(SidechainBundle + "\Contents\Resources\moduleinfo.json")
+#define MarkerHash GetSHA256OfFile("scripts\suite-marker.txt")
+#define NoticesHash GetSHA256OfFile("THIRD_PARTY_NOTICES.md")
+#define LaggifyNoticesHash GetSHA256OfFile("Laggify VST Effect\THIRD_PARTY_NOTICES.md")
+#define SidechainReadmeHash GetSHA256OfFile("Sidechain VST Effect\README.md")
+#define JuceLicenseHash GetSHA256OfFile("Laggify VST Effect\third-party\JUCE-LICENSE.md")
+#define VstLicenseHash GetSHA256OfFile("Laggify VST Effect\third-party\VST3-SDK-LICENSE.txt")
 
 [Setup]
 ; This intentionally upgrades the existing VANTA 0.13 setup, rather than

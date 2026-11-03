@@ -487,13 +487,14 @@ int main(int argc, char** argv)
               bounds.bottom - bounds.top == 850,
           "Native editor opens at the intended size");
     check(view->canResize() == kResultTrue, "VST3 editor supports resizing");
-    ViewRect small{0, 0, 200, 200};
-    check(view->checkSizeConstraint(&small) == kResultTrue && small.right - small.left >= 780 &&
-              small.bottom - small.top >= 510,
+    // Avoid the Windows SDK's legacy `small` macro.
+    ViewRect minBounds{0, 0, 200, 200};
+    check(view->checkSizeConstraint(&minBounds) == kResultTrue && minBounds.right - minBounds.left >= 780 &&
+              minBounds.bottom - minBounds.top >= 510,
           "Editor enforces minimum bounds");
-    ViewRect large{0, 0, 3000, 3000};
-    check(view->checkSizeConstraint(&large) == kResultTrue && large.right - large.left <= 1950 &&
-              large.bottom - large.top <= 1275,
+    ViewRect maxBounds{0, 0, 3000, 3000};
+    check(view->checkSizeConstraint(&maxBounds) == kResultTrue && maxBounds.right - maxBounds.left <= 1950 &&
+              maxBounds.bottom - maxBounds.top <= 1275,
           "Editor enforces maximum bounds");
     Frame frame;
     check(view->setFrame(&frame) == kResultOk, "Attach host frame");

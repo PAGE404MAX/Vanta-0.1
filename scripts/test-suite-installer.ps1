@@ -91,6 +91,14 @@ try {
     Setup $setup (Join-Path $parentLink 'nested-app') $false
     Present $protected; Absent (Join-Path $linkTarget 'nested-app\Vanta Beta 0.13.exe'); Remove-Junction $parentLink
 
+    # A fresh install folder may already contain unrelated, suite-named files.
+    New-Item -ItemType Directory -Path $app -Force | Out-Null
+    $unownedNotice = Join-Path $app 'THIRD_PARTY_NOTICES.md'
+    [IO.File]::WriteAllText($unownedNotice, 'unrelated notice - preserve')
+    Setup $setup $app $false
+    if ([IO.File]::ReadAllText($unownedNotice) -ne 'unrelated notice - preserve') { throw 'An unowned notice was overwritten.' }
+    Remove-Item -LiteralPath $app -Recurse -Force
+
     # An unmanaged current-version synth is also not suite-owned.
     $manualSynth = Binary $synth; New-Item -ItemType Directory -Path (Split-Path -Parent $manualSynth) -Force | Out-Null
     [IO.File]::WriteAllText($manualSynth, 'manual VANTA - preserve')
@@ -164,6 +172,18 @@ try {
         if (Test-Path -LiteralPath $heldBinary) { Move-Item -LiteralPath $heldBinary -Destination $changedBinary }
     }
     Present (Join-Path $outside 'preserved-replacement.vst3')
+
+    # Markers and installed documentation are files too: a user's replacement
+    # at one of these paths must not be overwritten or removed silently.
+    foreach ($name in @('Vanta-suite-installed.txt', 'Sidechain-README.md')) {
+        $file = Join-Path $app $name
+        $originalBytes = [IO.File]::ReadAllBytes($file)
+        [IO.File]::WriteAllText($file, 'user replacement - preserve')
+        try {
+            Setup $setup $app $false; Uninstall $app $false
+            if ([IO.File]::ReadAllText($file) -ne 'user replacement - preserve') { throw "A replacement $name was touched." }
+        } finally { [IO.File]::WriteAllBytes($file, $originalBytes) }
+    }
 
     # A changed path after installation must stop both reinstall and uninstall.
     $contents = Join-Path $sidechain 'Contents'; $heldContents = Join-Path $outside 'held-sidechain-contents'

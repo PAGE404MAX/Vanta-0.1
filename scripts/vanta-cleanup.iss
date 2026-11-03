@@ -495,7 +495,13 @@ begin
     InstalledFileMatches(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}') and
     InstalledFileMatches(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}') and
     InstalledFileMatches(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}') and
-    InstalledFileMatches(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}');
+    InstalledFileMatches(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\Vanta-suite-installed.txt'), '{#MarkerHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'), '{#NoticesHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\Laggify-third-party-notices.md'), '{#LaggifyNoticesHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\Sidechain-README.md'), '{#SidechainReadmeHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\third-party\JUCE-LICENSE.md'), '{#JuceLicenseHash}') and
+    InstalledFileMatches(ExpandConstant('{app}\third-party\VST3-SDK-LICENSE.txt'), '{#VstLicenseHash}');
 end;
 
 function LegacyLaggifyRegistered(): Boolean;
@@ -545,7 +551,8 @@ begin
     by a prior uninstall. Extra files are never recursively removed. }
   Result := (not IsRealFile(ExpandConstant('{app}\Vanta-suite-installed.txt'))) and
     (((not Vanta13Registered()) and
-      (UnownedBundleHasPlugin('Vanta Beta 0.13.vst3') or PathExists(ExpandConstant('{app}\Vanta Beta 0.13.exe')))) or
+      (UnownedBundleHasPlugin('Vanta Beta 0.13.vst3') or PathExists(ExpandConstant('{app}\Vanta Beta 0.13.exe')) or
+       PathExists(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md')))) or
      UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
      PathExists(ExpandConstant('{app}\Laggify-third-party-notices.md')) or
      PathExists(ExpandConstant('{app}\Sidechain-README.md')) or
@@ -727,7 +734,7 @@ begin
   else if LegacyLaggifyRegistered() then
     Result := 'The separately installed Laggify has its own uninstaller. Close your DAW, uninstall the old Laggify from Windows Settings, then run Vanta Suite Setup again. Your projects and presets are not removed.'
   else if IsRealFile(ExpandConstant('{app}\Vanta-suite-installed.txt')) and not SuiteInstalledFilesMatch() then
-    Result := 'An installed suite plugin, manifest or standalone app has been replaced or cannot be verified. Back up and move that changed file aside before repairing; setup will not overwrite an unowned replacement.'
+    Result := 'An installed suite file has been replaced or cannot be verified. Back up and move that changed file aside before repairing; setup will not overwrite an unowned replacement.'
   else if UnownedEffectExists() then
     Result := 'An existing plugin or suite-named app file is not owned by this setup. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
 #endif
