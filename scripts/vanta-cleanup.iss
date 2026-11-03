@@ -1,4 +1,4 @@
-// VANTA Beta 0.12 cleanup. Only exact, historical names are considered. It
+// VANTA Beta 0.13 cleanup. Only exact, historical names are considered. It
 // removes the known plugin binary and generated moduleinfo files, never a
 // whole non-empty tree. Unrecognised files, presets and projects are left in
 // place. Linked/junction plugin paths are skipped rather than followed.
@@ -394,7 +394,7 @@ end;
 function CurrentAppPathsAreSafe(): Boolean;
 begin
   Result := ExistingDirectoryIsSafe(ExpandConstant('{app}')) and
-    ExistingFileIsSafe(ExpandConstant('{app}\Vanta Beta 0.12.exe')) and
+    ExistingFileIsSafe(ExpandConstant('{app}\Vanta Beta 0.13.exe')) and
     ExistingFileIsSafe(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'));
 end;
 
@@ -405,7 +405,7 @@ begin
   Binary := AddBackslash(StandardRoot()) + BundleName(CurrentBetaNumber) +
     '\Contents\x86_64-win\' + BundleName(CurrentBetaNumber);
   Result := CurrentBundlePathsAreSafe() and CurrentAppPathsAreSafe() and
-    IsRealFile(Binary) and IsRealFile(ExpandConstant('{app}\Vanta Beta 0.12.exe'));
+    IsRealFile(Binary) and IsRealFile(ExpandConstant('{app}\Vanta Beta 0.13.exe'));
 end;
 
 procedure RunOldCleanup();
@@ -497,7 +497,7 @@ begin
   LabelText.Top := 0;
   LabelText.Width := OldCopiesPage.SurfaceWidth;
   LabelText.Height := ScaleY(52);
-  LabelText.Caption := 'After Beta 0.12 installs, VANTA can remove the listed old plugin binaries. Other files, presets, projects, and older standalone apps are kept.';
+  LabelText.Caption := 'After Beta 0.13 installs, VANTA can remove the listed old plugin binaries. Other files, presets, projects, and older standalone apps are kept.';
   OldCopiesMemo := TNewMemo.Create(OldCopiesPage);
   OldCopiesMemo.Parent := OldCopiesPage.Surface;
   OldCopiesMemo.Left := 0;
@@ -556,7 +556,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   if not CurrentBundlePathsAreSafe() or not CurrentAppPathsAreSafe() then
-    Result := 'The Beta 0.12 app or VST3 location contains a link/junction, an unexpected item, or cannot be inspected. Setup will not overwrite it. Resolve the location and retry.';
+    Result := 'The Beta 0.13 app or VST3 location contains a link/junction, an unexpected item, or cannot be inspected. Setup will not overwrite it. Resolve the location and retry.';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -621,7 +621,7 @@ begin
     CleanupRequested := HasSwitch('/REMOVEOLDVANTA')
   else if (OldCount > 0) or (ScanIssues <> '') then
   begin
-    Question := 'Remove older VANTA Beta 0.1 through 0.11 plugin copies too?' + #13#10#13#10 +
+    Question := 'Remove older VANTA Beta 0.1 through 0.12 plugin copies too?' + #13#10#13#10 +
       'Found ' + IntToStr(OldCount) + ' candidate(s). Standard folder:' + #13#10 + StandardRoot();
     if SelectedExtraRoot <> '' then Question := Question + #13#10#13#10 + 'Additional folder:' + #13#10 + SelectedExtraRoot;
     Question := Question + #13#10#13#10 +

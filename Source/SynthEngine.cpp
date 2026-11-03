@@ -1,4 +1,5 @@
 #include "SynthEngine.h"
+#include "AmpEnvelope.h"
 #include <algorithm>
 #include <cmath>
 
@@ -262,6 +263,7 @@ private:
         juce::ADSR::Parameters adsr;
         adsr.attack = p[attack]; adsr.decay = p[decay];
         adsr.sustain = p[sustain]; adsr.release = p[release];
+        envelope.setDelayAndHold(p[ampDelay], p[ampHold]);
         if (!hasEnvelopeParameters || adsr.attack != previousEnvelope.attack || adsr.decay != previousEnvelope.decay
             || adsr.sustain != previousEnvelope.sustain || adsr.release != previousEnvelope.release)
         {
@@ -276,7 +278,7 @@ private:
         baseFrequency = juce::MidiMessage::getMidiNoteInHertz(note) * std::pow(2.0, semitones / 12.0);
     }
     SharedParameters& parameters;
-    juce::ADSR envelope;
+    AmpEnvelope envelope;
     juce::ADSR::Parameters previousEnvelope;
     bool hasEnvelopeParameters = false;
     std::array<double, oscillatorCount> phases {}, samplePositions {};

@@ -587,13 +587,14 @@ PresetResult PresetImporter::vital(const juce::var& root, const juce::String& fi
     if (volume < 0.0 || volume > 7399.4404) warn(warnings, "The source master volume was limited to its valid range.");
     const auto boundedVolume = juce::jlimit(0.0, 7399.4404, volume);
     set(result, level, boundedVolume == 0.0 ? 0.0 : std::pow(10.0, (std::sqrt(boundedVolume) - 80.0) / 20.0), warnings);
-    for (const auto item : { std::pair<const char*, Parameter>{"env_1_attack", attack}, {"env_1_decay", decay}, {"env_1_release", release} })
+    for (const auto item : { std::pair<const char*, Parameter>{"env_1_delay", ampDelay}, {"env_1_attack", attack},
+                             {"env_1_hold", ampHold}, {"env_1_decay", decay}, {"env_1_release", release} })
     {
         const auto n = get(settings, item.first, -1.0);
         if (n >= 0.0 && n <= 3.0) set(result, item.second, std::pow(n, 4.0), warnings);
     }
     set(result, sustain, get(settings, "env_1_sustain", 1.0), warnings);
-    if (get(settings, "env_1_hold", 0.0) > 0.001) warn(warnings, "Envelope hold and curve shapes are not imported.");
+    warn(warnings, "Envelope curve shapes use VANTA's linear ramps and may sound different.");
     if (get(settings, "filter_1_on", 0.0) >= 0.5)
     {
         const auto pitch = get(settings, "filter_1_cutoff", 120.0);
@@ -820,7 +821,7 @@ PresetResult PresetImporter::serum1(const void* raw, std::size_t size, const juc
     };
     // Reject malformed values for the controls actually translated, rather than
     // accidentally treating corrupt bytes as plausible default parameters.
-    const int required[] {0, 1, 2, 3, 4, 5, 9, 11, 14, 15, 16, 17, 18, 22, 24, 35, 37, 38, 39, 140, 159, 212, 213, 214, 215, 216};
+    const int required[] {0, 1, 2, 3, 4, 5, 9, 11, 14, 15, 16, 17, 18, 22, 24, 35, 36, 37, 38, 39, 140, 159, 212, 213, 214, 215, 216};
     for (const int id : required) if (parameter(id, -1.0) < 0.0) return failure("Invalid Serum 1 parameter data.");
 
     PresetResult result;
@@ -831,10 +832,11 @@ PresetResult PresetImporter::serum1(const void* raw, std::size_t size, const juc
     result.values[cutoff] = parameterSpecs[cutoff].maxValue;
     set(result, level, 0.8541468079 * std::pow(parameter(0, 0.7), 3.0), warnings);
     set(result, attack, 32.0 * std::pow(parameter(35, 0.11), 5.0), warnings);
+    set(result, ampHold, 32.0 * std::pow(parameter(36, 0.0), 5.0), warnings);
     set(result, decay, 32.0 * std::pow(parameter(37, 0.5), 5.0), warnings);
     set(result, sustain, parameter(38, 1.0), warnings);
     set(result, release, 32.0 * std::pow(parameter(39, 0.215), 5.0), warnings);
-    if (parameter(36, 0.0) > 0.001) warn(warnings, "Envelope hold and curve shapes are not imported.");
+    warn(warnings, "Envelope curve shapes use VANTA's linear ramps and may sound different.");
     if (parameter(216, 0.0) >= 0.5)
     {
         // This cutoff law is only a perceptual approximation, not a confirmed
@@ -1057,11 +1059,11 @@ PresetResult PresetImporter::serum2(const void* raw, std::size_t size, const juc
     set(result, level, get(global, "kParamMasterVolume", 0.7), warnings);
     const auto& env = property(property(root, "Env0"), "plainParams");
     set(result, attack, get(env, "kParamAttack", 0.0005), warnings);
+    set(result, ampHold, get(env, "kParamHold", 0.0), warnings);
     set(result, decay, get(env, "kParamDecay", 1.0), warnings);
     set(result, sustain, get(env, "kParamSustain", 1.0), warnings);
     set(result, release, get(env, "kParamRelease", 0.015), warnings);
-    if (get(env, "kParamHold", 0.0) > 0.001 || has(env, "kParamCurve1") || has(env, "kParamCurve2") || has(env, "kParamCurve3"))
-        warn(warnings, "Envelope hold and curve shapes are not imported.");
+    warn(warnings, "Envelope curve shapes use VANTA's linear ramps and may sound different.");
     const auto& filter = property(property(root, "VoiceFilter0"), "plainParams");
     if (get(filter, "kParamEnable", 0.0) >= 0.5)
     {

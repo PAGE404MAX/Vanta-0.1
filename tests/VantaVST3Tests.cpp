@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <vector>
 
 using namespace Steinberg;
@@ -162,6 +163,29 @@ int main(int argc, char** argv)
           && componentConnection != nullptr && controllerConnection != nullptr, "Query component connections");
     check(componentConnection->connect(controllerConnection) == kResultOk
           && controllerConnection->connect(componentConnection) == kResultOk, "Connect component and controller");
+
+    bool ampDelay = false, ampHold = false, fxDelay = false, parameterInfoValid = true;
+    ParamID delayId = 0, holdId = 0, fxDelayId = 0;
+    for (int i = 0; i < controller->getParameterCount(); ++i)
+    {
+        ParameterInfo parameter {};
+        if (controller->getParameterInfo(i, parameter) != kResultOk) { parameterInfoValid = false; continue; }
+        std::string title;
+        for (int n = 0; n < 128 && parameter.title[n] != 0; ++n) title += static_cast<char>(parameter.title[n]);
+        if (title == "Amp Envelope Delay")
+        {
+            ampDelay = (parameter.flags & ParameterInfo::kCanAutomate) != 0 && parameter.defaultNormalizedValue == 0.0;
+            delayId = parameter.id;
+        }
+        else if (title == "Amp Envelope Hold")
+        {
+            ampHold = (parameter.flags & ParameterInfo::kCanAutomate) != 0 && parameter.defaultNormalizedValue == 0.0;
+            holdId = parameter.id;
+        }
+        else if (title == "Delay Time") { fxDelay = true; fxDelayId = parameter.id; }
+    }
+    check(parameterInfoValid && ampDelay && ampHold && fxDelay && delayId != holdId && delayId != fxDelayId && holdId != fxDelayId,
+          "VST3 exposes separate zero-default automatable amp delay/hold and FX delay parameters");
 
     auto* view = controller->createView(ViewType::kEditor); check(view != nullptr, "Create editor view");
     ViewRect bounds {};

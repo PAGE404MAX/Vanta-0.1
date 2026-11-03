@@ -341,7 +341,7 @@
   .effect-top span { color: #cf5c49; font: 9px var(--mono); }
   .effect-knobs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 13px; }
   .mod-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 13px; }
-  .mod-knobs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 12px; }
+  .mod-knobs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
   .lfo-knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 12px; }
   .help-line { margin-top: 12px; color: #96756d; font: 9px/1.4 var(--mono); }
   .system-layout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 13px; }
@@ -549,7 +549,7 @@
     .workspace-note { font-size: 8px; }
     .osc-readout strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
     .mod-editor { grid-template-columns: 46px minmax(0, 1fr); }
-    .mod-editor .mod-knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mod-knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .mini-controls { grid-template-columns: 1fr; }
     .unavailable-label { width: 100%; margin-left: 0; }
     .knob-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
@@ -722,12 +722,12 @@
           <div class="visual-grid">
             <section class="visual-card" aria-label="Amplitude envelope parameter view">
               <div class="visual-head"><strong><span>01</span> AMP ENVELOPE</strong><button class="visual-link" type="button" data-go-page="mod">EDIT ↗</button></div>
-              <div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on attack, decay, sustain and release">
+              <div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on delay, attack, hold, decay, sustain and release">
                     <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
                     <path class="plot-area" data-area/><path class="plot-line" data-line/>
-                    <circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
+                    <circle class="plot-point" data-point="delay" r="3"/><circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="hold" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
                   </svg></div>
-              <div class="plot-values"><span>A <b data-display="attack"></b></span><span>D <b data-display="decay"></b></span><span>S <b data-display="sustain"></b></span><span>R <b data-display="release"></b></span></div>
+              <div class="plot-values"><span>DL <b data-display="ampDelay"></b></span><span>A <b data-display="attack"></b></span><span>H <b data-display="ampHold"></b></span><span>D <b data-display="decay"></b></span><span>S <b data-display="sustain"></b></span><span>R <b data-display="release"></b></span></div>
               <div class="mini-controls" data-mini-group="decay,sustain"></div>
             </section>
             <section class="visual-card" aria-label="Vibrato parameter view">
@@ -812,13 +812,14 @@
               <div class="visual-head"><strong><span>01</span> AMPLITUDE ENVELOPE</strong><small>ENV 1 / AMP</small></div>
               <div class="mod-editor">
                 <div class="mod-slots"><span class="selected">ENV 1</span><button type="button" disabled title="Additional envelopes are not implemented">ENV 2</button><button type="button" disabled title="Additional envelopes are not implemented">ENV 3</button><button type="button" disabled title="Additional envelopes are not implemented">ENV 4</button></div>
-                <div><div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on attack, decay, sustain and release">
+                <div><div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on delay, attack, hold, decay, sustain and release">
                     <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
                     <path class="plot-area" data-area/><path class="plot-line" data-line/>
-                    <circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
-                  </svg></div><div class="mod-knobs compact" data-knob-group="attack,decay,sustain,release"></div></div>
+                    <circle class="plot-point" data-point="delay" r="3"/><circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="hold" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
+                  </svg></div></div>
               </div>
-              <div class="help-line">One amplitude envelope. Extra envelopes are not implemented.</div>
+              <div class="mod-knobs compact" data-knob-group="ampDelay,attack,ampHold,decay,sustain,release"></div>
+              <div class="help-line">One shared amplitude envelope. Delay and hold range from 0 to 4 seconds.</div>
             </section>
             <section class="subpanel" aria-label="Vibrato controls">
               <div class="visual-head"><strong><span>02</span> PITCH VIBRATO</strong><small>SINE / PITCH ONLY</small></div>
@@ -919,7 +920,9 @@
   const specs = {
     cutoff:          { label: 'CUTOFF',    sub: 'FILTER',     min: 30,    max: 18000, initial: 14000, step: 1,     skew: .28, format: v => v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : Math.round(v) + ' Hz' },
     resonance:       { label: 'RESO',      sub: 'FILTER',     min: 0,     max: .95,   initial: 0,     step: .001,  skew: 1,   format: pct },
+    ampDelay:        { label: 'DELAY',     sub: 'ENVELOPE',   min: 0,     max: 4,     initial: 0,     step: .001,  skew: .4,  format: time },
     attack:          { label: 'ATTACK',    sub: 'ENVELOPE',   min: .001,  max: 2,     initial: .02,   step: .001,  skew: .4,  format: time },
+    ampHold:         { label: 'HOLD',      sub: 'ENVELOPE',   min: 0,     max: 4,     initial: 0,     step: .001,  skew: .4,  format: time },
     decay:           { label: 'DECAY',     sub: 'ENVELOPE',   min: .001,  max: 4,     initial: .1,    step: .001,  skew: .4,  format: time },
     sustain:         { label: 'SUSTAIN',   sub: 'ENVELOPE',   min: 0,     max: 1,     initial: .8,    step: .001,  skew: 1,   format: pct },
     release:         { label: 'RELEASE',   sub: 'ENVELOPE',   min: .01,   max: 4,     initial: .35,   step: .001,  skew: .4,  format: time },
@@ -1105,7 +1108,7 @@
       input.setAttribute('aria-valuetext', spec.format(state.values[key]));
       item.querySelector('output').textContent = spec.format(state.values[key]);
     });
-    if (['attack', 'decay', 'sustain', 'release'].includes(key)) renderEnvelope();
+    if (['ampDelay', 'attack', 'ampHold', 'decay', 'sustain', 'release'].includes(key)) renderEnvelope();
     if (['vibrato', 'vibratoRate'].includes(key)) renderVibrato();
     if (['cutoff', 'resonance'].includes(key)) renderFilter();
     if (/^(reverb|delay|distortion|chorus|ott|eq|fxFilter|flanger|phaser)/.test(key)) renderEffects();
@@ -1114,23 +1117,28 @@
   // All curves are parameter illustrations, not measurements of live audio.
   function renderEnvelope() {
     const v = state.values;
-    const hold = .35; // A fixed example hold after decay; actual note length is played by the user.
-    const total = v.attack + v.decay + hold + v.release;
+    const sustainExample = .5; // Note length is played; this is only an illustrative sustain width.
+    const total = v.ampDelay + v.attack + v.ampHold + v.decay + sustainExample + v.release;
     const x = seconds => 8 + 504 * seconds / total;
+    const delayEnd = v.ampDelay, attackEnd = delayEnd + v.attack;
+    const holdEnd = attackEnd + v.ampHold, decayEnd = holdEnd + v.decay;
     const points = {
-      attack: [x(v.attack), 12],
-      decay: [x(v.attack + v.decay), 108 - 96 * v.sustain],
-      sustain: [x(v.attack + v.decay + hold), 108 - 96 * v.sustain]
+      delay: [x(delayEnd), 108],
+      attack: [x(attackEnd), 12],
+      hold: [x(holdEnd), 12],
+      decay: [x(decayEnd), 108 - 96 * v.sustain],
+      sustain: [x(decayEnd + sustainExample), 108 - 96 * v.sustain]
     };
-    const line = `M8 108 L${points.attack.join(' ')} L${points.decay.join(' ')} L${points.sustain.join(' ')} L512 108`;
+    const line = `M8 108 L${points.delay.join(' ')} L${points.attack.join(' ')} L${points.hold.join(' ')} L${points.decay.join(' ')} L${points.sustain.join(' ')} L512 108`;
     $$('[data-graph="envelope"]').forEach(graph => {
       graph.querySelector('[data-line]').setAttribute('d', line);
       graph.querySelector('[data-area]').setAttribute('d', `${line} L8 108 Z`);
       Object.entries(points).forEach(([name, point]) => {
         const marker = graph.querySelector(`[data-point="${name}"]`);
         marker.setAttribute('cx', point[0]); marker.setAttribute('cy', point[1]);
+        marker.style.display = (name === 'delay' && v.ampDelay === 0) || (name === 'hold' && v.ampHold === 0) ? 'none' : '';
       });
-      graph.setAttribute('aria-label', `Illustrative amplitude envelope: attack ${time(v.attack)}, decay ${time(v.decay)}, sustain ${pct(v.sustain)}, release ${time(v.release)}.`);
+      graph.setAttribute('aria-label', `Illustrative amplitude envelope: delay ${time(v.ampDelay)}, attack ${time(v.attack)}, hold ${time(v.ampHold)}, decay ${time(v.decay)}, sustain ${pct(v.sustain)}, release ${time(v.release)}.`);
     });
   }
   function renderVibrato() {

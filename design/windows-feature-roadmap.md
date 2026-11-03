@@ -20,6 +20,7 @@ This roadmap is based on the requested synth feature list, not a statement that 
 ## Modulation and performance
 
 - Design targets: up to four envelopes, ten LFOs and eight macros. Include drawable/step LFOs, tempo sync, stereo offset and alternative shapes where practical.
+- Beta 0.13 adds Delay and Hold to the shared amplitude envelope; further envelopes and curve editing remain planned.
 - A modulation matrix, intuitive assignment, key tracking and useful visual feedback. Per-layer targets and ranges require a real parameter model and DSP implementation.
 - MIDI learn, configurable pitch bend, mod wheel and expression. Maintain velocity, sustain and host MIDI support.
 
@@ -37,6 +38,6 @@ This roadmap is based on the requested synth feature list, not a statement that 
 
 ## Current baseline and approval boundary
 
-Beta 0.12's native engine has up to eight layers, basic shapes or supported imported wavetables and one PCM sample, 16 voices, velocity, sustain and pitch bend, a shared low-pass filter and ADSR, sine pitch vibrato, limited imported LFO routes, and nine effects. Laggify is a separate mixer-insert plugin. Per-layer filter/envelope paths, an editable general modulation matrix, note sequencers and macros remain unimplemented. The HTML is a design reference, not the running instrument; use the native VANTA editor for oscillator and rack controls, and the separate Laggify editor for its insert controls.
+Beta 0.13's native engine has up to eight layers, basic shapes or supported imported wavetables and one PCM sample, 16 voices, velocity, sustain and pitch bend, a shared low-pass filter and DAHDSR amplitude envelope, sine pitch vibrato, limited imported LFO routes, and nine effects. Laggify is a separate mixer-insert plugin. Per-layer filter/envelope paths, an editable general modulation matrix, note sequencers and macros remain unimplemented. The HTML is a design reference, not the running instrument; use the native VANTA editor for oscillator and rack controls, and the separate Laggify editor for its insert controls.
 
 Further implementation should be staged and tested in the native engine, editor, Windows VST3/standalone builds and an actual DAW/audio/MIDI setup before claiming support.

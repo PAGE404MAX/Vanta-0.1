@@ -199,6 +199,15 @@ void testVital()
 {
     const auto source = vitalFixture();
     const auto imported = vanta::PresetCodec::decode(source, ".vital");
+    const auto envSource = source.replace("\"env_1_attack\":0.5", "\"env_1_delay\":0.5,\"env_1_hold\":1.0,\"env_1_attack\":0.5");
+    const auto withStages = vanta::PresetCodec::decode(envSource, ".vital");
+    check(withStages.ok && std::abs(withStages.values[vanta::ampDelay] - 0.0625f) < 0.0001f
+          && std::abs(withStages.values[vanta::ampHold] - 1.0f) < 0.0001f
+          && withStages.message.containsIgnoreCase("curve shapes"),
+          "Vital delay and hold use fourth-power seconds and curves remain approximate");
+    const auto clipped = vanta::PresetCodec::decode(envSource.replace("\"env_1_hold\":1.0", "\"env_1_hold\":2.0"), ".vital");
+    check(clipped.ok && clipped.values[vanta::ampHold] == 4.0f && clipped.message.containsIgnoreCase("limited"),
+          "Out-of-range Vital hold is bounded and reported");
     check(imported.ok && imported.name == "Synthetic Vital" && imported.waveTables != nullptr, "Vital JSON is recognised");
     const auto noName = source.replace("\"preset_name\":\"Synthetic Vital\",", "");
     const auto bytes = noName.toUTF8();
@@ -255,6 +264,21 @@ void testSerum1()
     put32(state, 0x4968, static_cast<std::uint32_t>(frames.size()));
     const auto fxp = serum1Container(state, frames);
     const auto imported = vanta::PresetCodec::decodeBytes(fxp.data(), fxp.size(), ".fxp", "Synthetic Serum 1");
+    auto heldState = state; setSerum1Parameter(heldState, 36, 0.5f);
+    const auto heldFxp = serum1Container(heldState, frames);
+    const auto heldImport = vanta::PresetCodec::decodeBytes(heldFxp.data(), heldFxp.size(), ".fxp");
+    check(heldImport.ok && std::abs(heldImport.values[vanta::ampHold] - 1.0f) < 0.0001f
+          && heldImport.values[vanta::ampDelay] == 0.0f && heldImport.message.containsIgnoreCase("curve shapes"),
+          "Serum 1 hold uses the approximate fifth-power seconds mapping");
+    setSerum1Parameter(heldState, 36, 1.0f);
+    const auto longFxp = serum1Container(heldState, frames);
+    const auto longHold = vanta::PresetCodec::decodeBytes(longFxp.data(), longFxp.size(), ".fxp");
+    check(longHold.ok && longHold.values[vanta::ampHold] == 4.0f && longHold.message.containsIgnoreCase("limited"),
+          "Long Serum 1 hold is bounded and reported");
+    setSerum1Parameter(heldState, 36, std::numeric_limits<float>::quiet_NaN());
+    const auto malformedHold = serum1Container(heldState, frames);
+    check(!vanta::PresetCodec::decodeBytes(malformedHold.data(), malformedHold.size(), ".fxp").ok,
+          "Non-finite Serum 1 hold is rejected");
     check(imported.ok && imported.name == "Synthetic Serum 1", "Serum 1 VST2 chunk and zlib streams decoded");
     check(imported.waveTables->tables[0].frameCount == 2 && imported.values[vanta::oscATable] == 1,
           "Serum 1 embedded float wavetable decoded");
@@ -303,6 +327,15 @@ void testSerum2()
     })";
     const auto bytes = serum2FromJson(json);
     const auto imported = vanta::PresetCodec::decodeBytes(bytes.data(), bytes.size(), ".SerumPreset");
+    const auto holdBytes = serum2FromJson(json.replace("\"kParamAttack\":0.25", "\"kParamHold\":0.75,\"kParamAttack\":0.25"));
+    const auto heldImport = vanta::PresetCodec::decodeBytes(holdBytes.data(), holdBytes.size(), ".SerumPreset");
+    check(heldImport.ok && std::abs(heldImport.values[vanta::ampHold] - 0.75f) < 0.001f
+          && heldImport.values[vanta::ampDelay] == 0.0f && heldImport.message.containsIgnoreCase("curve shapes"),
+          "Serum 2 hold is imported in seconds with an honest curve warning");
+    const auto longBytes = serum2FromJson(json.replace("\"kParamAttack\":0.25", "\"kParamHold\":9.0,\"kParamAttack\":0.25"));
+    const auto longHold = vanta::PresetCodec::decodeBytes(longBytes.data(), longBytes.size(), ".SerumPreset");
+    check(longHold.ok && longHold.values[vanta::ampHold] == 4.0f && longHold.message.containsIgnoreCase("limited"),
+          "Long Serum 2 hold is bounded and reported");
     check(imported.ok && imported.name == "Synthetic Serum 2", "Serum 2 XferJson zstd CBOR decoded");
     check(std::abs(imported.values[vanta::attack] - 0.25f) < 0.001f && std::abs(imported.values[vanta::oscAPan] - 0.5f) < 0.001f
           && imported.values[vanta::oscATune] == 12 && std::abs(imported.values[vanta::oscALevel] - 0.8f) < 0.001f, "Serum 2 plain-unit envelope and oscillator values mapped");

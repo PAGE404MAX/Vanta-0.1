@@ -34,6 +34,8 @@ enum Parameter : std::size_t
     fxFilterEnabled, fxFilterCutoff, fxFilterResonance, fxFilterMix,
     flangerEnabled, flangerRate, flangerDepth, flangerFeedback, flangerMix,
     phaserEnabled, phaserRate, phaserDepth, phaserFeedback, phaserMix,
+    // Beta 0.13: separate amp-envelope stages; not the existing delay effect.
+    ampDelay, ampHold,
     parameterCount
 };
 
@@ -167,6 +169,8 @@ inline constexpr std::array<ParameterSpec, parameterCount> parameterSpecs {{
     { "phaserDepth", "Phaser Depth", 0.0f, 1.0f, 0.7f, 0.001f, 1.0f },
     { "phaserFeedback", "Phaser Feedback", -0.8f, 0.8f, 0.2f, 0.001f, 1.0f },
     { "phaserMix", "Phaser Mix", 0.0f, 1.0f, 0.5f, 0.001f, 1.0f },
+    { "ampDelay", "Amp Envelope Delay", 0.0f, 4.0f, 0.0f, 0.001f, 0.4f },
+    { "ampHold", "Amp Envelope Hold", 0.0f, 4.0f, 0.0f, 0.001f, 0.4f },
 }};
 
 using ParameterValues = std::array<float, parameterCount>;

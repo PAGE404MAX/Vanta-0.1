@@ -118,7 +118,7 @@ private:
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, vanta::oscillatorCount> mixerEnabledAttachments;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> mixerLevelAttachments, mixerPanAttachments;
     std::array<VantaKnob, 8> mainKnobs;
-    std::array<VantaKnob, 6> modulationKnobs;
+    std::array<VantaKnob, 8> modulationKnobs;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
     std::unique_ptr<VantaKeyboard> standaloneKeyboard;
     std::unique_ptr<juce::FileChooser> chooser;

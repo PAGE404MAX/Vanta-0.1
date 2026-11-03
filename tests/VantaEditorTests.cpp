@@ -382,7 +382,14 @@ void testHostState()
     check(legacyWave != nullptr && legacyWave->getNumSteps() == 2
           && std::abs(legacyWave->convertTo0to1(1.0f) - 1.0f) < 0.0001f,
           "Legacy waveform automation remains a two-choice 0/1 parameter");
+    auto* delay = processor.state.getParameter("ampDelay");
+    auto* hold = processor.state.getParameter("ampHold");
+    check(delay != nullptr && hold != nullptr && delay != processor.state.getParameter("delayTime")
+          && delay->getDefaultValue() == 0.0f && hold->getDefaultValue() == 0.0f
+          && delay->isAutomatable() && hold->isAutomatable(),
+          "New amp delay/hold are separate, automatable zero-default host parameters");
     auto original = vanta::defaultValues();
+    original[vanta::ampDelay] = 0.456f; original[vanta::ampHold] = 1.23f;
     original[vanta::wave] = 1.0f; original[vanta::cutoff] = 2400.0f;
     original[vanta::oscBEnabled] = 1.0f; original[vanta::oscBWave] = 2.0f;
     original[vanta::oscBFine] = -17.0f; original[vanta::oscBPan] = 0.5f;
@@ -399,6 +406,24 @@ void testHostState()
           "Host state saves and restores oscillator layers and settings");
     check(restored[vanta::chorusEnabled] == 1.0f && restored[vanta::eqLow] == 5.0f,
           "Host state saves and restores the effects rack");
+    check(std::abs(restored[vanta::ampDelay] - 0.456f) < 0.001f && std::abs(restored[vanta::ampHold] - 1.23f) < 0.001f,
+          "Host state saves and restores amp delay and hold");
+
+    // Beta 0.12 states do not contain the two new parameters. Restoring one
+    // must reset them even if the current patch had nonzero values.
+    auto beta12 = processor.state.copyState();
+    for (int n = beta12.getNumChildren() - 1; n >= 0; --n)
+    {
+        const auto id = beta12.getChild(n).getProperty("id").toString();
+        if (id == "ampDelay" || id == "ampHold") beta12.removeChild(n, nullptr);
+    }
+    auto old12Xml = beta12.createXml(); juce::MemoryBlock beta12Bytes;
+    juce::AudioProcessor::copyXmlToBinary(*old12Xml, beta12Bytes);
+    processor.setStateInformation(beta12Bytes.getData(), static_cast<int>(beta12Bytes.getSize()));
+    auto from12 = processor.currentValues();
+    check(from12[vanta::ampDelay] == 0.0f && from12[vanta::ampHold] == 0.0f
+          && from12[vanta::chorusEnabled] == 1.0f && from12[vanta::eqLow] == 5.0f,
+          "Beta 0.12 state preserves effects and resets missing envelope stages to zero");
 
     // A Beta 0.11 host state contains none of these appended parameters. Its
     // original nonzero wet mixes must remain enabled, while new effects stay off.
@@ -726,7 +751,21 @@ void testStandalone(const juce::File& previews)
     attack->setValue(1.9, juce::sendNotificationSync);
     const auto envelopeAfter = editor->createComponentSnapshot(editor->getLocalBounds());
     check(changedPixels(envelopeBefore, envelopeAfter, { 44, 335, 440, 122 }) > 30, "Envelope preview follows the controls");
-    for (const auto parameter : { vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
+    auto* ampDelay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampDelay"));
+    auto* ampHold = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampHold"));
+    check(ampDelay != nullptr && ampHold != nullptr && ampDelay->getTextFromValue(0.0) == "0 ms"
+          && ampHold->getTextFromValue(1.5) == "1.50 s", "New amp stages show time units");
+    checkHit(*editor, "parameter-ampDelay", "Amp delay knob is independently clickable");
+    checkHit(*editor, "parameter-ampHold", "Amp hold knob is independently clickable");
+    ampDelay->setValue(0.5, juce::sendNotificationSync);
+    const auto delayView = editor->createComponentSnapshot(editor->getLocalBounds());
+    ampHold->setValue(0.75, juce::sendNotificationSync);
+    const auto holdView = editor->createComponentSnapshot(editor->getLocalBounds());
+    check(changedPixels(envelopeAfter, delayView, { 44, 335, 440, 122 }) > 30
+          && changedPixels(delayView, holdView, { 44, 335, 440, 122 }) > 30,
+          "Envelope graph displays both the delay and peak hold segments");
+    snapshot(*editor, previews, "modulation-dahdsr.png");
+    for (const auto parameter : { vanta::ampDelay, vanta::attack, vanta::ampHold, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
         changeSlider(*editor, processor, parameter);
     click(*editor, "tab-mixer"); checkLayout(*editor); snapshot(*editor, previews, "mixer.png");
     changeSlider(*editor, processor, vanta::oscBLevel, "mixer-");
@@ -784,6 +823,13 @@ void testVstEditor(const juce::File& previews)
         { "tab-sequencer", "vst-sequencer.png" }, { "tab-settings", "vst-settings.png" }
     };
     for (const auto& [tab, file] : pages) { click(*editor, tab); checkLayout(*editor); snapshot(*editor, previews, file); }
+    click(*editor, "tab-modulation");
+    auto* delay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampDelay"));
+    auto* hold = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampHold"));
+    check(delay && hold, "VST3 exposes both amp-envelope stages");
+    delay->setValue(0.25, juce::sendNotificationSync); hold->setValue(0.4, juce::sendNotificationSync);
+    checkLayout(*editor); snapshot(*editor, previews, "vst-modulation-dahdsr.png");
+    delay->setValue(0.0, juce::sendNotificationSync); hold->setValue(0.0, juce::sendNotificationSync);
     click(*editor, "preset-browser"); checkLayout(*editor); snapshot(*editor, previews, "vst-browser.png");
     click(*editor, "tab-overview");
     processor.prepareToPlay(44100.0, 4096);

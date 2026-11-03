@@ -1,5 +1,6 @@
 #include "PresetCodec.h"
 #include "SynthEngine.h"
+#include "AmpEnvelope.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -23,6 +24,169 @@ juce::AudioBuffer<float> render(const vanta::ParameterValues& values, int totalS
     engine.process(buffer, midi, values);
     return buffer;
 }
+
+void testAmpEnvelope()
+{
+    static_assert(vanta::ampDelay == vanta::phaserMix + 1 && vanta::ampHold == vanta::ampDelay + 1,
+                  "New parameters must be appended after all Beta 0.12 IDs");
+    check(vanta::defaultValues()[vanta::ampDelay] == 0.0f && vanta::defaultValues()[vanta::ampHold] == 0.0f,
+          "New amp-envelope stages default to zero");
+
+    // Exercise releases, retriggers, automation, resets and sample-rate changes
+    // against the exact ADSR used by Beta 0.12. Every output sample must match.
+    bool legacyIdentical = true;
+    for (double rate : { 44100.0, 48000.0, 96000.0 })
+    {
+        vanta::AmpEnvelope current; juce::ADSR legacy;
+        current.setSampleRate(rate); legacy.setSampleRate(rate);
+        juce::ADSR::Parameters a; a.attack = 0.041f; a.decay = 0.07f; a.sustain = 0.34f; a.release = 0.08f;
+        current.setParameters(a); legacy.setParameters(a); current.setDelayAndHold(0.0f, 0.0f);
+        current.noteOn(); legacy.noteOn();
+        for (int i = 0; i < 24000; ++i)
+        {
+            if (i == 900) { a.attack = 0.13f; current.setParameters(a); legacy.setParameters(a); }
+            if (i == 4000) { current.noteOff(); legacy.noteOff(); }
+            if (i == 5000) { current.noteOn(); legacy.noteOn(); }
+            if (i == 10000) { a.decay = 0.2f; a.sustain = 0.7f; current.setParameters(a); legacy.setParameters(a); }
+            if (i == 15000) { current.noteOff(); legacy.noteOff(); }
+            if (i == 19000) { current.reset(); legacy.reset(); current.noteOn(); legacy.noteOn(); }
+            legacyIdentical &= current.getNextSample() == legacy.getNextSample();
+            legacyIdentical &= current.isActive() == legacy.isActive();
+        }
+    }
+    check(legacyIdentical, "Zero delay/hold are sample-identical to the legacy ADSR at multiple rates");
+
+    vanta::AmpEnvelope env; env.setSampleRate(1000.0);
+    juce::ADSR::Parameters p; p.attack = 0.01f; p.decay = 0.02f; p.sustain = 0.25f; p.release = 0.03f;
+    env.setParameters(p); env.setDelayAndHold(0.02f, 0.03f); env.noteOn();
+    bool delayed = true;
+    for (int i = 0; i < 10; ++i) delayed &= env.getNextSample() == 0.0f;
+    env.setDelayAndHold(0.0f, 0.0f); // changes apply on the next note
+    for (int i = 0; i < 10; ++i) delayed &= env.getNextSample() == 0.0f;
+    const auto firstAttack = env.getNextSample();
+    check(delayed && firstAttack > 0.05f && firstAttack < 0.15f,
+          "Delay is silent for its full sample count and is latched for each note");
+    float value = firstAttack; int attackSamples = 1;
+    while (value < 1.0f && attackSamples < 20) { value = env.getNextSample(); ++attackSamples; }
+    bool held = attackSamples >= 9 && attackSamples <= 11 && value == 1.0f;
+    for (int i = 0; i < 30; ++i) held &= env.getNextSample() == 1.0f;
+    value = env.getNextSample();
+    check(held && value < 1.0f && value > p.sustain,
+          "Attack reaches the peak, hold lasts its latched sample count, then decay starts");
+    for (int i = 0; i < 30; ++i) value = env.getNextSample();
+    check(std::abs(value - p.sustain) < 0.00001f, "Decay reaches sustain");
+    env.noteOff(); const auto releaseStart = env.getNextSample();
+    for (int i = 0; i < 40; ++i) value = env.getNextSample();
+    check(releaseStart < p.sustain && releaseStart > 0.0f && value == 0.0f && !env.isActive(),
+          "Note-off from sustain follows release to silence");
+
+    env.reset(); env.setDelayAndHold(0.1f, 0.03f); env.noteOn();
+    for (int i = 0; i < 25; ++i) env.getNextSample();
+    env.noteOff(); bool cancelled = true;
+    for (int i = 0; i < 200; ++i) cancelled &= env.getNextSample() == 0.0f;
+    check(cancelled && !env.isActive(), "Note-off during delay cancels the future attack");
+
+    env.reset(); env.setDelayAndHold(0.0f, 0.1f); env.noteOn();
+    for (int i = 0; i < 4; ++i) value = env.getNextSample();
+    env.noteOff(); const auto attackRelease = env.getNextSample();
+    for (int i = 0; i < 40; ++i) env.getNextSample();
+    check(attackRelease > 0.0f && attackRelease < value && !env.isActive(),
+          "Note-off during attack releases from the current level without entering hold");
+
+    env.reset(); env.setDelayAndHold(0.0f, 0.1f); env.noteOn();
+    for (int i = 0; i < 20 && env.getNextSample() < 1.0f; ++i) {}
+    for (int i = 0; i < 8; ++i) env.getNextSample();
+    env.noteOff(); const auto holdRelease = env.getNextSample();
+    for (int i = 0; i < 40; ++i) env.getNextSample();
+    check(holdRelease < 1.0f && holdRelease > 0.0f && !env.isActive(),
+          "Note-off during hold starts release immediately from the peak");
+
+    env.reset(); env.setDelayAndHold(0.0f, 0.0f); env.noteOn();
+    check(env.getNextSample() > 0.0f, "A new note uses newly automated delay/hold values");
+    env.reset(); check(!env.isActive() && env.getNextSample() == 0.0f, "Voice reset clears every envelope stage");
+
+    for (double rate : { 44100.0, 48000.0 })
+    {
+        env.reset(); env.setSampleRate(rate); env.setParameters(p); env.setDelayAndHold(0.125f, 0.0f); env.noteOn();
+        const int samples = static_cast<int>(std::lround(rate * 0.125));
+        bool silent = true; for (int i = 0; i < samples; ++i) silent &= env.getNextSample() == 0.0f;
+        check(silent && env.getNextSample() > 0.0f, "Delay length follows the sample rate");
+    }
+
+    constexpr int rate = 44100;
+    auto settings = vanta::defaultValues(); settings[vanta::attack] = 0.001f; settings[vanta::ampDelay] = 0.1f;
+    auto delayedAudio = render(settings, rate / 3);
+    check(rms(delayedAudio, 0, rate / 10) == 0.0f && rms(delayedAudio, rate / 8, rate / 20) > 0.005f,
+          "Amp delay changes real rendered audio independently of the delay effect");
+    auto shortNote = render(settings, rate / 3, rate / 20);
+    check(rms(shortNote, 0, shortNote.getNumSamples()) == 0.0f, "A note released before delay remains silent");
+    settings[vanta::ampDelay] = 0.0f; settings[vanta::decay] = 0.02f; settings[vanta::sustain] = 0.1f;
+    auto noHold = render(settings, rate / 3); settings[vanta::ampHold] = 0.2f;
+    auto heldAudio = render(settings, rate / 3);
+    check(rms(heldAudio, rate / 12, rate / 20) > 5.0f * rms(noHold, rate / 12, rate / 20),
+          "Amp hold audibly delays decay in the real synth");
+
+    // Different notes own separate delay counters: releasing the first note
+    // during delay must not cancel the later note's scheduled attack.
+    settings[vanta::ampDelay] = 0.1f; settings[vanta::ampHold] = 0.05f;
+    vanta::SynthEngine poly; poly.prepare(rate, 512); juce::AudioBuffer<float> voices(2, rate / 3); juce::MidiBuffer notes;
+    notes.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(100)), 0);
+    notes.addEvent(juce::MidiMessage::noteOff(1, 60), rate / 25);
+    notes.addEvent(juce::MidiMessage::noteOn(1, 64, static_cast<juce::uint8>(100)), rate / 20);
+    poly.process(voices, notes, settings);
+    check(rms(voices, 0, rate * 15 / 100) == 0.0f && rms(voices, rate * 17 / 100, rate / 20) > 0.005f,
+          "Overlapping voices have independent delay and note-off stages");
+    poly.reset(); juce::MidiBuffer none; poly.process(voices, none, settings);
+    check(rms(voices, 0, voices.getNumSamples()) == 0.0f, "Engine reset clears delayed and held voices");
+
+    vanta::SynthEngine pedal; pedal.prepare(rate, 512); juce::AudioBuffer<float> pedalAudio(2, rate / 2); juce::MidiBuffer pedalNotes;
+    settings[vanta::release] = 0.03f;
+    pedalNotes.addEvent(juce::MidiMessage::noteOn(1, 67, static_cast<juce::uint8>(100)), 0);
+    pedalNotes.addEvent(juce::MidiMessage::controllerEvent(1, 64, 127), 64);
+    pedalNotes.addEvent(juce::MidiMessage::noteOff(1, 67), rate / 20);
+    pedalNotes.addEvent(juce::MidiMessage::controllerEvent(1, 64, 0), rate / 4);
+    pedal.process(pedalAudio, pedalNotes, settings);
+    check(rms(pedalAudio, 0, rate / 10) == 0.0f && rms(pedalAudio, rate * 13 / 100, rate / 20) > 0.005f
+          && rms(pedalAudio, rate * 35 / 100, rate / 20) < 0.00001f,
+          "Sustain pedal defers note-off through delay and release begins when the pedal lifts");
+
+    // Overflow the 16-voice pool while every original voice is in delay.
+    // The stolen voice must be fully reset before the later note is scheduled.
+    vanta::SynthEngine stolen; stolen.prepare(rate, 512); juce::AudioBuffer<float> stolenAudio(2, rate / 2); juce::MidiBuffer busy;
+    settings[vanta::ampDelay] = 0.12f;
+    for (int note = 40; note < 56; ++note)
+        busy.addEvent(juce::MidiMessage::noteOn(1, note, static_cast<juce::uint8>(100)), 0);
+    busy.addEvent(juce::MidiMessage::noteOn(1, 72, static_cast<juce::uint8>(100)), rate / 20);
+    for (int note = 40; note < 56; ++note) busy.addEvent(juce::MidiMessage::noteOff(1, note), rate / 10);
+    busy.addEvent(juce::MidiMessage::noteOff(1, 72), rate / 4);
+    stolen.process(stolenAudio, busy, settings);
+    check(rms(stolenAudio, 0, rate * 17 / 100) == 0.0f && rms(stolenAudio, rate * 20 / 100, rate / 25) > 0.005f
+          && rms(stolenAudio, rate * 35 / 100, rate / 20) < 0.00001f,
+          "Voice stealing resets old delay/hold state and schedules the new note independently");
+
+    // Identical MIDI and parameters produce the same envelope regardless of
+    // host audio-block boundaries, including note-off in a held peak.
+    settings[vanta::ampDelay] = 0.035f; settings[vanta::ampHold] = 0.14f;
+    constexpr int chunk = 256, blocks = 80, total = chunk * blocks;
+    vanta::SynthEngine wholeEngine, blockEngine; wholeEngine.prepare(rate, chunk); blockEngine.prepare(rate, chunk);
+    juce::AudioBuffer<float> whole(2, total), chunked(2, total); juce::MidiBuffer wholeMidi;
+    wholeMidi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 0);
+    wholeMidi.addEvent(juce::MidiMessage::noteOff(1, 69), chunk * 30);
+    wholeEngine.process(whole, wholeMidi, settings);
+    for (int block = 0; block < blocks; ++block)
+    {
+        juce::AudioBuffer<float> part(2, chunk); juce::MidiBuffer midi;
+        if (block == 0) midi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 0);
+        if (block == 30) midi.addEvent(juce::MidiMessage::noteOff(1, 69), 0);
+        blockEngine.process(part, midi, settings);
+        for (int channel = 0; channel < 2; ++channel) chunked.copyFrom(channel, block * chunk, part, channel, 0, chunk);
+    }
+    bool blockIdentical = true;
+    for (int channel = 0; channel < 2; ++channel)
+        for (int i = 0; i < total; ++i) blockIdentical &= whole.getSample(channel, i) == chunked.getSample(channel, i);
+    check(blockIdentical, "DAHDSR rendering is identical across host block boundaries");
+}
+
 void testAudio()
 {
     constexpr int rate = 44100;
@@ -239,7 +403,8 @@ void testOscillators()
 void testPresets()
 {
     auto values = vanta::defaultValues();
-    values[vanta::attack] = 0.234f; values[vanta::wave] = 1.0f; values[vanta::cutoff] = 1234.0f;
+    values[vanta::attack] = 0.234f; values[vanta::ampDelay] = 0.456f; values[vanta::ampHold] = 1.23f;
+    values[vanta::wave] = 1.0f; values[vanta::cutoff] = 1234.0f;
     values[vanta::oscAExtraWave] = 2.0f; values[vanta::oscBEnabled] = 1.0f; values[vanta::oscBWave] = 2.0f;
     values[vanta::oscBTune] = -12.0f; values[vanta::oscBFine] = 17.0f; values[vanta::oscBPan] = -0.75f;
     values[vanta::oscDEnabled] = 1.0f; values[vanta::oscHEnabled] = 1.0f;
@@ -252,7 +417,8 @@ void testPresets()
     check(matches, "Native preset round-trip loads every parameter");
     const auto legacy = vanta::PresetCodec::decode(R"({"format":"vanta-preset","version":1,"name":"Old","parameters":{"wave":1,"level":0.6}})", ".vanta");
     check(legacy.ok && legacy.values[vanta::wave] == 1.0f && legacy.values[vanta::oscAExtraWave] == 0.0f
-          && legacy.values[vanta::oscALevel] == 1.0f && legacy.values[vanta::oscBEnabled] == 0.0f,
+          && legacy.values[vanta::oscALevel] == 1.0f && legacy.values[vanta::oscBEnabled] == 0.0f
+          && legacy.values[vanta::ampDelay] == 0.0f && legacy.values[vanta::ampHold] == 0.0f,
           "Older VANTA presets retain the original saw and default new layers to off");
     check(legacy.values[vanta::reverbEnabled] == 1.0f && legacy.values[vanta::delayEnabled] == 1.0f
           && legacy.values[vanta::distortionEnabled] == 1.0f
@@ -277,6 +443,7 @@ void testPresets()
 }
 int main()
 {
+    testAmpEnvelope();
     testAudio();
     testOscillators();
     testPresets();
