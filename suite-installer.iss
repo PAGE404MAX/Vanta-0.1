@@ -1,5 +1,6 @@
 #define AppName "Vanta Suite"
-#define AppVersion "0.13.2"
+#define AppVersion "0.14.0"
+; 0.13 is the stable bundle path, not the displayed product version.
 #define CurrentBeta 13
 #define SuiteBuild
 #define PluginBundle "build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3"
@@ -42,6 +43,18 @@
 #define LegacySidechainBinaryHash "41747C0E5F9134F955527C3BDFEDBCD9B6C92303A542574CD986CDDAF47A5C2A"
 #define LegacySidechainInfoHash "CD94406B84D69121B87B127828CBD08547B8AFC2CEBCC952BD0020CA1C44509E"
 #endif
+
+; The 0.13.2 release was built separately from 0.13.1; its exact published
+; binaries must be independently verified. Until the diagnostic build can run,
+; blank hashes deliberately fail closed (the old suite can still be safely
+; uninstalled before a fresh install). Never accept unverified replacement files.
+#define Legacy132SynthBinaryHash ""
+#define Legacy132SynthInfoHash ""
+#define Legacy132StandaloneHash ""
+#define Legacy132LaggifyBinaryHash ""
+#define Legacy132LaggifyInfoHash ""
+#define Legacy132SidechainBinaryHash ""
+#define Legacy132SidechainInfoHash ""
 
 [Setup]
 ; This intentionally upgrades the existing VANTA 0.13 setup, rather than

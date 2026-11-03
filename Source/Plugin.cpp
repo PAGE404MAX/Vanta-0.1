@@ -6,6 +6,12 @@
 
 namespace
 {
+struct ApplyingStateGuard
+{
+    explicit ApplyingStateGuard(std::atomic<bool>& value) : flag(value) { flag.store(true, std::memory_order_release); }
+    ~ApplyingStateGuard() { flag.store(false, std::memory_order_release); }
+    std::atomic<bool>& flag;
+};
 // ValueTree host state is XML. Bound nested element depth before JUCE's
 // recursive parser, while skipping comments, CDATA, declarations and quoted
 // attribute values. The XML parser still validates names and syntax afterward.
@@ -60,6 +66,31 @@ VantaProcessor::VantaProcessor()
     for (std::size_t i = 0; i < vanta::parameterCount; ++i)
         rawParameters[i] = state.getRawParameterValue(vanta::parameterSpecs[i].id);
     state.state.setProperty("presetName", "VANTA INIT", nullptr);
+    for (const auto id : vanta::wideEnvelopeTimes)
+        state.addParameterListener(vanta::parameterSpecs[id].id, this);
+}
+VantaProcessor::~VantaProcessor()
+{
+    for (const auto id : vanta::wideEnvelopeTimes)
+        state.removeParameterListener(vanta::parameterSpecs[id].id, this);
+}
+void VantaProcessor::parameterChanged(const juce::String& id, float)
+{
+    // This callback may run on the audio thread. Only atomics are touched.
+    if (applyingState.load(std::memory_order_acquire)) return;
+    for (std::size_t i = 0; i < vanta::wideEnvelopeTimes.size(); ++i)
+        if (id == vanta::parameterSpecs[vanta::wideEnvelopeTimes[i]].id)
+            wideEnvelopeTouched.fetch_or(1u << i, std::memory_order_relaxed);
+}
+
+void VantaProcessor::touchWideEnvelopeFromUI(int stage)
+{
+    if (stage < 0 || stage >= static_cast<int>(vanta::wideEnvelopeFlags.size())) return;
+    const auto index = static_cast<std::size_t>(stage);
+    if (rawParameters[vanta::wideEnvelopeFlags[index]]->load(std::memory_order_relaxed) >= 0.5f) return;
+    const auto bit = 1u << index;
+    if ((wideEnvelopeTouched.fetch_or(bit, std::memory_order_relaxed) & bit) == 0)
+        updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout VantaProcessor::makeLayout()
@@ -88,6 +119,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout VantaProcessor::makeLayout()
             layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
                                                                    juce::StringArray { "Sine", "Saw", "Square", "Triangle" }, 0));
         }
+        else if (i >= vanta::ampAttackWideActive && i <= vanta::ampReleaseWideActive)
+            layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { p.id, 1 }, p.name, false,
+                       juce::AudioParameterBoolAttributes().withAutomatable(false).withMeta(true)));
         else if (i == vanta::oscAEnabled || (i >= vanta::oscATable && i <= vanta::oscHTable) || (i >= vanta::oscASample && i <= vanta::oscHSample) || i == vanta::ottEnabled
                  || i == vanta::reverbEnabled || i == vanta::delayEnabled || i == vanta::distortionEnabled
                  || i == vanta::chorusEnabled || i == vanta::eqEnabled || i == vanta::fxFilterEnabled
@@ -124,10 +158,17 @@ vanta::ParameterValues VantaProcessor::currentValues() const
             const auto& spec = vanta::parameterSpecs[i];
             values[i] = std::isfinite(value) ? juce::jlimit(spec.minValue, spec.maxValue, value) : spec.defaultValue;
         }
+    const auto touched = wideEnvelopeTouched.load(std::memory_order_relaxed);
+    for (std::size_t i = 0; i < vanta::wideEnvelopeFlags.size(); ++i)
+        if ((touched & (1u << i)) != 0) values[vanta::wideEnvelopeFlags[i]] = 1.0f;
     return values;
 }
 void VantaProcessor::applyValues(const vanta::ParameterValues& values, const juce::String& name)
 {
+    // Loading a complete patch must not look like the user automating one of
+    // the new parameters; its saved flags determine the source for each stage.
+    ApplyingStateGuard guard(applyingState);
+    wideEnvelopeTouched.store(0, std::memory_order_relaxed);
     for (std::size_t i = 0; i < values.size(); ++i)
     {
         const auto& spec = vanta::parameterSpecs[i];
@@ -209,6 +250,15 @@ void VantaProcessor::getStateInformation(juce::MemoryBlock& destination)
     try
     {
         auto snapshot = state.copyState();
+        // A wide parameter can be activated by host automation on the audio
+        // thread. Persist that atomically observed choice without writing the
+        // ValueTree or notifying the host from the audio callback.
+        const auto touched = wideEnvelopeTouched.load(std::memory_order_relaxed);
+        for (std::size_t i = 0; i < vanta::wideEnvelopeFlags.size(); ++i)
+            if ((touched & (1u << i)) != 0)
+                for (auto child : snapshot)
+                    if (child.hasType("PARAM") && child.getProperty("id").toString() == vanta::parameterSpecs[vanta::wideEnvelopeFlags[i]].id)
+                        child.setProperty("value", 1.0f, nullptr);
         snapshot.setProperty("vantaEditorScale", editorScalePercent(), nullptr);
         auto tables = engine.copyWaveTables();
         bool present = false;
@@ -268,6 +318,44 @@ void VantaProcessor::setStateInformation(const void* data, int size)
                 || !vanta::PresetImporter::decodeModulation(encoded, tables, error)) return;
             restored.removeProperty("vantaModulation", nullptr);
         }
+        // Seed a missing wide value from its corresponding legacy value, so
+        // host automation starts from what the old project actually displayed.
+        // The old parameter remains authoritative until a wide value is edited.
+        auto findParameterChild = [&](const char* id)
+        {
+            for (const auto& child : restored)
+                if (child.hasType("PARAM") && child.getProperty("id").toString() == id) return child;
+            return juce::ValueTree();
+        };
+        for (std::size_t stage = 0; stage < vanta::legacyEnvelopeTimes.size(); ++stage)
+        {
+            const auto legacy = vanta::legacyEnvelopeTimes[stage], wide = vanta::wideEnvelopeTimes[stage];
+            const auto flag = vanta::wideEnvelopeFlags[stage];
+            const auto hasWide = findParameterChild(vanta::parameterSpecs[wide].id).isValid();
+            if (!hasWide)
+            {
+                auto initial = vanta::parameterSpecs[wide].defaultValue;
+                const auto old = findParameterChild(vanta::parameterSpecs[legacy].id);
+                if (old.isValid())
+                {
+                    const auto text = old.getProperty("value").toString().trim();
+                    if (text.isNotEmpty() && text.length() <= 64 && text.containsOnly("-+.0123456789eE"))
+                    {
+                        const auto parsed = text.getDoubleValue();
+                        const auto& spec = vanta::parameterSpecs[legacy];
+                        if (std::isfinite(parsed)) initial = static_cast<float>(juce::jlimit(
+                            static_cast<double>(spec.minValue), static_cast<double>(spec.maxValue), parsed));
+                    }
+                }
+                juce::ValueTree child("PARAM"); child.setProperty("id", vanta::parameterSpecs[wide].id, nullptr);
+                child.setProperty("value", initial, nullptr); restored.addChild(child, -1, nullptr);
+            }
+            if (!findParameterChild(vanta::parameterSpecs[flag].id).isValid())
+            {
+                juce::ValueTree child("PARAM"); child.setProperty("id", vanta::parameterSpecs[flag].id, nullptr);
+                child.setProperty("value", hasWide ? 1.0f : 0.0f, nullptr); restored.addChild(child, -1, nullptr);
+            }
+        }
         // Earlier projects lack the newly added parameters. Explicitly insert
         // defaults instead of retaining values from a previously loaded state.
         for (const auto& spec : vanta::parameterSpecs)
@@ -283,7 +371,11 @@ void VantaProcessor::setStateInformation(const void* data, int size)
         }
         if (tables == nullptr) tables = std::make_shared<vanta::WaveTableBank>();
         engine.publishWaveTables(*tables);
-        state.replaceState(restored);
+        {
+            ApplyingStateGuard guard(applyingState);
+            wideEnvelopeTouched.store(0, std::memory_order_relaxed);
+            state.replaceState(restored);
+        }
         setEditorScalePercent(restoredScale);
     }
     catch (...) { /* Never let corrupt host state unwind through the host. */ }

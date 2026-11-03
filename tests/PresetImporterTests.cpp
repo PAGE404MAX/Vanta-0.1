@@ -208,6 +208,23 @@ void testVital()
     const auto clipped = vanta::PresetCodec::decode(envSource.replace("\"env_1_hold\":1.0", "\"env_1_hold\":2.0"), ".vital");
     check(clipped.ok && clipped.values[vanta::ampHold] == 4.0f && clipped.message.containsIgnoreCase("limited"),
           "Out-of-range Vital hold is bounded and reported");
+    const auto extremeAttack = vanta::PresetCodec::decode(envSource.replace("\"env_1_attack\":0.5", "\"env_1_attack\":1000000"), ".vital");
+    check(extremeAttack.ok && extremeAttack.values[vanta::ampAttackWide] == 32.0f
+          && extremeAttack.message.containsIgnoreCase("limited"),
+          "Out-of-range Vital attack is capped and reported rather than silently ignored");
+    const auto badAttack = vanta::PresetCodec::decode(envSource.replace("\"env_1_attack\":0.5", "\"env_1_attack\":-1"), ".vital");
+    check(badAttack.ok && badAttack.values[vanta::ampAttackWideActive] == 0.0f
+          && badAttack.message.containsIgnoreCase("invalid vital"),
+          "Invalid Vital envelope values retain safe defaults with a warning");
+    const auto fullSource = envSource.replace("\"env_1_attack\":0.5", "\"env_1_attack\":2.378414230005442")
+        .replace("\"osc_1_on\":1", "\"osc_1_phase\":0.25,\"osc_1_unison_voices\":4,\"osc_1_unison_detune\":7.071067811865475,\"osc_1_on\":1");
+    const auto full = vanta::PresetCodec::decode(fullSource, ".vital");
+    check(full.ok && full.values[vanta::ampAttackWideActive] == 1.0f
+          && std::abs(full.values[vanta::ampAttackWide] - 32.0f) < 0.002f
+          && full.values[vanta::attack] == 2.0f && std::abs(full.values[vanta::oscAPhase] - 0.25f) < 0.001f
+          && std::abs(full.values[vanta::oscAUnison] - 0.5f) < 0.001f
+          && full.message.containsIgnoreCase("unison is approximated"),
+          "Vital imports long envelopes, fixed phase and approximate unison without remapping old host ranges");
     check(imported.ok && imported.name == "Synthetic Vital" && imported.waveTables != nullptr, "Vital JSON is recognised");
     const auto noName = source.replace("\"preset_name\":\"Synthetic Vital\",", "");
     const auto bytes = noName.toUTF8();
@@ -230,6 +247,11 @@ void testVital()
     a[vanta::oscATablePosition] = 0; const auto first = render(a, noMod.get());
     a[vanta::oscATablePosition] = 1; const auto second = render(a, noMod.get());
     check(difference(first, second) > 0.005, "Imported wavetable frames audibly differ");
+    a[vanta::oscAPhase] = 0.25f; const auto tablePhase = render(a, noMod.get());
+    a[vanta::oscAPhase] = 0.0f; a[vanta::oscAUnison] = 1.0f; const auto tableUnison = render(a, noMod.get());
+    check(difference(second, tablePhase) > 0.001 && difference(second, tableUnison) > 0.001,
+          "Phase and unison are audible on imported wavetable layers");
+    a[vanta::oscAUnison] = 0.0f;
     const auto modulated = render(a, imported.waveTables.get());
     check(difference(second, modulated) > 0.002, "Reconstructed LFO route modulates audio");
     a[vanta::oscAEnabled] = 0; a[vanta::oscDEnabled] = 1;
@@ -239,6 +261,14 @@ void testVital()
     check(sample.getRMSLevel(0, 10000, 1000) < 1.0e-5f, "Imported non-looping sample finishes");
     double side = 0; for (int i = 500; i < 2500; ++i) side += std::abs(sample.getSample(0, i) - sample.getSample(1, i));
     check(side > 5, "Imported stereo PCM channels remain distinct");
+    auto sampleModified = a; sampleModified[vanta::oscDPhase] = 0.4f; sampleModified[vanta::oscDUnison] = 0.8f;
+    const auto modifiedPcm = render(sampleModified, imported.waveTables.get());
+    check(difference(sample, modifiedPcm) > 0.001, "Phase and unison affect imported stereo PCM playback");
+    bool finitePcm = true;
+    for (int channel = 0; channel < 2; ++channel)
+        for (int i = 0; i < modifiedPcm.getNumSamples(); ++i)
+            finitePcm &= std::isfinite(modifiedPcm.getSample(channel, i)) && std::abs(modifiedPcm.getSample(channel, i)) <= 1.0f;
+    check(finitePcm, "Modified imported stereo PCM remains finite and bounded");
 
     const auto native = vanta::PresetCodec::encode("Converted", imported.values, imported.waveTables.get());
     const auto restored = vanta::PresetCodec::decode(native, ".vanta");

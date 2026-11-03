@@ -36,6 +36,15 @@ enum Parameter : std::size_t
     phaserEnabled, phaserRate, phaserDepth, phaserFeedback, phaserMix,
     // Beta 0.13: separate amp-envelope stages; not the existing delay effect.
     ampDelay, ampHold,
+    // Beta 0.14: new full-range controls are appended. The original ADSR IDs
+    // and their normalized mappings stay intact for old host automation.
+    ampAttackWide, ampDecayWide, ampReleaseWide,
+    ampAttackWideActive, ampDecayWideActive, ampReleaseWideActive,
+    lfoSmooth, lfoDelay, lfoStereo,
+    oscAUnison, oscBUnison, oscCUnison, oscDUnison,
+    oscEUnison, oscFUnison, oscGUnison, oscHUnison,
+    oscAPhase, oscBPhase, oscCPhase, oscDPhase,
+    oscEPhase, oscFPhase, oscGPhase, oscHPhase,
     parameterCount
 };
 
@@ -171,9 +180,45 @@ inline constexpr std::array<ParameterSpec, parameterCount> parameterSpecs {{
     { "phaserMix", "Phaser Mix", 0.0f, 1.0f, 0.5f, 0.001f, 1.0f },
     { "ampDelay", "Amp Envelope Delay", 0.0f, 4.0f, 0.0f, 0.001f, 0.4f },
     { "ampHold", "Amp Envelope Hold", 0.0f, 4.0f, 0.0f, 0.001f, 0.4f },
+    { "ampAttackWide", "Amp Envelope Attack", 0.0f, 32.0f, 0.02f, 0.001f, 0.4f },
+    { "ampDecayWide", "Amp Envelope Decay", 0.0f, 32.0f, 0.10f, 0.001f, 0.4f },
+    { "ampReleaseWide", "Amp Envelope Release", 0.0f, 32.0f, 0.35f, 0.001f, 0.4f },
+    // These are persisted compatibility flags, not user-facing automation.
+    { "ampAttackWideActive", "Attack Full Range Active", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "ampDecayWideActive", "Decay Full Range Active", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "ampReleaseWideActive", "Release Full Range Active", 0.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+    { "lfoSmooth", "Pitch LFO Smooth", 0.0f, 16.0f, 0.0f, 0.001f, 0.4f },
+    { "lfoDelay", "Pitch LFO Delay", 0.0f, 4.0f, 0.0f, 0.001f, 0.4f },
+    { "lfoStereo", "Pitch LFO Stereo", -0.5f, 0.5f, 0.0f, 0.001f, 1.0f },
+    { "oscAUnison", "Osc A Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscBUnison", "Osc B Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscCUnison", "Osc C Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscDUnison", "Osc D Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscEUnison", "Osc E Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscFUnison", "Osc F Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscGUnison", "Osc G Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscHUnison", "Osc H Unison", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscAPhase", "Osc A Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscBPhase", "Osc B Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscCPhase", "Osc C Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscDPhase", "Osc D Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscEPhase", "Osc E Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscFPhase", "Osc F Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscGPhase", "Osc G Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
+    { "oscHPhase", "Osc H Phase", 0.0f, 1.0f, 0.0f, 0.001f, 1.0f },
 }};
 
 using ParameterValues = std::array<float, parameterCount>;
+// Old projects continue using their original time parameters (including host
+// automation); full-range controls take over only after they are changed.
+inline constexpr std::array<Parameter, 3> legacyEnvelopeTimes { attack, decay, release };
+inline constexpr std::array<Parameter, 3> wideEnvelopeTimes { ampAttackWide, ampDecayWide, ampReleaseWide };
+inline constexpr std::array<Parameter, 3> wideEnvelopeFlags { ampAttackWideActive, ampDecayWideActive, ampReleaseWideActive };
+inline float envelopeTime(const ParameterValues& values, int stage)
+{
+    const auto i = static_cast<std::size_t>(stage);
+    return values[wideEnvelopeFlags[i]] >= 0.5f ? values[wideEnvelopeTimes[i]] : values[legacyEnvelopeTimes[i]];
+}
 inline constexpr int oscillatorCount = 8;
 inline constexpr int oscillatorStride = 6;
 // A retains the original two-choice wave parameter.
@@ -186,6 +231,8 @@ inline constexpr Parameter oscillatorPan(int index) { return index == 0 ? oscAPa
 inline constexpr Parameter oscillatorTable(int index) { return static_cast<Parameter>(oscATable + index); }
 inline constexpr Parameter oscillatorSample(int index) { return static_cast<Parameter>(oscASample + index); }
 inline constexpr Parameter oscillatorTablePosition(int index) { return static_cast<Parameter>(oscATablePosition + index); }
+inline constexpr Parameter oscillatorUnison(int index) { return static_cast<Parameter>(oscAUnison + index); }
+inline constexpr Parameter oscillatorPhase(int index) { return static_cast<Parameter>(oscAPhase + index); }
 inline bool oscillatorIsEnabled(const ParameterValues& values, int index) { return values[oscillatorEnabled(index)] >= 0.5f; }
 inline int oscillatorShape(const ParameterValues& values, int index)
 {

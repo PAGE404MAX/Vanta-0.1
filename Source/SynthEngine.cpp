@@ -50,7 +50,27 @@ public:
 
     void startNote(int midiNote, float velocity, juce::SynthesiserSound*, int pitchWheel) override
     {
-        phases.fill(0.0); samplePositions.fill(0.0); importedLfoPhases.fill(0.0); lfoPhase = 0.0;
+        importedLfoPhases.fill(0.0); lfoPhase = 0.0; lfoElapsed = 0;
+        smoothedLfo.fill(0.0); unisonRunning.fill(false);
+        for (int layer = 0; layer < oscillatorCount; ++layer)
+        {
+            const auto index = static_cast<std::size_t>(layer);
+            const double startPhase = juce::jlimit(0.0, 1.0, static_cast<double>(parameters.values[oscillatorPhase(layer)]));
+            const double wrapped = startPhase >= 1.0 ? 0.0 : startPhase;
+            double startSample = 0.0;
+            if (parameters.tables != nullptr && parameters.values[oscillatorSample(layer)] >= 0.5f)
+            {
+                const auto& pcm = parameters.tables->sample;
+                if (pcm.slot == layer && pcm.frames > 0 && pcm.frames <= maxSampleFrames)
+                    startSample = wrapped * pcm.frames;
+            }
+            for (int u = 0; u < 3; ++u)
+                for (int channel = 0; channel < 2; ++channel)
+                {
+                    phases[static_cast<std::size_t>(u)][static_cast<std::size_t>(channel)][index] = wrapped;
+                    samplePositions[static_cast<std::size_t>(u)][static_cast<std::size_t>(channel)][index] = startSample;
+                }
+        }
         ic1.fill(0.0f); ic2.fill(0.0f);
         amplitude = juce::jlimit(0.0f, 1.0f, velocity) * 0.12f;
         note = midiNote;
@@ -82,9 +102,13 @@ public:
         const auto a2 = g * a1;
         const auto a3 = g * a2;
         const auto lfoIncrement = twoPi * p[vibratoRate] / getSampleRate();
+        const double smoothTime = juce::jlimit(0.0, 16.0, static_cast<double>(p[lfoSmooth]));
+        const double smoothAmount = smoothTime > 0.0 ? 1.0 - std::exp(-1.0 / (smoothTime * getSampleRate())) : 1.0;
+        const auto lfoDelaySamples = static_cast<std::uint64_t>(juce::jlimit(0.0, 4.0, static_cast<double>(p[lfoDelay])) * getSampleRate());
+        const double lfoStereoShift = pi * juce::jlimit(-0.5, 0.5, static_cast<double>(p[lfoStereo]));
         struct Layer
         {
-            bool active = false; int shape = 0; double rate = 0.0;
+            bool active = false, unison = false; int shape = 0; double rate = 0.0, detune = 1.0;
             float left = 0.0f, right = 0.0f, level = 0.0f, pan = 0.0f;
             const WaveTable* table = nullptr; const PcmSample* pcm = nullptr; double sampleRate = 0.0; int frameA = 0, frameB = 0; float frameBlend = 0.0f;
         };
@@ -94,7 +118,20 @@ public:
         {
             auto& entry = layers[static_cast<std::size_t>(layer)];
             entry.active = oscillatorIsEnabled(p, layer);
-            if (!entry.active) continue;
+            const auto layerIndex = static_cast<std::size_t>(layer);
+            if (!entry.active) { unisonRunning[layerIndex] = false; continue; }
+            const auto unison = juce::jlimit(0.0f, 1.0f, p[oscillatorUnison(layer)]);
+            entry.unison = unison > 0.0f;
+            entry.detune = std::pow(2.0, static_cast<double>(unison) * 0.5 / 12.0); // +/- 50 cents at 100%
+            if (entry.unison && !unisonRunning[layerIndex])
+                for (int voice = 1; voice < 3; ++voice)
+                    for (int channel = 0; channel < 2; ++channel)
+                    {
+                        const auto c = static_cast<std::size_t>(channel), u = static_cast<std::size_t>(voice);
+                        phases[u][c][layerIndex] = phases[0][c][layerIndex];
+                        samplePositions[u][c][layerIndex] = samplePositions[0][c][layerIndex];
+                    }
+            unisonRunning[layerIndex] = entry.unison;
             entry.shape = juce::jlimit(0, 3, oscillatorShape(p, layer));
             if (parameters.tables != nullptr && p[oscillatorSample(layer)] >= 0.5f)
             {
@@ -137,8 +174,20 @@ public:
         const int channels = juce::jmin(2, output.getNumChannels());
         for (int i = 0; i < count; ++i)
         {
-            const double vibratoSemitones = std::sin(lfoPhase) * static_cast<double>(p[vibrato]);
+            const bool lfoRunning = lfoElapsed >= lfoDelaySamples;
+            double lfoLeft = lfoRunning ? std::sin(lfoPhase - lfoStereoShift) : 0.0;
+            double lfoRight = lfoStereoShift == 0.0 ? lfoLeft : (lfoRunning ? std::sin(lfoPhase + lfoStereoShift) : 0.0);
+            if (smoothTime > 0.0)
+            {
+                smoothedLfo[0] += smoothAmount * (lfoLeft - smoothedLfo[0]);
+                smoothedLfo[1] += smoothAmount * (lfoRight - smoothedLfo[1]);
+                lfoLeft = smoothedLfo[0]; lfoRight = smoothedLfo[1];
+            }
+            else { smoothedLfo[0] = lfoLeft; smoothedLfo[1] = lfoRight; }
+            const double vibratoSemitones = lfoLeft * static_cast<double>(p[vibrato]);
             const double pitchFactor = p[vibrato] == 0.0f ? 1.0 : std::pow(2.0, vibratoSemitones / 12.0);
+            const double pitchFactorRight = p[vibrato] == 0.0f ? 1.0
+                : (lfoRight == lfoLeft ? pitchFactor : std::pow(2.0, lfoRight * static_cast<double>(p[vibrato]) / 12.0));
             std::array<float, oscillatorCount> levelMod {}, panMod {}, pitchMod {}, tableMod {};
             const auto* modulation = parameters.tables != nullptr ? &parameters.tables->modulation : nullptr;
             if (modulation != nullptr && modulation->routeCount > 0)
@@ -178,35 +227,76 @@ public:
                 const auto& entry = layers[static_cast<std::size_t>(layer)];
                 if (!entry.active) continue;
                 const auto layerIndex = static_cast<std::size_t>(layer);
-                auto& phase = phases[layerIndex];
+                auto& phase = phases[0][0][layerIndex];
+                auto& rightPhase = phases[0][1][layerIndex];
                 const auto pitch = pitchMod[layerIndex] == 0.0f ? 1.0 : std::pow(2.0, static_cast<double>(juce::jlimit(-48.0f, 48.0f, pitchMod[layerIndex])) / 12.0);
                 const auto increment = juce::jlimit(0.0, 0.49, entry.rate * pitchFactor * pitch);
+                const auto rightIncrement = pitchFactorRight == pitchFactor ? increment : juce::jlimit(0.0, 0.49, entry.rate * pitchFactorRight * pitch);
                 const auto currentLevel = juce::jlimit(0.0f, 1.0f, entry.level + levelMod[layerIndex]);
                 const auto currentPan = juce::jlimit(-1.0f, 1.0f, entry.pan + panMod[layerIndex]);
                 const auto leftGain = levelMod[layerIndex] == 0.0f && panMod[layerIndex] == 0.0f ? entry.left : currentLevel * (currentPan > 0.0f ? 1.0f - currentPan : 1.0f);
                 const auto rightGain = levelMod[layerIndex] == 0.0f && panMod[layerIndex] == 0.0f ? entry.right : currentLevel * (currentPan < 0.0f ? 1.0f + currentPan : 1.0f);
-                double sample;
                 if (p[oscillatorSample(layer)] >= 0.5f)
                 {
                     // A missing or finished one-shot is silent, not a fabricated waveform.
                     const auto* pcm = entry.pcm;
-                    auto& position = samplePositions[static_cast<std::size_t>(layer)];
-                    if (pcm != nullptr && position < pcm->frames)
+                    if (pcm == nullptr) continue;
+                    auto& position = samplePositions[0][0][layerIndex];
+                    auto& positionRight = samplePositions[0][1][layerIndex];
+                    if (!entry.unison && position == positionRight && pitchFactor == pitchFactorRight)
                     {
-                        const int first = static_cast<int>(position);
-                        const int next = first + 1 < pcm->frames ? first + 1 : (pcm->loop ? 0 : first);
-                        const auto fraction = static_cast<float>(position - first);
-                        const auto l = pcm->left[static_cast<std::size_t>(first)] + (pcm->left[static_cast<std::size_t>(next)] - pcm->left[static_cast<std::size_t>(first)]) * fraction;
-                        const auto r = pcm->channels == 2 ? pcm->right[static_cast<std::size_t>(first)] + (pcm->right[static_cast<std::size_t>(next)] - pcm->right[static_cast<std::size_t>(first)]) * fraction : l;
-                        mixed[0] += l * leftGain * mixScale; mixed[1] += r * rightGain * mixScale;
-                        position += entry.sampleRate * pitch * (pcm->keytrack ? pitchFactor : 1.0);
-                        if (pcm->loop && position >= pcm->frames) position = std::fmod(position, static_cast<double>(pcm->frames));
+                        // Keep the old single-sample path exactly when all new controls are neutral.
+                        if (position < pcm->frames)
+                        {
+                            const int first = static_cast<int>(position);
+                            const int next = first + 1 < pcm->frames ? first + 1 : (pcm->loop ? 0 : first);
+                            const auto fraction = static_cast<float>(position - first);
+                            const auto l = pcm->left[static_cast<std::size_t>(first)] + (pcm->left[static_cast<std::size_t>(next)] - pcm->left[static_cast<std::size_t>(first)]) * fraction;
+                            const auto r = pcm->channels == 2 ? pcm->right[static_cast<std::size_t>(first)] + (pcm->right[static_cast<std::size_t>(next)] - pcm->right[static_cast<std::size_t>(first)]) * fraction : l;
+                            mixed[0] += l * leftGain * mixScale; mixed[1] += r * rightGain * mixScale;
+                            position += entry.sampleRate * pitch * (pcm->keytrack ? pitchFactor : 1.0);
+                            if (pcm->loop && position >= pcm->frames) position = std::fmod(position, static_cast<double>(pcm->frames));
+                            positionRight = position;
+                        }
+                        continue;
                     }
+                    double samples[2][3] {};
+                    for (int channel = 0; channel < 2; ++channel)
+                        for (int voice = 0; voice < (entry.unison ? 3 : 1); ++voice)
+                        {
+                            const auto c = static_cast<std::size_t>(channel), u = static_cast<std::size_t>(voice);
+                            auto& pos = samplePositions[u][c][layerIndex];
+                            if (pos >= pcm->frames) continue;
+                            const int first = static_cast<int>(pos);
+                            const int next = first + 1 < pcm->frames ? first + 1 : (pcm->loop ? 0 : first);
+                            const auto fraction = static_cast<float>(pos - first);
+                            const auto& data = channel == 1 && pcm->channels == 2 ? pcm->right : pcm->left;
+                            samples[channel][voice] = data[static_cast<std::size_t>(first)] + (data[static_cast<std::size_t>(next)] - data[static_cast<std::size_t>(first)]) * fraction;
+                            const double detune = voice == 1 ? 1.0 / entry.detune : voice == 2 ? entry.detune : 1.0;
+                            const double lfoPitch = pcm->keytrack ? (channel == 0 ? pitchFactor : pitchFactorRight) : 1.0;
+                            pos += entry.sampleRate * pitch * lfoPitch * detune;
+                            if (pcm->loop && pos >= pcm->frames) pos = std::fmod(pos, static_cast<double>(pcm->frames));
+                        }
+                    const double l = entry.unison ? (samples[0][0] + samples[0][1] + 0.25 * samples[0][2]) / 2.25 : samples[0][0];
+                    const double r = entry.unison ? (samples[1][0] + 0.25 * samples[1][1] + samples[1][2]) / 2.25 : samples[1][0];
+                    mixed[0] += l * leftGain * mixScale; mixed[1] += r * rightGain * mixScale;
                     continue;
                 }
-                if (entry.table != nullptr)
+                int frameA = entry.frameA, frameB = entry.frameB;
+                float blend = entry.frameBlend;
+                if (entry.table != nullptr && tableMod[layerIndex] != 0.0f)
                 {
-                    const double offset = phase * wavetableFrameSize;
+                    const auto framePosition = juce::jlimit(0.0f, 1.0f, p[oscillatorTablePosition(layer)] + tableMod[layerIndex]);
+                    frameB = 0;
+                    while (frameB + 1 < entry.table->frameCount && entry.table->positions[static_cast<std::size_t>(frameB)] < framePosition) ++frameB;
+                    frameA = juce::jmax(0, frameB - 1);
+                    const auto a = entry.table->positions[static_cast<std::size_t>(frameA)], b = entry.table->positions[static_cast<std::size_t>(frameB)];
+                    blend = b > a ? juce::jlimit(0.0f, 1.0f, (framePosition - a) / (b - a)) : 0.0f;
+                }
+                auto waveAt = [&](double phaseValue, double phaseIncrement)
+                {
+                    if (entry.table == nullptr) return oscillatorSample(entry.shape, phaseValue, phaseIncrement);
+                    const double offset = phaseValue * wavetableFrameSize;
                     const int first = static_cast<int>(offset) & (wavetableFrameSize - 1);
                     const int next = (first + 1) & (wavetableFrameSize - 1);
                     const auto fraction = static_cast<float>(offset - static_cast<int>(offset));
@@ -217,27 +307,40 @@ public:
                         const auto y = entry.table->samples[base + static_cast<std::size_t>(next)];
                         return x + (y - x) * fraction;
                     };
-                    int frameA = entry.frameA, frameB = entry.frameB;
-                    float blend = entry.frameBlend;
-                    if (tableMod[layerIndex] != 0.0f)
-                    {
-                        const auto framePosition = juce::jlimit(0.0f, 1.0f, p[oscillatorTablePosition(layer)] + tableMod[layerIndex]);
-                        frameB = 0;
-                        while (frameB + 1 < entry.table->frameCount && entry.table->positions[static_cast<std::size_t>(frameB)] < framePosition) ++frameB;
-                        frameA = juce::jmax(0, frameB - 1);
-                        const auto a = entry.table->positions[static_cast<std::size_t>(frameA)], b = entry.table->positions[static_cast<std::size_t>(frameB)];
-                        blend = b > a ? juce::jlimit(0.0f, 1.0f, (framePosition - a) / (b - a)) : 0.0f;
-                    }
                     const auto a = frameSample(frameA), b = frameSample(frameB);
-                    sample = (a + (b - a) * blend) * mixScale;
+                    return static_cast<double>(a + (b - a) * blend);
+                };
+                double leftWave = waveAt(phase, increment) * mixScale;
+                double rightWave = phase == rightPhase && increment == rightIncrement ? leftWave : waveAt(rightPhase, rightIncrement) * mixScale;
+                if (entry.unison)
+                {
+                    double extra[2][2] {};
+                    for (int channel = 0; channel < 2; ++channel)
+                        for (int voice = 1; voice < 3; ++voice)
+                        {
+                            const auto c = static_cast<std::size_t>(channel), u = static_cast<std::size_t>(voice);
+                            auto& sidePhase = phases[u][c][layerIndex];
+                            const auto detune = voice == 1 ? 1.0 / entry.detune : entry.detune;
+                            const auto sideIncrement = juce::jlimit(0.0, 0.49, (channel == 0 ? increment : rightIncrement) * detune);
+                            extra[channel][voice - 1] = waveAt(sidePhase, sideIncrement) * mixScale;
+                            sidePhase += sideIncrement;
+                            if (sidePhase >= 1.0) sidePhase -= 1.0;
+                        }
+                    leftWave = (leftWave + extra[0][0] + 0.25 * extra[0][1]) / 2.25;
+                    rightWave = (rightWave + 0.25 * extra[1][0] + extra[1][1]) / 2.25;
                 }
-                else sample = oscillatorSample(entry.shape, phase, increment) * mixScale;
-                mixed[0] += sample * leftGain; mixed[1] += sample * rightGain;
+                mixed[0] += leftWave * leftGain; mixed[1] += rightWave * rightGain;
                 phase += increment;
                 if (phase >= 1.0) phase -= 1.0;
+                rightPhase += rightIncrement;
+                if (rightPhase >= 1.0) rightPhase -= 1.0;
             }
-            lfoPhase += lfoIncrement;
-            if (lfoPhase >= twoPi) lfoPhase -= twoPi;
+            if (lfoRunning)
+            {
+                lfoPhase += lfoIncrement;
+                if (lfoPhase >= twoPi) lfoPhase -= twoPi;
+            }
+            ++lfoElapsed;
             if (channels == 1) mixed[0] = 0.5 * (mixed[0] + mixed[1]);
             const auto gain = amplitude * envelope.getNextSample();
             // The same global low-pass follows the layer mixer, with separate
@@ -261,8 +364,8 @@ private:
     {
         const auto& p = parameters.values;
         juce::ADSR::Parameters adsr;
-        adsr.attack = p[attack]; adsr.decay = p[decay];
-        adsr.sustain = p[sustain]; adsr.release = p[release];
+        adsr.attack = envelopeTime(p, 0); adsr.decay = envelopeTime(p, 1);
+        adsr.sustain = p[sustain]; adsr.release = envelopeTime(p, 2);
         envelope.setDelayAndHold(p[ampDelay], p[ampHold]);
         if (!hasEnvelopeParameters || adsr.attack != previousEnvelope.attack || adsr.decay != previousEnvelope.decay
             || adsr.sustain != previousEnvelope.sustain || adsr.release != previousEnvelope.release)
@@ -281,9 +384,13 @@ private:
     AmpEnvelope envelope;
     juce::ADSR::Parameters previousEnvelope;
     bool hasEnvelopeParameters = false;
-    std::array<double, oscillatorCount> phases {}, samplePositions {};
+    using StereoLayers = std::array<std::array<double, oscillatorCount>, 2>;
+    std::array<StereoLayers, 3> phases {}, samplePositions {};
+    std::array<bool, oscillatorCount> unisonRunning {};
     std::array<double, importedLfoCount> importedLfoPhases {};
+    std::array<double, 2> smoothedLfo {};
     std::array<float, 2> ic1 {}, ic2 {};
+    std::uint64_t lfoElapsed = 0;
     double lfoPhase = 0.0, baseFrequency = 440.0;
     float amplitude = 0.0f;
     int note = 69, wheel = 8192;

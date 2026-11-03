@@ -15,16 +15,44 @@ public:
     void positionComboBoxText(juce::ComboBox&, juce::Label&) override;
 };
 
+// Attachment callbacks may also change a slider. Report only value changes
+// caused by actual mouse, wheel or keyboard input, not state/display syncing.
+class VantaUserSlider final : public juce::Slider
+{
+public:
+    std::function<void()> onUserValueChanged;
+    void mouseDown(const juce::MouseEvent& e) override { changeFromUser([&] { Slider::mouseDown(e); }); }
+    void mouseDrag(const juce::MouseEvent& e) override { changeFromUser([&] { Slider::mouseDrag(e); }); }
+    void mouseDoubleClick(const juce::MouseEvent& e) override { changeFromUser([&] { Slider::mouseDoubleClick(e); }); }
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
+    { changeFromUser([&] { Slider::mouseWheelMove(e, w); }); }
+    bool keyPressed(const juce::KeyPress& k) override
+    {
+        const auto previous = getValue();
+        const auto handled = Slider::keyPressed(k);
+        if (!juce::approximatelyEqual(previous, getValue()) && onUserValueChanged) onUserValueChanged();
+        return handled;
+    }
+private:
+    template <typename Action> void changeFromUser(Action action)
+    {
+        const auto previous = getValue();
+        action();
+        if (!juce::approximatelyEqual(previous, getValue()) && onUserValueChanged) onUserValueChanged();
+    }
+};
+
 class VantaKnob final : public juce::Component
 {
 public:
     void configure(juce::AudioProcessorValueTreeState&, vanta::Parameter, const juce::String& labelText);
     void setCaption(const juce::String&);
+    void setDisplayedValue(double value);
     void resized() override;
-    std::function<void()> onValueChanged;
+    std::function<void()> onValueChanged, onUserValueChanged;
 
 private:
-    juce::Slider slider;
+    VantaUserSlider slider;
     juce::Label label;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
 };
@@ -72,6 +100,7 @@ private:
     void configureButton(juce::TextButton&, const juce::String&, const juce::String& role = {});
     void selectPage(int);
     void refresh();
+    void syncEnvelopeDisplays(const vanta::ParameterValues&);
     void setParameter(vanta::Parameter, float);
     void setWaveform(int);
     void changePreset(int);
@@ -100,7 +129,7 @@ private:
     juce::TextEditor presetSearch;
     juce::Slider levelSlider;
     // The preview's small controls are real duplicate views of these parameters.
-    std::array<juce::Slider, 3> mainMiniSliders;
+    std::array<VantaUserSlider, 3> mainMiniSliders;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 3> mainMiniAttachments;
     juce::TextButton editEnvelope, editVibrato;
     juce::ComboBox waveform;
@@ -112,13 +141,13 @@ private:
     std::array<std::array<VantaKnob, 4>, 9> effectKnobs;
     std::array<juce::TextButton, vanta::oscillatorCount> oscillatorTabs;
     juce::TextButton addOscillator, removeOscillator;
-    std::array<std::array<VantaKnob, 4>, vanta::oscillatorCount> oscillatorKnobs;
+    std::array<std::array<VantaKnob, 6>, vanta::oscillatorCount> oscillatorKnobs;
     std::array<juce::TextButton, vanta::oscillatorCount> mixerEnabled;
     std::array<juce::Slider, vanta::oscillatorCount> mixerLevel, mixerPan;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, vanta::oscillatorCount> mixerEnabledAttachments;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, vanta::oscillatorCount> mixerLevelAttachments, mixerPanAttachments;
     std::array<VantaKnob, 8> mainKnobs;
-    std::array<VantaKnob, 8> modulationKnobs;
+    std::array<VantaKnob, 11> modulationKnobs;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment;
     std::unique_ptr<VantaKeyboard> standaloneKeyboard;
     std::unique_ptr<juce::FileChooser> chooser;

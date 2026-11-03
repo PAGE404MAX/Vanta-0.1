@@ -50,7 +50,7 @@ public static class VantaUi {
 }
 '@
 
-$setupFile = if ($Suite) { 'installer-output\Vanta-Suite-Setup.exe' } else { 'installer-output\Vanta-Beta-0.13-Setup.exe' }
+$setupFile = if ($Suite) { 'installer-output\Vanta-Suite-Setup.exe' } else { 'installer-output\Vanta-Beta-0.14-Setup.exe' }
 $setup = (Resolve-Path $setupFile).Path
 $root = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3'
 $kind = if ($Suite) { 'suite' } else { 'vanta' }

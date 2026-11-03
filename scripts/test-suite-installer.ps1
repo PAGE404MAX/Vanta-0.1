@@ -6,7 +6,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP -or $env:RUNNER_OS -ne 
     throw 'Suite installer test requires an isolated GitHub-hosted Windows runner.'
 }
 $setup = (Resolve-Path 'installer-output\Vanta-Suite-Setup.exe').Path
-$vantaSetup = (Resolve-Path 'installer-output\Vanta-Beta-0.13-Setup.exe').Path
+$vantaSetup = (Resolve-Path 'installer-output\Vanta-Beta-0.14-Setup.exe').Path
 $laggifySetup = (Resolve-Path 'installer-output\Laggify-0.2-Setup.exe').Path
 $root = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3'
 $app = Join-Path $env:RUNNER_TEMP 'vanta-suite-installer-test'
@@ -152,6 +152,18 @@ try {
     Setup $setup $app
     foreach ($path in $userFiles) { Present $path }
 
+    # The newer VANTA-only installer shares the AppId. It must not take over
+    # the suite's uninstaller or replace a synth owned by the three-plugin suite,
+    # even if someone selects a different target directory.
+    $suiteHashes = @((Binary $synth), (Binary $laggify), (Binary $sidechain), $suiteUninstall) | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash }
+    Setup $vantaSetup $app $false
+    Setup $vantaSetup (Join-Path $outside 'different vanta-only app') $false
+    $afterHashes = @((Binary $synth), (Binary $laggify), (Binary $sidechain), $suiteUninstall) | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash }
+    for ($n = 0; $n -lt $suiteHashes.Count; ++$n) {
+        if ($suiteHashes[$n] -ne $afterHashes[$n]) { throw 'VANTA-only setup modified a suite-owned file.' }
+    }
+    if ((Get-ItemProperty -LiteralPath $synthReg).DisplayName -notmatch 'VANTA Suite') { throw 'VANTA-only setup replaced the suite registration.' }
+
     # If an old standalone installer was run after the suite, neither suite
     # setup nor suite uninstall may silently take over/delete that plugin.
     New-Item -Path $laggifyReg -Force | Out-Null
@@ -234,7 +246,7 @@ try {
             Move-Item -LiteralPath $heldModule -Destination $oldModule
         }
         Setup $setup $app
-        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.13.2') { throw 'The previous suite was not upgraded in place.' }
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.14.0') { throw 'The previous suite was not upgraded in place.' }
         if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
         Present (Uninstaller $app)
         foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }

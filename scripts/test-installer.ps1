@@ -9,7 +9,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP -or $env:RUNNER_OS -ne 
 
 $sourceBundle = (Resolve-Path 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3').Path
 $sourceApp = (Resolve-Path 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe').Path
-$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.13-Setup.exe').Path
+$setup = (Resolve-Path 'installer-output\Vanta-Beta-0.14-Setup.exe').Path
 $standardRoot = Join-Path ([Environment]::GetFolderPath('CommonProgramFiles')) 'VST3'
 $destination = Join-Path $env:RUNNER_TEMP 'Vanta-0.13-installer-test'
 $customRoot = Join-Path $env:RUNNER_TEMP 'Vanta-custom-vst3-test'

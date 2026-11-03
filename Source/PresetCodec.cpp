@@ -37,6 +37,13 @@ PresetResult decodeNative(const juce::var& root)
         result.values[i] = bounded(i, static_cast<double>(value)); ++mapped;
     }
     if (mapped == 0) return fail("The VANTA preset contains no recognised parameters.");
+    for (std::size_t stage = 0; stage < legacyEnvelopeTimes.size(); ++stage)
+    {
+        const auto legacy = legacyEnvelopeTimes[stage], wide = wideEnvelopeTimes[stage], flag = wideEnvelopeFlags[stage];
+        const bool hasWide = parameters->hasProperty(parameterSpecs[wide].id);
+        if (!hasWide) result.values[wide] = result.values[legacy];
+        if (!parameters->hasProperty(parameterSpecs[flag].id)) result.values[flag] = hasWide ? 1.0f : 0.0f;
+    }
     if (object->hasProperty("wavetables"))
     {
         juce::String error;

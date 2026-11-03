@@ -51,6 +51,21 @@ void warn(juce::StringArray& warnings, const juce::String& warning)
 void set(PresetResult& result, Parameter id, double value, juce::StringArray& warnings)
 {
     if (!std::isfinite(value)) return;
+    // Source envelopes use the new full range, but also keep a bounded legacy
+    // value for old host automation and for older tools inspecting the preset.
+    for (std::size_t stage = 0; stage < legacyEnvelopeTimes.size(); ++stage)
+        if (id == legacyEnvelopeTimes[stage])
+        {
+            const auto& oldSpec = parameterSpecs[id];
+            const auto wideId = wideEnvelopeTimes[stage];
+            const auto& wideSpec = parameterSpecs[wideId];
+            if (value < wideSpec.minValue || value > wideSpec.maxValue)
+                warn(warnings, juce::String(wideSpec.name) + " was limited to VANTA's range.");
+            result.values[id] = static_cast<float>(juce::jlimit(static_cast<double>(oldSpec.minValue), static_cast<double>(oldSpec.maxValue), value));
+            result.values[wideId] = static_cast<float>(juce::jlimit(static_cast<double>(wideSpec.minValue), static_cast<double>(wideSpec.maxValue), value));
+            result.values[wideEnvelopeFlags[stage]] = 1.0f;
+            return;
+        }
     const auto& spec = parameterSpecs[static_cast<std::size_t>(id)];
     if (value < spec.minValue || value > spec.maxValue)
         warn(warnings, juce::String(spec.name) + " was limited to VANTA's range.");
@@ -590,8 +605,15 @@ PresetResult PresetImporter::vital(const juce::var& root, const juce::String& fi
     for (const auto item : { std::pair<const char*, Parameter>{"env_1_delay", ampDelay}, {"env_1_attack", attack},
                              {"env_1_hold", ampHold}, {"env_1_decay", decay}, {"env_1_release", release} })
     {
-        const auto n = get(settings, item.first, -1.0);
-        if (n >= 0.0 && n <= 3.0) set(result, item.second, std::pow(n, 4.0), warnings);
+        if (!has(settings, item.first)) continue;
+        const auto n = get(settings, item.first, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(n) || n < 0.0)
+        {
+            warn(warnings, juce::String("Invalid Vital ") + item.first + " was left at VANTA's default.");
+            continue;
+        }
+        if (n > 3.0) warn(warnings, juce::String("Vital ") + item.first + " was limited to VANTA's range.");
+        set(result, item.second, std::pow(juce::jmin(n, 3.0), 4.0), warnings);
     }
     set(result, sustain, get(settings, "env_1_sustain", 1.0), warnings);
     warn(warnings, "Envelope curve shapes use VANTA's linear ramps and may sound different.");
@@ -618,8 +640,20 @@ PresetResult PresetImporter::vital(const juce::var& root, const juce::String& fi
         set(result, oscillatorTablePosition(osc), get(settings, prefix + "wave_frame", 0.0) / 256.0, warnings);
         if (get(settings, prefix + "distortion_type", 0.0) != 0.0 || get(settings, prefix + "spectral_morph_type", 0.0) != 0.0)
             warn(warnings, "Unsupported oscillator warp/spectral morph was disabled (clean wavetable)." );
+        if (has(settings, prefix + "phase"))
+            set(result, oscillatorPhase(osc), get(settings, prefix + "phase", 0.0), warnings);
+        if (get(settings, prefix + "random_phase", 0.0) > 0.0)
+            warn(warnings, "Oscillator phase randomization is not imported; the start phase is fixed.");
         if (get(settings, prefix + "unison_voices", 1.0) > 1.0)
-            warn(warnings, "Source oscillator unison is not imported.");
+        {
+            // Vital stores detune on a 0..10 quadratic scale. VANTA uses a
+            // bounded three-voice +/-50-cent approximation, not Vital's stack.
+            const auto rawDetune = get(settings, prefix + "unison_detune", 0.0);
+            if (rawDetune < 0.0 || rawDetune > 10.0) warn(warnings, "Source unison detune was limited to VANTA's range.");
+            const auto sourceDetune = juce::jlimit(0.0, 10.0, rawDetune);
+            set(result, oscillatorUnison(osc), sourceDetune * sourceDetune / 100.0, warnings);
+            warn(warnings, "Source unison is approximated by VANTA's three-voice detune; voice count, blend and spread may differ.");
+        }
         if (!enabled) continue;
 
         const juce::Array<juce::var>* frames = nullptr;

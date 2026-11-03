@@ -490,6 +490,13 @@ begin
     Result := InstalledFileMatches(Path, LegacyHash);
 end;
 
+function InstalledFileMatchesAnySuiteBuild(const Path, CurrentHash, LegacyHash, Legacy132Hash: String): Boolean;
+begin
+  Result := InstalledFileMatchesCurrentOrLegacy(Path, CurrentHash, LegacyHash);
+  if (not Result) and (Legacy132Hash <> '') then
+    Result := InstalledFileMatches(Path, Legacy132Hash);
+end;
+
 function SuiteInstalledFilesMatch(): Boolean;
 var
   Synth, Laggify, Sidechain: String;
@@ -497,13 +504,13 @@ begin
   Synth := AddBackslash(StandardRoot()) + 'Vanta Beta 0.13.vst3\Contents';
   Laggify := AddBackslash(StandardRoot()) + 'Laggify.vst3\Contents';
   Sidechain := AddBackslash(StandardRoot()) + 'VANTA Sidechain.vst3\Contents';
-  Result := InstalledFileMatchesCurrentOrLegacy(AddBackslash(Synth) + 'x86_64-win\Vanta Beta 0.13.vst3', '{#SynthBinaryHash}', '{#LegacySynthBinaryHash}') and
-    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Synth) + 'Resources\moduleinfo.json', '{#SynthInfoHash}', '{#LegacySynthInfoHash}') and
-    InstalledFileMatchesCurrentOrLegacy(ExpandConstant('{app}\Vanta Beta 0.13.exe'), '{#StandaloneHash}', '{#LegacyStandaloneHash}') and
-    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}', '{#LegacyLaggifyBinaryHash}') and
-    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}', '{#LegacyLaggifyInfoHash}') and
-    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}', '{#LegacySidechainBinaryHash}') and
-    InstalledFileMatchesCurrentOrLegacy(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}', '{#LegacySidechainInfoHash}') and
+  Result := InstalledFileMatchesAnySuiteBuild(AddBackslash(Synth) + 'x86_64-win\Vanta Beta 0.13.vst3', '{#SynthBinaryHash}', '{#LegacySynthBinaryHash}', '{#Legacy132SynthBinaryHash}') and
+    InstalledFileMatchesAnySuiteBuild(AddBackslash(Synth) + 'Resources\moduleinfo.json', '{#SynthInfoHash}', '{#LegacySynthInfoHash}', '{#Legacy132SynthInfoHash}') and
+    InstalledFileMatchesAnySuiteBuild(ExpandConstant('{app}\Vanta Beta 0.13.exe'), '{#StandaloneHash}', '{#LegacyStandaloneHash}', '{#Legacy132StandaloneHash}') and
+    InstalledFileMatchesAnySuiteBuild(AddBackslash(Laggify) + 'x86_64-win\Laggify.vst3', '{#LaggifyBinaryHash}', '{#LegacyLaggifyBinaryHash}', '{#Legacy132LaggifyBinaryHash}') and
+    InstalledFileMatchesAnySuiteBuild(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}', '{#LegacyLaggifyInfoHash}', '{#Legacy132LaggifyInfoHash}') and
+    InstalledFileMatchesAnySuiteBuild(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}', '{#LegacySidechainBinaryHash}', '{#Legacy132SidechainBinaryHash}') and
+    InstalledFileMatchesAnySuiteBuild(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}', '{#LegacySidechainInfoHash}', '{#Legacy132SidechainInfoHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Vanta-suite-installed.txt'), '{#MarkerHash}') and
     InstalledFileMatches(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'), '{#NoticesHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Laggify-third-party-notices.md'), '{#LaggifyNoticesHash}') and
@@ -531,7 +538,7 @@ begin
   Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1';
   Result := False;
   if not RegQueryStringValue(HKLM64, Key, 'DisplayVersion', Version) then Exit;
-  if (Version <> '0.13.0') and (Version <> '0.13.1') and (Version <> '0.13.2') then Exit;
+  if (Version <> '0.13.0') and (Version <> '0.13.1') and (Version <> '0.13.2') and (Version <> '0.14.0') then Exit;
   if not RegQueryStringValue(HKLM64, Key, 'InstallLocation', PreviousPath) or (Trim(PreviousPath) = '') then
     if not RegQueryStringValue(HKLM64, Key, 'Inno Setup: App Path', PreviousPath) then Exit;
   if Trim(PreviousPath) = '' then Exit;
@@ -566,6 +573,39 @@ begin
      PathExists(ExpandConstant('{app}\Sidechain-README.md')) or
      PathExists(ExpandConstant('{app}\third-party\JUCE-LICENSE.md')) or
      PathExists(ExpandConstant('{app}\third-party\VST3-SDK-LICENSE.txt')));
+end;
+#endif
+
+#ifndef SuiteBuild
+function SuiteInstallRegisteredOrMarked(): Boolean;
+var
+  Key, DisplayName, PreviousPath, Marker: String;
+begin
+  { The VANTA-only setup shares an AppId and synth paths with the suite. It
+    must never replace that suite's uninstaller or downgrade its synth. Check
+    the registered install as well as the requested directory, and treat even
+    an unexpected marker path as a conflict rather than following links. }
+  Marker := ExpandConstant('{app}\Vanta-suite-installed.txt');
+  Result := (not ExistingFileIsSafe(Marker)) or PathExists(Marker);
+  if Result then Exit;
+  Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1';
+  if not RegKeyExists(HKLM64, Key) then Exit;
+  if RegQueryStringValue(HKLM64, Key, 'DisplayName', DisplayName) and
+     (Pos('VANTA SUITE', Uppercase(DisplayName)) > 0) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  PreviousPath := '';
+  if not RegQueryStringValue(HKLM64, Key, 'InstallLocation', PreviousPath) or (Trim(PreviousPath) = '') then
+    if not RegQueryStringValue(HKLM64, Key, 'Inno Setup: App Path', PreviousPath) then PreviousPath := '';
+  if Trim(PreviousPath) = '' then
+    Result := True  { Unknown ownership: stop rather than replace an uninstaller. }
+  else
+  begin
+    Marker := AddBackslash(PreviousPath) + 'Vanta-suite-installed.txt';
+    Result := (not ExistingFileIsSafe(Marker)) or PathExists(Marker);
+  end;
 end;
 #endif
 
@@ -854,6 +894,9 @@ begin
     Result := 'An installed suite file has been replaced or cannot be verified. Back up and move that changed file aside before repairing; setup will not overwrite an unowned replacement.'
   else if UnownedEffectExists() then
     Result := 'An existing plugin or suite-named app file is not owned by this setup. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
+#else
+  if SuiteInstallRegisteredOrMarked() then
+    Result := 'VANTA Suite is installed. Use VANTA Suite Setup to upgrade or repair it; this VANTA-only installer will not replace its shared uninstaller or plugins.';
 #endif
 end;
 

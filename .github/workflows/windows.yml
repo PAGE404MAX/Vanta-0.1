@@ -141,9 +141,9 @@ jobs:
       - name: Upload installer, standalone and VST3
         uses: actions/upload-artifact@v7
         with:
-          name: VANTA 0.13 HERE
+          name: VANTA 0.14 HERE
           path: |
-            installer-output/Vanta-Beta-0.13-Setup.exe
+            installer-output/Vanta-Beta-0.14-Setup.exe
             build/VantaBeta_artefacts/Release/Standalone/
             build/VantaBeta_artefacts/Release/VST3/
             build/ui-preview/

@@ -116,6 +116,15 @@ void sendOutsideMouseDown(juce::Component& component, juce::Point<float> point)
         &component, &component, now, point, now, 1, false);
     component.mouseDown(event);
 }
+void sendDoubleClick(juce::Component& component)
+{
+    const auto now = juce::Time::getCurrentTime();
+    const auto point = component.getLocalBounds().getCentre().toFloat();
+    const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), point,
+        juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        &component, &component, now, point, now, 2, false);
+    component.mouseDoubleClick(event);
+}
 struct UiScaleListener final : juce::AudioProcessorListener
 {
     int changed = 0;
@@ -481,6 +490,117 @@ void testHostState()
           "Beta 0.3-style host state restores four parameters and defaults all later additions");
 }
 
+void testEnvelopeCompatibility()
+{
+    VantaProcessor processor;
+    const float minima[] { 0.001f, 0.001f, 0.01f };
+    const float maxima[] { 2.0f, 4.0f, 4.0f };
+    for (std::size_t stage = 0; stage < vanta::legacyEnvelopeTimes.size(); ++stage)
+    {
+        auto* legacy = processor.state.getParameter(vanta::parameterSpecs[vanta::legacyEnvelopeTimes[stage]].id);
+        auto* full = processor.state.getParameter(vanta::parameterSpecs[vanta::wideEnvelopeTimes[stage]].id);
+        const juce::NormalisableRange<float> oldRange(minima[stage], maxima[stage], 0.001f, 0.4f);
+        check(legacy && full && full->isAutomatable()
+              && std::abs(legacy->convertFrom0to1(0.37f) - oldRange.snapToLegalValue(oldRange.convertFrom0to1(0.37f))) < 0.00001f
+              && full->convertFrom0to1(0.0f) == 0.0f && full->convertFrom0to1(1.0f) == 32.0f,
+              "Legacy ADSR automation mapping is unchanged while full-range automation is available");
+    }
+    auto legacyValues = vanta::defaultValues();
+    legacyValues[vanta::attack] = 0.75f; legacyValues[vanta::decay] = 0.5f; legacyValues[vanta::release] = 0.85f;
+    processor.applyValues(legacyValues, "Old automation");
+    auto oldState = processor.state.copyState();
+    for (int n = oldState.getNumChildren() - 1; n >= 0; --n)
+    {
+        const auto id = oldState.getChild(n).getProperty("id").toString();
+        bool newParameter = false;
+        for (std::size_t i = vanta::ampAttackWide; i < vanta::parameterCount; ++i)
+            newParameter |= id == vanta::parameterSpecs[i].id;
+        if (newParameter) oldState.removeChild(n, nullptr);
+    }
+    auto xml = oldState.createXml(); juce::MemoryBlock bytes; juce::AudioProcessor::copyXmlToBinary(*xml, bytes);
+    processor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+    auto old = processor.currentValues();
+    check(old[vanta::ampAttackWideActive] == 0.0f && std::abs(vanta::envelopeTime(old, 0) - 0.75f) < 0.001f
+          && std::abs(old[vanta::ampAttackWide] - 0.75f) < 0.001f,
+          "A 0.13 host state uses its original attack and seeds the new control with that value");
+    auto* oldAttack = processor.state.getParameter("attack");
+    oldAttack->setValueNotifyingHost(0.5f);
+    const auto automatedOld = processor.currentValues();
+    check(automatedOld[vanta::ampAttackWideActive] == 0.0f
+          && std::abs(vanta::envelopeTime(automatedOld, 0) - oldAttack->convertFrom0to1(0.5f)) < 0.001f,
+          "Automation of the old attack ID continues controlling the restored project");
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor()); editor->setVisible(true);
+    click(*editor, "tab-modulation");
+    auto* fullAttack = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampAttackWide"));
+    check(fullAttack && std::abs(fullAttack->getValue() - vanta::envelopeTime(automatedOld, 0)) < 0.001,
+          "New attack knob displays the current legacy-automated value");
+    // The wide parameter starts at 0.02 while this legacy knob displays 0.354.
+    // A direct edit to the wide default must still take control of the stage.
+    sendDoubleClick(*fullAttack);
+    check(processor.currentValues()[vanta::ampAttackWideActive] == 1.0f
+          && std::abs(vanta::envelopeTime(processor.currentValues(), 0) - 0.02f) < 0.001f,
+          "Editing a displayed legacy value to the full-range default takes over the stage");
+    fullAttack->setValue(12.5, juce::sendNotificationSync);
+    auto edited = processor.currentValues();
+    check(edited[vanta::ampAttackWideActive] == 1.0f && std::abs(vanta::envelopeTime(edited, 0) - 12.5f) < 0.001f,
+          "Editing the full-range knob takes over that one stage without changing other legacy stages");
+    check(edited[vanta::ampDecayWideActive] == 0.0f && edited[vanta::ampReleaseWideActive] == 0.0f,
+          "Wide-range activation is independent per envelope stage");
+    oldAttack->setValueNotifyingHost(0.7f);
+    check(std::abs(vanta::envelopeTime(processor.currentValues(), 0) - 12.5f) < 0.001f,
+          "The selected full-range stage stays authoritative after an intentional edit");
+    juce::MemoryBlock saved; processor.getStateInformation(saved);
+    VantaProcessor restored; restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    auto reloaded = restored.currentValues();
+    check(reloaded[vanta::ampAttackWideActive] == 1.0f && std::abs(vanta::envelopeTime(reloaded, 0) - 12.5f) < 0.001f
+          && reloaded[vanta::ampDecayWideActive] == 0.0f,
+          "Host state persists edited full-range and untouched legacy stages");
+    restored.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+    reloaded = restored.currentValues();
+    check(reloaded[vanta::ampAttackWideActive] == 0.0f && std::abs(vanta::envelopeTime(reloaded, 0) - 0.75f) < 0.001f,
+          "Loading an older host state after a newer one clears full-range takeover");
+    const auto native = vanta::PresetCodec::decode(vanta::PresetCodec::encode("Range", edited), ".vanta");
+    check(native.ok && native.values[vanta::ampAttackWideActive] == 1.0f && std::abs(native.values[vanta::ampAttackWide] - 12.5f) < 0.001f,
+          "Native presets persist the full-range compatibility mode");
+    const auto older = vanta::PresetCodec::decode(R"({"format":"vanta-preset","version":1,"parameters":{"attack":1.2,"decay":0.8,"release":1.1}})", ".vanta");
+    check(older.ok && older.values[vanta::ampAttackWideActive] == 0.0f
+          && std::abs(older.values[vanta::ampAttackWide] - 1.2f) < 0.001f
+          && std::abs(vanta::envelopeTime(older.values, 0) - 1.2f) < 0.001f,
+          "Older native presets use the original values and safely initialize new controls");
+    const auto partial = vanta::PresetCodec::decode(R"({"format":"vanta-preset","version":1,"parameters":{"ampDecayWide":21}})", ".vanta");
+    check(partial.ok && partial.values[vanta::ampDecayWideActive] == 1.0f
+          && vanta::envelopeTime(partial.values, 1) == 21.0f && partial.values[vanta::ampAttackWideActive] == 0.0f,
+          "A partial native preset with a new wide value activates only that stage");
+    // Resetting to a value that is already in the wide parameter must work
+    // after legacy automation has moved the displayed value away from it.
+    auto defaultState = oldState.createCopy();
+    for (auto child : defaultState)
+        if (child.getProperty("id").toString() == "attack") child.setProperty("value", 0.02f, nullptr);
+    auto defaultXml = defaultState.createXml(); juce::MemoryBlock defaultBytes;
+    juce::AudioProcessor::copyXmlToBinary(*defaultXml, defaultBytes);
+    VantaProcessor resetDefault; resetDefault.setStateInformation(defaultBytes.getData(), static_cast<int>(defaultBytes.getSize()));
+    auto* legacyDefaultAttack = resetDefault.state.getParameter("attack");
+    legacyDefaultAttack->setValueNotifyingHost(0.5f);
+    std::unique_ptr<juce::AudioProcessorEditor> resetEditor(resetDefault.createEditor()); resetEditor->setVisible(true);
+    click(*resetEditor, "tab-modulation");
+    auto* resetSlider = dynamic_cast<juce::Slider*>(findVisible(*resetEditor, "parameter-ampAttackWide"));
+    check(resetSlider && std::abs(resetDefault.currentValues()[vanta::ampAttackWide] - 0.02f) < 0.001f
+          && std::abs(resetSlider->getValue() - 0.02) > 0.01,
+          "Legacy automation can move the displayed value while the wide parameter remains at its default");
+    UiScaleListener dirty; resetDefault.addListener(&dirty);
+    sendDoubleClick(*resetSlider);
+    check(resetDefault.currentValues()[vanta::ampAttackWideActive] == 1.0f
+          && std::abs(vanta::envelopeTime(resetDefault.currentValues(), 0) - 0.02f) < 0.001f && dirty.changed > 0,
+          "Double-clicking the same wide default takes over and marks the host state dirty");
+    resetDefault.removeListener(&dirty);
+    VantaProcessor automated; automated.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+    auto* wide = automated.state.getParameter("ampDecayWide");
+    wide->setValueNotifyingHost(wide->convertTo0to1(24.0f));
+    check(automated.currentValues()[vanta::ampDecayWideActive] == 1.0f
+          && std::abs(vanta::envelopeTime(automated.currentValues(), 1) - 24.0f) < 0.002f,
+          "Host automation of the new full-range ID activates it even without an editor");
+}
 void testImportedState()
 {
     VantaProcessor processor;
@@ -658,12 +778,12 @@ void testStandalone(const juce::File& previews)
     check(topLeft == juce::Colour(0xffb73929) && centre == juce::Colour(0xffb73929) && bottomRight == juce::Colour(0xffb73929),
           "Pressed black key is fully red, including edges");
     checkLayout(*editor); snapshot(*editor, previews, "overview.png");
-    for (const auto parameter : { vanta::level, vanta::cutoff, vanta::resonance, vanta::attack, vanta::decay,
-                                  vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
+    for (const auto parameter : { vanta::level, vanta::cutoff, vanta::resonance, vanta::ampAttackWide, vanta::ampDecayWide,
+                                  vanta::sustain, vanta::ampReleaseWide, vanta::vibrato, vanta::vibratoRate })
         changeSlider(*editor, processor, parameter);
 
     click(*editor, "edit-envelope");
-    check(findVisible(*editor, "parameter-attack") != nullptr && findVisible(*editor, "edit-envelope") == nullptr,
+    check(findVisible(*editor, "parameter-ampAttackWide") != nullptr && findVisible(*editor, "edit-envelope") == nullptr,
           "Envelope EDIT opens the modulation page");
     click(*editor, "tab-overview"); click(*editor, "edit-vibrato");
     check(findVisible(*editor, "parameter-vibratoRate") != nullptr && findVisible(*editor, "edit-vibrato") == nullptr,
@@ -693,6 +813,16 @@ void testStandalone(const juce::File& previews)
     changeSlider(*editor, processor, vanta::oscDTune);
     changeSlider(*editor, processor, vanta::oscDFine);
     changeSlider(*editor, processor, vanta::oscDPan);
+    changeSlider(*editor, processor, vanta::oscDUnison);
+    changeSlider(*editor, processor, vanta::oscDPhase);
+    auto* level = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-oscDLevel"));
+    auto* pan = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-oscDPan"));
+    auto* unison = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-oscDUnison"));
+    auto* phase = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-oscDPhase"));
+    check(level && pan && unison && phase && level->getTextFromValue(1.0) == "1.000"
+          && pan->getTextFromValue(-1.0) == "-100.0" && pan->getTextFromValue(1.0) == "100.0"
+          && unison->getTextFromValue(0.5) == "50.0%" && phase->getTextFromValue(1.0) == "100.0%",
+          "Oscillator controls display the requested level, pan and percentage units");
     check(processor.currentValues()[vanta::oscDWave] == 2.0f && processor.currentValues()[vanta::oscAExtraWave] == 2.0f,
           "Each oscillator retains its own waveform and settings");
     checkLayout(*editor); snapshot(*editor, previews, "oscillator-four.png");
@@ -746,15 +876,26 @@ void testStandalone(const juce::File& previews)
     check(changedPixels(distortionBefore, distortionAfter, { 237, 365, 713, 102 }) > 30, "Distortion sketch follows drive");
     click(*editor, "tab-modulation"); checkLayout(*editor); snapshot(*editor, previews, "modulation.png");
     const auto envelopeBefore = editor->createComponentSnapshot(editor->getLocalBounds());
-    auto* attack = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-attack"));
-    check(attack != nullptr, "Modulation attack control is visible");
+    auto* attack = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampAttackWide"));
+    auto* smooth = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-lfoSmooth"));
+    auto* lfoDelay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-lfoDelay"));
+    auto* lfoStereo = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-lfoStereo"));
+    auto* sustain = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-sustain"));
+    check(attack && smooth && lfoDelay && lfoStereo && sustain
+          && attack->getMinimum() == 0.0 && attack->getMaximum() == 32.0
+          && smooth->getMaximum() == 16.0 && lfoDelay->getMaximum() == 4.0
+          && lfoStereo->getMinimum() == -0.5 && lfoStereo->getMaximum() == 0.5
+          && sustain->getTextFromValue(0.5) == "0.500", "Modulation controls expose the requested ranges and units");
+    checkHit(*editor, "parameter-lfoSmooth", "LFO smooth knob is clickable");
+    checkHit(*editor, "parameter-lfoDelay", "LFO delay knob is clickable");
+    checkHit(*editor, "parameter-lfoStereo", "LFO stereo knob is clickable");
     attack->setValue(1.9, juce::sendNotificationSync);
     const auto envelopeAfter = editor->createComponentSnapshot(editor->getLocalBounds());
     check(changedPixels(envelopeBefore, envelopeAfter, { 44, 335, 440, 122 }) > 30, "Envelope preview follows the controls");
     auto* ampDelay = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampDelay"));
     auto* ampHold = dynamic_cast<juce::Slider*>(findVisible(*editor, "parameter-ampHold"));
-    check(ampDelay != nullptr && ampHold != nullptr && ampDelay->getTextFromValue(0.0) == "0 ms"
-          && ampHold->getTextFromValue(1.5) == "1.50 s", "New amp stages show time units");
+    check(ampDelay != nullptr && ampHold != nullptr && ampDelay->getTextFromValue(0.0) == "0.000 s"
+          && ampHold->getTextFromValue(1.5) == "1.500 s", "New amp stages show time units");
     checkHit(*editor, "parameter-ampDelay", "Amp delay knob is independently clickable");
     checkHit(*editor, "parameter-ampHold", "Amp hold knob is independently clickable");
     ampDelay->setValue(0.5, juce::sendNotificationSync);
@@ -765,7 +906,7 @@ void testStandalone(const juce::File& previews)
           && changedPixels(delayView, holdView, { 44, 335, 440, 122 }) > 30,
           "Envelope graph displays both the delay and peak hold segments");
     snapshot(*editor, previews, "modulation-dahdsr.png");
-    for (const auto parameter : { vanta::ampDelay, vanta::attack, vanta::ampHold, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate })
+    for (const auto parameter : { vanta::ampDelay, vanta::ampAttackWide, vanta::ampHold, vanta::ampDecayWide, vanta::sustain, vanta::ampReleaseWide, vanta::vibrato, vanta::vibratoRate, vanta::lfoSmooth, vanta::lfoDelay, vanta::lfoStereo })
         changeSlider(*editor, processor, parameter);
     click(*editor, "tab-mixer"); checkLayout(*editor); snapshot(*editor, previews, "mixer.png");
     changeSlider(*editor, processor, vanta::oscBLevel, "mixer-");
@@ -849,7 +990,7 @@ int main(int argc, char** argv)
     const auto previewDirectory = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile(argv[1])
                                            : juce::File::getCurrentWorkingDirectory().getChildFile("ui-preview");
     check(previewDirectory.createDirectory().wasOk(), "Preview directory created");
-    testHostState(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor(previewDirectory);
+    testHostState(); testEnvelopeCompatibility(); testImportedState(); testImportedEditorControls(); testStandalone(previewDirectory); testVstEditor(previewDirectory);
     testFitScreenCalculation(); testResizeState(); testHostResizeNegotiation();
     testResizeMenu(juce::AudioProcessor::wrapperType_VST3, previewDirectory);
     testResizeMenu(juce::AudioProcessor::wrapperType_Standalone, previewDirectory);

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(VantaBeta VERSION 0.13.0 LANGUAGES C CXX)
+project(VantaBeta VERSION 0.14.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,7 +36,10 @@ juce_add_plugin(VantaBeta
     PLUGIN_MANUFACTURER_CODE Vnta
     PLUGIN_CODE Vntb
     FORMATS VST3 Standalone
+    # Keep the 0.13 bundle/executable path stable for safe in-place upgrades.
+    # The plugin name shown to hosts advances independently.
     PRODUCT_NAME "Vanta Beta 0.13"
+    PLUGIN_NAME "Vanta Beta 0.14"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE

@@ -400,6 +400,133 @@ void testOscillators()
     monoEngine.process(mono, oneNote, panned);
     check(rms(mono, 1000, samples - 1000) > 0.005f, "Hard-panned layers remain audible through a mono host output");
 }
+double averageDifference(const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b, int start, int end, int channel = 0)
+{
+    double sum = 0.0;
+    for (int i = start; i < end; ++i) sum += std::abs(a.getSample(channel, i) - b.getSample(channel, i));
+    return sum / (end - start);
+}
+void testVitalRanges()
+{
+    using namespace vanta;
+    static_assert(ampAttackWide == ampHold + 1, "0.13 parameter IDs must stay in their original order");
+    check(parameterSpecs[ampDelay].minValue == 0.0f && parameterSpecs[ampDelay].maxValue == 4.0f
+          && parameterSpecs[ampHold].minValue == 0.0f && parameterSpecs[ampHold].maxValue == 4.0f
+          && parameterSpecs[sustain].minValue == 0.0f && parameterSpecs[sustain].maxValue == 1.0f,
+          "Envelope delay/hold and sustain cover the requested ranges");
+    bool envelopeRanges = true, oscRanges = true;
+    for (auto id : wideEnvelopeTimes)
+        envelopeRanges &= parameterSpecs[id].minValue == 0.0f && parameterSpecs[id].maxValue == 32.0f;
+    for (int layer = 0; layer < oscillatorCount; ++layer)
+        oscRanges &= parameterSpecs[oscillatorLevel(layer)].minValue == 0.0f && parameterSpecs[oscillatorLevel(layer)].maxValue == 1.0f
+                  && parameterSpecs[oscillatorPan(layer)].minValue == -1.0f && parameterSpecs[oscillatorPan(layer)].maxValue == 1.0f
+                  && parameterSpecs[oscillatorUnison(layer)].minValue == 0.0f && parameterSpecs[oscillatorUnison(layer)].maxValue == 1.0f
+                  && parameterSpecs[oscillatorPhase(layer)].minValue == 0.0f && parameterSpecs[oscillatorPhase(layer)].maxValue == 1.0f;
+    check(envelopeRanges && oscRanges, "Long envelope and all eight oscillator ranges are available");
+    check(parameterSpecs[lfoSmooth].minValue == 0.0f && parameterSpecs[lfoSmooth].maxValue == 16.0f
+          && parameterSpecs[lfoDelay].minValue == 0.0f && parameterSpecs[lfoDelay].maxValue == 4.0f
+          && parameterSpecs[lfoStereo].minValue == -0.5f && parameterSpecs[lfoStereo].maxValue == 0.5f,
+          "Pitch LFO smooth, delay and stereo cover the requested ranges");
+    auto defaults = defaultValues();
+    check(defaults[ampAttackWideActive] == 0.0f && defaults[ampDecayWideActive] == 0.0f
+          && defaults[ampReleaseWideActive] == 0.0f && defaults[lfoSmooth] == 0.0f
+          && defaults[lfoDelay] == 0.0f && defaults[lfoStereo] == 0.0f,
+          "New controls default to legacy-compatible behavior");
+
+    AmpEnvelope env; env.setSampleRate(1000.0);
+    juce::ADSR::Parameters instant; instant.attack = 0.0f; instant.decay = 0.0f; instant.sustain = 0.0f; instant.release = 0.2f;
+    env.setParameters(instant); env.setDelayAndHold(4.0f, 4.0f); env.noteOn();
+    bool delayed = true, held = true;
+    for (int i = 0; i < 4000; ++i) delayed &= env.getNextSample() == 0.0f;
+    for (int i = 0; i < 4000; ++i) held &= env.getNextSample() == 1.0f;
+    check(delayed && held && env.getNextSample() == 0.0f,
+          "Zero attack/decay and maximum delay/hold have correct stage lengths");
+    env.reset(); env.setDelayAndHold(0.0f, 1.0f); env.noteOn();
+    for (int i = 0; i < 25; ++i) env.getNextSample();
+    env.noteOff(); const auto releasedDuringHold = env.getNextSample();
+    check(releasedDuringHold > 0.98f && releasedDuringHold < 1.0f,
+          "Releasing a zero-attack hold starts release from the peak");
+    env.reset(); auto changing = instant; changing.attack = 1.0f;
+    env.setParameters(changing); env.setDelayAndHold(0.0f, 0.1f); env.noteOn();
+    for (int i = 0; i < 20; ++i) env.getNextSample();
+    changing.attack = 0.0f; env.setParameters(changing);
+    bool automatedHold = true;
+    for (int i = 0; i < 100; ++i) automatedHold &= env.getNextSample() == 1.0f;
+    check(automatedHold && env.getNextSample() == 0.0f,
+          "Automating attack to zero mid-stage still reaches and holds the peak");
+    instant.release = 0.0f; env.reset(); env.setParameters(instant); env.noteOn(); env.getNextSample(); env.noteOff();
+    check(!env.isActive() && env.getNextSample() == 0.0f, "A zero release stops immediately");
+
+    juce::ADSR::Parameters longTimes; longTimes.attack = 32.0f; longTimes.decay = 32.0f;
+    longTimes.sustain = 0.5f; longTimes.release = 32.0f;
+    env.reset(); env.setParameters(longTimes); env.setDelayAndHold(0.0f, 0.0f); env.noteOn();
+    float sample = 0.0f;
+    for (int i = 0; i < 16000; ++i) sample = env.getNextSample();
+    check(sample > 0.49f && sample < 0.51f, "A 32-second attack reaches its midpoint after 16 seconds");
+    for (int i = 0; i < 16020; ++i) sample = env.getNextSample();
+    for (int i = 0; i < 16000; ++i) sample = env.getNextSample();
+    check(sample > 0.74f && sample < 0.76f, "A 32-second decay follows the requested duration");
+    env.noteOff();
+    for (int i = 0; i < 16000; ++i) sample = env.getNextSample();
+    check(sample > 0.36f && sample < 0.39f, "A 32-second release follows the requested duration");
+
+    constexpr int rate = 44100, length = rate / 2;
+    auto base = defaultValues(); base[attack] = 0.001f; base[decay] = 0.001f; base[sustain] = 1.0f;
+    const auto original = render(base, length);
+    auto phase = base; phase[oscAPhase] = 0.25f;
+    const auto quarter = render(phase, length);
+    phase[oscAPhase] = 0.50f; const auto half = render(phase, length);
+    phase[oscAPhase] = 1.0f; const auto wrapped = render(phase, length);
+    check(averageDifference(original, quarter, 1000, length) > 0.01
+          && averageDifference(quarter, half, 1000, length) > 0.01
+          && averageDifference(original, wrapped, 0, length) == 0.0,
+          "Oscillator phase changes the start and 100 percent wraps to zero");
+    auto unison = base; unison[oscAUnison] = 0.5f; const auto medium = render(unison, length);
+    unison[oscAUnison] = 1.0f; const auto maximum = render(unison, length);
+    double side = 0.0;
+    for (int i = 1000; i < length; ++i) side += std::abs(maximum.getSample(0, i) - maximum.getSample(1, i));
+    check(averageDifference(original, medium, 1000, length) > 0.001
+          && averageDifference(medium, maximum, 1000, length) > 0.001 && side / (length - 1000) > 0.001,
+          "Unison amount produces different, stereo detuned sounds at 50 and 100 percent");
+    auto layerB = base; layerB[oscAEnabled] = 0.0f; layerB[oscBEnabled] = 1.0f; layerB[oscBLevel] = 1.0f;
+    const auto bClean = render(layerB, length); layerB[oscBUnison] = 1.0f; layerB[oscBPhase] = 0.5f;
+    const auto bChanged = render(layerB, length);
+    check(averageDifference(bClean, bChanged, 1000, length) > 0.001, "Unison and phase work on independent OSC B");
+
+    auto vibrato = base; vibrato[vibratoRate] = 5.0f; vibrato[vanta::vibrato] = 1.0f;
+    const auto direct = render(vibrato, length);
+    auto delayedLfo = vibrato; delayedLfo[lfoDelay] = 0.25f; const auto delayedSound = render(delayedLfo, length);
+    check(averageDifference(original, delayedSound, 0, rate / 5) == 0.0
+          && averageDifference(original, delayedSound, rate * 3 / 10, length) > 0.001,
+          "Pitch LFO delay holds modulation off, then starts it per note");
+    auto smoothed = vibrato; smoothed[lfoSmooth] = 0.4f; const auto smoothSound = render(smoothed, length);
+    check(averageDifference(direct, smoothSound, 1000, length) > 0.001, "Pitch LFO smooth changes the rendered modulation");
+    auto stereo = vibrato; stereo[lfoStereo] = 0.5f; const auto positive = render(stereo, length);
+    stereo[lfoStereo] = -0.5f; const auto negative = render(stereo, length);
+    side = 0.0; double swapped = 0.0;
+    for (int i = 1000; i < length; ++i)
+    {
+        side += std::abs(positive.getSample(0, i) - positive.getSample(1, i));
+        swapped += std::abs(positive.getSample(0, i) - negative.getSample(1, i));
+    }
+    check(side / (length - 1000) > 0.001 && swapped / (length - 1000) < 1.0e-7,
+          "Pitch LFO stereo creates opposite phase modulation and reverses channels at negative values");
+    stereo[lfoSmooth] = 16.0f; stereo[lfoDelay] = 4.0f; const auto extremes = render(stereo, length);
+    bool finite = true;
+    for (int c = 0; c < extremes.getNumChannels(); ++c)
+        for (int i = 0; i < length; ++i) finite &= std::isfinite(extremes.getSample(c, i)) && std::abs(extremes.getSample(c, i)) <= 1.0f;
+    check(finite, "Maximum LFO smooth/delay and negative stereo stay finite and bounded");
+    auto rich = vibrato; rich[lfoStereo] = 0.4f; rich[oscAUnison] = 0.7f;
+    const auto richStereo = render(rich, length);
+    SynthEngine monoEngine; monoEngine.prepare(rate, 512);
+    juce::AudioBuffer<float> mono(1, length); juce::MidiBuffer monoMidi;
+    monoMidi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(100)), 0);
+    monoEngine.process(mono, monoMidi, rich);
+    double monoError = 0.0;
+    for (int i = 0; i < length; ++i)
+        monoError += std::abs(mono.getSample(0, i) - 0.5f * (richStereo.getSample(0, i) + richStereo.getSample(1, i)));
+    check(monoError / length < 1.0e-6, "Stereo unison and LFO downmix safely to mono");
+}
 void testPresets()
 {
     auto values = vanta::defaultValues();
@@ -409,6 +536,9 @@ void testPresets()
     values[vanta::oscBTune] = -12.0f; values[vanta::oscBFine] = 17.0f; values[vanta::oscBPan] = -0.75f;
     values[vanta::oscDEnabled] = 1.0f; values[vanta::oscHEnabled] = 1.0f;
     values[vanta::chorusEnabled] = 1.0f; values[vanta::chorusRate] = 1.7f;
+    values[vanta::ampAttackWide] = 32.0f; values[vanta::ampAttackWideActive] = 1.0f;
+    values[vanta::lfoSmooth] = 16.0f; values[vanta::lfoDelay] = 4.0f; values[vanta::lfoStereo] = -0.5f;
+    values[vanta::oscHUnison] = 0.5f; values[vanta::oscHPhase] = 1.0f;
     const auto encoded = vanta::PresetCodec::encode("My patch", values);
     auto decoded = vanta::PresetCodec::decode(encoded, ".vanta");
     check(decoded.ok && decoded.name == "My patch", "Native preset round-trip loads name");
@@ -446,6 +576,7 @@ int main()
     testAmpEnvelope();
     testAudio();
     testOscillators();
+    testVitalRanges();
     testPresets();
     std::cout << "All VANTA tests passed.\n";
     return 0;

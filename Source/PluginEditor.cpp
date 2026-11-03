@@ -119,13 +119,13 @@ void drawEnvelope(juce::Graphics& g, juce::Rectangle<float> area, const vanta::P
     graphBackground(g, area);
     auto r = area.reduced(16.0f, 17.0f);
     // Sustain has no fixed duration; half a second is used solely for display.
-    const float total = p[vanta::ampDelay] + p[vanta::attack] + p[vanta::ampHold]
-                      + p[vanta::decay] + 0.5f + p[vanta::release];
+    const float attack = vanta::envelopeTime(p, 0), decay = vanta::envelopeTime(p, 1), release = vanta::envelopeTime(p, 2);
+    const float total = p[vanta::ampDelay] + attack + p[vanta::ampHold] + decay + 0.5f + release;
     const float x0 = r.getX();
     const float xDelay = x0 + r.getWidth() * p[vanta::ampDelay] / total;
-    const float xAttack = xDelay + r.getWidth() * p[vanta::attack] / total;
+    const float xAttack = xDelay + r.getWidth() * attack / total;
     const float xHold = xAttack + r.getWidth() * p[vanta::ampHold] / total;
-    const float xDecay = xHold + r.getWidth() * p[vanta::decay] / total;
+    const float xDecay = xHold + r.getWidth() * decay / total;
     const float xSustain = xDecay + r.getWidth() * 0.5f / total;
     const float low = r.getBottom(), high = r.getY();
     const float sustainY = low - r.getHeight() * p[vanta::sustain];
@@ -492,7 +492,16 @@ void VantaKnob::configure(juce::AudioProcessorValueTreeState& state, vanta::Para
     slider.setTitle(vanta::parameterSpecs[parameter].name);
     slider.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[parameter].id));
     slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name) + " - drag to adjust, double-click to reset");
+    if (parameter == vanta::lfoSmooth) slider.setTooltip("Pitch LFO smoothing time; 0 bypasses smoothing");
+    if (parameter == vanta::lfoDelay) slider.setTooltip("Wait before the pitch LFO starts on each note");
+    if (parameter == vanta::lfoStereo) slider.setTooltip("Pitch LFO left/right phase offset in cycles (-0.5 to +0.5)");
+    for (int layer = 0; layer < vanta::oscillatorCount; ++layer)
+    {
+        if (parameter == vanta::oscillatorUnison(layer)) slider.setTooltip("Three-voice detune: 0% is one voice, 100% is +/-50 cents");
+        if (parameter == vanta::oscillatorPhase(layer)) slider.setTooltip("Start phase for new notes; 100% wraps to 0%. For samples this selects the starting position.");
+    }
     slider.onValueChange = [this] { if (onValueChanged) onValueChanged(); };
+    slider.onUserValueChanged = [this] { if (onUserValueChanged) onUserValueChanged(); };
     slider.getProperties().set("faceLabel", labelText);
     label.setText({}, juce::dontSendNotification);
     label.setFont(juce::FontOptions(10.0f, juce::Font::bold));
@@ -504,9 +513,14 @@ void VantaKnob::configure(juce::AudioProcessorValueTreeState& state, vanta::Para
     slider.textFromValueFunction = [parameter](double value)
     {
         if (parameter == vanta::cutoff || parameter == vanta::fxFilterCutoff) return value >= 1000.0 ? juce::String(value / 1000.0, 1) + " kHz" : juce::String(value, 0) + " Hz";
-        if (parameter == vanta::ampDelay || parameter == vanta::attack || parameter == vanta::ampHold
-            || parameter == vanta::decay || parameter == vanta::release || parameter == vanta::delayTime)
+        if (parameter == vanta::ampDelay || parameter == vanta::ampAttackWide || parameter == vanta::ampHold
+            || parameter == vanta::ampDecayWide || parameter == vanta::ampReleaseWide
+            || parameter == vanta::lfoSmooth || parameter == vanta::lfoDelay)
+            return juce::String(value, 3) + " s";
+        if (parameter == vanta::delayTime)
             return value < 1.0 ? juce::String(value * 1000.0, 0) + " ms" : juce::String(value, 2) + " s";
+        if (parameter == vanta::sustain || parameter == vanta::lfoStereo)
+            return juce::String(value, 3);
         if (parameter == vanta::vibratoRate || parameter == vanta::chorusRate || parameter == vanta::flangerRate || parameter == vanta::phaserRate)
             return juce::String(value, 2) + " Hz";
         if (parameter == vanta::eqLow || parameter == vanta::eqMid || parameter == vanta::eqHigh)
@@ -516,13 +530,21 @@ void VantaKnob::configure(juce::AudioProcessorValueTreeState& state, vanta::Para
         {
             if (parameter == vanta::oscillatorTune(layer)) return juce::String(value, 0) + " st";
             if (parameter == vanta::oscillatorFine(layer)) return juce::String(value, 0) + " ct";
-            if (parameter == vanta::oscillatorPan(layer))
-                return std::abs(value) < 0.005 ? juce::String("C") : juce::String(value < 0 ? "L " : "R ") + juce::String(std::abs(value) * 100.0, 0);
+            if (parameter == vanta::oscillatorPan(layer)) return juce::String(value * 100.0, 1);
+            if (parameter == vanta::oscillatorLevel(layer)) return juce::String(value, 3);
+            if (parameter == vanta::oscillatorUnison(layer) || parameter == vanta::oscillatorPhase(layer))
+                return juce::String(value * 100.0, 1) + "%";
         }
         return juce::String(value * 100.0, 0) + "%";
     };
 }
 void VantaKnob::setCaption(const juce::String& caption) { label.setText(caption, juce::dontSendNotification); }
+void VantaKnob::setDisplayedValue(double value)
+{
+    // Follow legacy automation until this full-range control takes over.
+    // Do not notify its attachment or disturb an in-progress gesture.
+    if (!slider.isMouseButtonDown()) slider.setValue(value, juce::dontSendNotification);
+}
 void VantaKnob::resized()
 {
     auto area = getLocalBounds();
@@ -753,7 +775,7 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
     levelSlider.setTitle("Master level"); levelSlider.setComponentID("parameter-level"); levelSlider.setTooltip("Master output level"); canvas->addAndMakeVisible(levelSlider);
     levelSlider.onValueChange = [this] { repaint(); };
     levelAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state, "level", levelSlider);
-    const vanta::Parameter miniIds[] = { vanta::decay, vanta::sustain, vanta::vibratoRate };
+    const vanta::Parameter miniIds[] = { vanta::ampDecayWide, vanta::sustain, vanta::vibratoRate };
     for (int i = 0; i < 3; ++i)
     {
         auto& slider = mainMiniSliders[static_cast<std::size_t>(i)];
@@ -763,7 +785,9 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         slider.setTitle(vanta::parameterSpecs[parameter].name);
         slider.setComponentID("parameter-" + juce::String(vanta::parameterSpecs[parameter].id));
         slider.setTooltip(juce::String(vanta::parameterSpecs[parameter].name));
-        slider.onValueChange = [this] { repaint(); }; canvas->addAndMakeVisible(slider);
+        slider.onValueChange = [this] { repaint(); };
+        if (i == 0) slider.onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(1); };
+        canvas->addAndMakeVisible(slider);
         mainMiniAttachments[static_cast<std::size_t>(i)] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             processor.state, vanta::parameterSpecs[parameter].id, slider);
     }
@@ -791,9 +815,10 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
         auto& tab = oscillatorTabs[i]; configureButton(tab, "OSC " + letter, "filter");
         tab.setComponentID("osc-tab-" + letter); tab.setTooltip("Edit oscillator " + letter);
         tab.onClick = [this, layer] { selectedOsc = layer; refresh(); };
-        const vanta::Parameter ids[] = { vanta::oscillatorLevel(layer), vanta::oscillatorTune(layer), vanta::oscillatorFine(layer), vanta::oscillatorPan(layer) };
-        const char* labels[] = { "LEVEL", "SEMITONE", "FINE", "PAN" };
-        for (int k = 0; k < 4; ++k)
+        const vanta::Parameter ids[] = { vanta::oscillatorLevel(layer), vanta::oscillatorTune(layer), vanta::oscillatorFine(layer), vanta::oscillatorPan(layer),
+                                         vanta::oscillatorUnison(layer), vanta::oscillatorPhase(layer) };
+        const char* labels[] = { "LEVEL", "SEMITONE", "FINE", "PAN", "UNISON", "PHASE" };
+        for (int k = 0; k < 6; ++k)
         {
             auto& knob = oscillatorKnobs[i][static_cast<std::size_t>(k)]; knob.configure(processor.state, ids[k], labels[k]);
             knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
@@ -864,23 +889,30 @@ VantaEditor::VantaEditor(VantaProcessor& owner) : AudioProcessorEditor(owner), p
             knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
         }
     }
-    const vanta::Parameter mainIds[] = { vanta::cutoff, vanta::resonance, vanta::attack, vanta::decay, vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
+    const vanta::Parameter mainIds[] = { vanta::cutoff, vanta::resonance, vanta::ampAttackWide, vanta::ampDecayWide, vanta::sustain, vanta::ampReleaseWide, vanta::vibrato, vanta::vibratoRate };
     const char* mainNames[] = { "CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
     for (int i = 0; i < 8; ++i)
     {
         auto& knob = mainKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, mainIds[i], mainNames[i]);
         knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
     }
+    mainKnobs[2].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(0); };
+    mainKnobs[3].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(1); };
+    mainKnobs[5].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(2); };
     mainKnobs[0].setCaption("FILTER"); mainKnobs[1].setCaption("FILTER");
     mainKnobs[2].setCaption("ENVELOPE"); mainKnobs[5].setCaption("ENVELOPE"); mainKnobs[6].setCaption("PITCH");
-    const vanta::Parameter modIds[] = { vanta::ampDelay, vanta::attack, vanta::ampHold, vanta::decay,
-                                         vanta::sustain, vanta::release, vanta::vibrato, vanta::vibratoRate };
-    const char* modNames[] = { "DELAY", "ATTACK", "HOLD", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE" };
-    for (int i = 0; i < 8; ++i)
+    const vanta::Parameter modIds[] = { vanta::ampDelay, vanta::ampAttackWide, vanta::ampHold, vanta::ampDecayWide,
+                                         vanta::sustain, vanta::ampReleaseWide, vanta::vibrato, vanta::vibratoRate,
+                                         vanta::lfoSmooth, vanta::lfoDelay, vanta::lfoStereo };
+    const char* modNames[] = { "DELAY", "ATTACK", "HOLD", "DECAY", "SUSTAIN", "RELEASE", "VIBRATO", "RATE", "SMOOTH", "DELAY", "STEREO" };
+    for (int i = 0; i < 11; ++i)
     {
         auto& knob = modulationKnobs[static_cast<std::size_t>(i)]; knob.configure(processor.state, modIds[i], modNames[i]);
         knob.onValueChanged = [this] { repaint(); }; canvas->addAndMakeVisible(knob);
     }
+    modulationKnobs[1].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(0); };
+    modulationKnobs[3].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(1); };
+    modulationKnobs[5].onUserValueChanged = [this] { processor.touchWideEnvelopeFromUI(2); };
 
     if (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
@@ -1045,10 +1077,25 @@ void VantaEditor::timerCallback()
         needsRefresh = true;
     }
     const auto values = processor.currentValues();
+    syncEnvelopeDisplays(values);
     int mask = 0;
     for (int i = 0; i < vanta::oscillatorCount; ++i) if (vanta::oscillatorIsEnabled(values, i)) mask |= 1 << i;
     if (mask != lastOscMask || waveform.getSelectedId() != (values[vanta::oscillatorSample(selectedOsc)] >= 0.5f ? 6 : values[vanta::oscillatorTable(selectedOsc)] >= 0.5f ? 5 : vanta::oscillatorShape(values, selectedOsc) + 1)) needsRefresh = true;
     if (needsRefresh) refresh(); else repaint();
+}
+void VantaEditor::syncEnvelopeDisplays(const vanta::ParameterValues& values)
+{
+    for (int stage = 0; stage < 3; ++stage)
+        if (values[vanta::wideEnvelopeFlags[static_cast<std::size_t>(stage)]] < 0.5f)
+        {
+            const auto value = vanta::envelopeTime(values, stage);
+            const int mainIndex = stage == 0 ? 2 : stage == 1 ? 3 : 5;
+            const int modIndex = stage == 0 ? 1 : stage == 1 ? 3 : 5;
+            mainKnobs[static_cast<std::size_t>(mainIndex)].setDisplayedValue(value);
+            modulationKnobs[static_cast<std::size_t>(modIndex)].setDisplayedValue(value);
+            if (stage == 1 && !mainMiniSliders[0].isMouseButtonDown())
+                mainMiniSliders[0].setValue(value, juce::dontSendNotification);
+        }
 }
 void VantaEditor::selectPage(int p) { page = p; browserOpen = false; refresh(); }
 void VantaEditor::setParameter(vanta::Parameter id, float value)
@@ -1097,6 +1144,7 @@ void VantaEditor::setWaveform(int shape)
 void VantaEditor::refresh()
 {
     const auto values = processor.currentValues();
+    syncEnvelopeDisplays(values);
     if (!vanta::oscillatorIsEnabled(values, selectedOsc))
         for (int i = 0; i < vanta::oscillatorCount; ++i)
             if (vanta::oscillatorIsEnabled(values, i)) { selectedOsc = i; break; }
@@ -1266,7 +1314,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
     g.setColour(juce::Colour(0xffffe0c4)); g.fillPath(mark);
     g.setColour(accent); g.fillRect(46, 51, 4, 2);
     text(g, "VANTA", 66, 19, 162, 29, 23.0f, textPrimary, juce::Font::bold);
-    mono(g, "SOFTWARE INSTRUMENT / 13", 67, 48, 210, 12, 8.5f, textSecondary);
+    mono(g, "SOFTWARE INSTRUMENT / 14", 67, 48, 210, 12, 8.5f, textSecondary);
     g.setColour(juce::Colour(0xff150b0c)); g.fillRoundedRectangle(500.0f, 17.0f, 480.0f, 37.0f, 3.0f);
     g.setColour(juce::Colour(0xff451417)); g.drawRoundedRectangle(500.5f, 17.5f, 479.0f, 36.0f, 3.0f, 1.0f);
     g.setColour(juce::Colour(0xff41090b)); g.fillRect(500, 63, 350, 2);
@@ -1319,9 +1367,9 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         drawEnvelope(g, { 44.0f, 498.0f, 440.0f, 98.0f }, values);
         drawLfo(g, { 516.0f, 498.0f, 440.0f, 98.0f }, values);
         auto seconds = [](float v) { return v < 1.0f ? juce::String(v * 1000.0f, 0) + " ms" : juce::String(v, 2) + " s"; };
-        const juce::String stages[] = { "DL " + seconds(values[vanta::ampDelay]), "A " + seconds(values[vanta::attack]),
-                                       "H " + seconds(values[vanta::ampHold]), "D " + seconds(values[vanta::decay]),
-                                       "S " + juce::String(values[vanta::sustain] * 100.0f, 0) + "%", "R " + seconds(values[vanta::release]) };
+        const juce::String stages[] = { "DL " + seconds(values[vanta::ampDelay]), "A " + seconds(vanta::envelopeTime(values, 0)),
+                                       "H " + seconds(values[vanta::ampHold]), "D " + seconds(vanta::envelopeTime(values, 1)),
+                                       "S " + juce::String(values[vanta::sustain], 3), "R " + seconds(vanta::envelopeTime(values, 2)) };
         for (int i = 0; i < 6; ++i)
             mono(g, stages[i], 44 + i * 73, 603, 72, 15, 8.0f, textMuted);
         mono(g, "DEPTH  " + juce::String(values[vanta::vibrato] * 100.0f, 0) + "%", 516, 603, 115, 15, 9.0f, textMuted);
@@ -1332,8 +1380,8 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         text(g, "DECAY", 51, 630, 38, 15, 8.0f, textSecondary, juce::Font::bold);
         text(g, "SUSTAIN", 272, 630, 43, 15, 8.0f, textSecondary, juce::Font::bold);
         text(g, "RATE", 523, 630, 42, 15, 8.0f, textSecondary, juce::Font::bold);
-        mono(g, seconds(values[vanta::decay]), 201, 630, 52, 15, 8.0f, textPrimary, juce::Justification::centredRight);
-        mono(g, juce::String(values[vanta::sustain] * 100.0f, 0) + "%", 428, 630, 49, 15, 8.0f, textPrimary, juce::Justification::centredRight);
+        mono(g, seconds(vanta::envelopeTime(values, 1)), 201, 630, 52, 15, 8.0f, textPrimary, juce::Justification::centredRight);
+        mono(g, juce::String(values[vanta::sustain], 3), 428, 630, 49, 15, 8.0f, textPrimary, juce::Justification::centredRight);
         mono(g, juce::String(values[vanta::vibratoRate], 1) + " Hz", 870, 630, 79, 15, 8.0f, textPrimary, juce::Justification::centredRight);
     }
     else if (page == 1)
@@ -1360,7 +1408,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         text(g, "03", 642, 584, 22, 17, 10.0f, accent, juce::Font::bold);
         text(g, "IMPORTED SOURCES", 667, 584, 250, 17, 10.0f, textSecondary, juce::Font::bold);
         mono(g, "WAVETABLE / SAMPLE WHEN AVAILABLE", 642, 612, 306, 16, 9.0f, textMuted);
-        mono(g, "UNISON + EXTRA ENGINES / PLANNED", 642, 632, 306, 16, 9.0f, textMuted);
+        mono(g, "UNISON: 3 DETUNED VOICES / PHASE PER NOTE", 642, 632, 306, 16, 9.0f, textMuted);
     }
     else if (page == 2)
     {
@@ -1390,11 +1438,11 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         text(g, "01", 44, 302, 25, 17, 10.0f, accent, juce::Font::bold);
         text(g, "AMPLITUDE ENVELOPE", 69, 302, 310, 17, 10.0f, textSecondary, juce::Font::bold);
         text(g, "02", 516, 302, 25, 17, 10.0f, accent, juce::Font::bold);
-        text(g, "PITCH VIBRATO", 541, 302, 310, 17, 10.0f, textSecondary, juce::Font::bold);
+        text(g, "PITCH LFO / VIBRATO", 541, 302, 310, 17, 10.0f, textSecondary, juce::Font::bold);
         drawEnvelope(g, { 44.0f, 335.0f, 440.0f, 122.0f }, values);
         drawLfo(g, { 516.0f, 335.0f, 440.0f, 122.0f }, values);
         mono(g, "ONE SHARED AMPLITUDE ENVELOPE", 44, 600, 420, 15, 9.0f, textMuted);
-        mono(g, "IMPORTED LFO ROUTES PLAY / EDITING PLANNED", 516, 600, 438, 15, 9.0f, textMuted);
+        mono(g, "LFO CONTROLS APPLY TO PITCH VIBRATO", 516, 600, 438, 15, 9.0f, textMuted);
         panel(g, 32.0f, 636.0f, 936.0f, 26.0f);
         text(g, "MIDI INPUT", 44, 641, 90, 16, 9.0f, textSecondary, juce::Font::bold);
         mono(g, "VELOCITY > AMP   /   PITCH BEND +/-2 ST   /   SUSTAIN CC64", 137, 641, 800, 16, 9.0f, textMuted);
@@ -1459,7 +1507,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
         mono(g, "POLY / 16 VOICES", 44, 390, 380, 20, 10.0f, textPrimary);
         mono(g, "VELOCITY / SUSTAIN / PITCH BEND +/-2", 44, 418, 400, 20, 10.0f, textMuted);
         mono(g, "UP TO 8 LAYERS / GLOBAL FILTER AND FX", 44, 446, 410, 20, 10.0f, textMuted);
-        mono(g, "VANTA BETA 0.13", 44, 622, 300, 18, 10.0f, textMuted);
+        mono(g, "VANTA BETA 0.14", 44, 622, 300, 18, 10.0f, textMuted);
         text(g, "02 / PRESET SUPPORT", 516, 307, 380, 20, 10.0f, textSecondary, juce::Font::bold);
         mono(g, ".VANTA  /  SAVE + LOAD", 516, 343, 380, 22, 10.0f, textPrimary);
         mono(g, ".VITAL  /  PARTIAL IMPORT", 516, 376, 380, 22, 10.0f, textSecondary);
@@ -1475,7 +1523,7 @@ void VantaEditor::paintCanvas(juce::Graphics& g)
     }
     const int footerY = baseHeight() - 23;
     mono(g, "VANTA / SOFTWARE SYNTHESIZER", 18, footerY, 450, 16, 9.0f, textSecondary);
-    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.13" : "VST3 / BETA 0.13", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
+    mono(g, standaloneKeyboard ? "STANDALONE / BETA 0.14" : "VST3 / BETA 0.14", 750, footerY, 232, 16, 9.0f, textSecondary, juce::Justification::centredRight);
 }
 void VantaEditor::layoutCanvas()
 {
@@ -1506,7 +1554,7 @@ void VantaEditor::layoutCanvas()
     {
         const auto i = static_cast<std::size_t>(layer);
         if (oscillatorTabs[i].isVisible()) oscillatorTabs[i].setBounds(32 + shown++ * 59, 289, 55, 25);
-        for (int k = 0; k < 4; ++k) oscillatorKnobs[i][static_cast<std::size_t>(k)].setBounds(48 + k * 139, 520, 112, 103);
+        for (int k = 0; k < 6; ++k) oscillatorKnobs[i][static_cast<std::size_t>(k)].setBounds(42 + k * 95, 520, 90, 103);
         tablePositions[i].setBounds(148, 629, 440, 22);
         const int x = 32 + (layer % 4) * 236, y = 312 + (layer / 4) * 146;
         mixerEnabled[i].setBounds(x + 11, y + 101, 65, 25);
@@ -1525,7 +1573,7 @@ void VantaEditor::layoutCanvas()
             effectKnobs[i][static_cast<std::size_t>(k)].setBounds(250 + k * 170, 490, 124, 114);
     }
     for (int i = 0; i < 6; ++i) modulationKnobs[static_cast<std::size_t>(i)].setBounds(44 + i * 73, 470, 72, 114);
-    modulationKnobs[6].setBounds(590, 470, 112, 114); modulationKnobs[7].setBounds(767, 470, 112, 114);
+    for (int i = 0; i < 5; ++i) modulationKnobs[static_cast<std::size_t>(i + 6)].setBounds(516 + i * 88, 470, 84, 114);
     for (int i = 0; i < 4; ++i) folders[static_cast<std::size_t>(i)].setBounds(43, 349 + i * 42, 160, 34);
     presetSearch.setBounds(228, 313, 726, 29);
     int row = 0;

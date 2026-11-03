@@ -1,11 +1,11 @@
-#define AppName "Vanta Beta 0.13"
-#define AppVersion "0.13.0"
+#define AppName "Vanta Beta 0.14"
+#define AppVersion "0.14.0"
 #define CurrentBeta 13
 #define PluginBundle "build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3"
 #define StandaloneExe "build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe"
 
 [Setup]
-; Keep this beta's uninstall entry separate from earlier betas.
+; Reuse the 0.13 AppId and paths for safe in-place upgrades.
 AppId={{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}
 AppName={#AppName}
 AppVersion={#AppVersion}
@@ -17,7 +17,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 OutputDir=installer-output
-OutputBaseFilename=Vanta-Beta-0.13-Setup
+OutputBaseFilename=Vanta-Beta-0.14-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

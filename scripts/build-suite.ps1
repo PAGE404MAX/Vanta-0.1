@@ -35,6 +35,13 @@ switch ($Part) {
         Checked 'Test Sidechain' 'ctest' @('--test-dir','build/sidechain','-C','Release','--output-on-failure','--no-tests=error')
     }
     'package' {
+        # Do not publish an upgrade installer until every released 0.13.2
+        # binary/manifest is verified against its exact published bytes.
+        $source = Get-Content -LiteralPath 'suite-installer.iss' -Raw
+        if ($source -match '(?m)^#define Legacy132\w+Hash\s+""') {
+            Write-Output '::error title=Suite upgrade verification incomplete::Published 0.13.2 hashes must be verified before packaging.'
+            exit 1
+        }
         $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
         Checked 'Compile legacy VANTA fixture' $iscc @('installer.iss')
         Checked 'Compile legacy Laggify fixture' $iscc @('Laggify VST Effect/installer/Laggify.iss')

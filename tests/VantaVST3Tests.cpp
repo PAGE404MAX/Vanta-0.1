@@ -18,6 +18,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
+#include <set>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -32,6 +35,19 @@ void check(bool condition, const char* message)
     std::cout << "PASS: " << message << '\n';
 }
 bool isId(const TUID actual, const TUID expected) { return std::memcmp(actual, expected, sizeof(TUID)) == 0; }
+uint32_t juceId(const char* text)
+{
+    uint32_t hash = 0;
+    while (*text) hash = hash * 31u + static_cast<unsigned char>(*text++);
+    // JUCE's default Studio One compatibility mask is part of the published IDs.
+    return hash & 0x7fffffffu;
+}
+std::string asAscii(const String128 text)
+{
+    std::string result;
+    for (int n = 0; n < 128 && text[n] != 0; ++n) result += static_cast<char>(text[n]);
+    return result;
+}
 
 // These objects live on the stack for the entire plugin lifetime; the simple
 // reference counts let the plugin retain/release them as it would a real host.
@@ -146,6 +162,13 @@ int main(int argc, char** argv)
         if (factory->getClassInfo(i, &info) == kResultOk && !std::strcmp(info.category, "Audio Module Class"))
         { found = true; break; }
     check(found, "Audio class found");
+#if defined(_WIN32)
+    const std::uint8_t stableClassId[] { 0x01,0xef,0xcd,0xab,0x82,0x91,0xeb,0xfa,0x56,0x6e,0x74,0x61,0x56,0x6e,0x74,0x62 };
+#else
+    const std::uint8_t stableClassId[] { 0xab,0xcd,0xef,0x01,0x91,0x82,0xfa,0xeb,0x56,0x6e,0x74,0x61,0x56,0x6e,0x74,0x62 };
+#endif
+    check(std::memcmp(info.cid, stableClassId, sizeof(stableClassId)) == 0, "VST3 instrument class ID is unchanged from Beta 0.13");
+    check(std::string(info.name) == "Vanta Beta 0.14", "VST3 identifies itself as Beta 0.14 while retaining its installation path");
 
     IComponent* component = nullptr;
     check(factory->createInstance(info.cid, INLINE_UID_OF(IComponent), reinterpret_cast<void**>(&component)) == kResultOk && component,
@@ -166,12 +189,16 @@ int main(int argc, char** argv)
 
     bool ampDelay = false, ampHold = false, fxDelay = false, parameterInfoValid = true;
     ParamID delayId = 0, holdId = 0, fxDelayId = 0;
+    std::map<std::string, ParameterInfo> parameters;
+    std::set<ParamID> uniqueIds;
+    bool noIdCollisions = true;
     for (int i = 0; i < controller->getParameterCount(); ++i)
     {
         ParameterInfo parameter {};
         if (controller->getParameterInfo(i, parameter) != kResultOk) { parameterInfoValid = false; continue; }
-        std::string title;
-        for (int n = 0; n < 128 && parameter.title[n] != 0; ++n) title += static_cast<char>(parameter.title[n]);
+        const auto title = asAscii(parameter.title);
+        parameters[title] = parameter;
+        noIdCollisions &= uniqueIds.insert(parameter.id).second;
         if (title == "Amp Envelope Delay")
         {
             ampDelay = (parameter.flags & ParameterInfo::kCanAutomate) != 0 && parameter.defaultNormalizedValue == 0.0;
@@ -186,6 +213,43 @@ int main(int argc, char** argv)
     }
     check(parameterInfoValid && ampDelay && ampHold && fxDelay && delayId != holdId && delayId != fxDelayId && holdId != fxDelayId,
           "VST3 exposes separate zero-default automatable amp delay/hold and FX delay parameters");
+
+    check(noIdCollisions, "VST3 parameter IDs remain unique after the additions");
+    const std::pair<const char*, const char*> oldIds[] = {
+        { "Attack", "attack" }, { "Decay", "decay" }, { "Release", "release" },
+        { "Osc A Level", "oscALevel" }, { "Osc A Pan", "oscAPan" }
+    };
+    bool legacyIdsStable = true;
+    for (const auto& [title, id] : oldIds)
+        legacyIdsStable &= parameters.count(title) != 0 && parameters[title].id == juceId(id)
+                           && (parameters[title].flags & ParameterInfo::kCanAutomate) != 0;
+    check(legacyIdsStable, "Original VST3 parameter IDs and automation remain available");
+    const std::pair<const char*, const char*> newIds[] = {
+        { "Amp Envelope Attack", "ampAttackWide" }, { "Amp Envelope Decay", "ampDecayWide" },
+        { "Amp Envelope Release", "ampReleaseWide" }, { "Pitch LFO Smooth", "lfoSmooth" },
+        { "Pitch LFO Delay", "lfoDelay" }, { "Pitch LFO Stereo", "lfoStereo" },
+        { "Osc A Unison", "oscAUnison" }, { "Osc H Phase", "oscHPhase" }
+    };
+    bool newIdsValid = true;
+    for (const auto& [title, id] : newIds)
+        newIdsValid &= parameters.count(title) != 0 && parameters[title].id == juceId(id)
+                       && (parameters[title].flags & ParameterInfo::kCanAutomate) != 0;
+    check(newIdsValid, "VST3 exposes separate automatable envelope, pitch LFO and oscillator parameters");
+    bool flagsHiddenFromAutomation = true;
+    for (const auto* title : { "Attack Full Range Active", "Decay Full Range Active", "Release Full Range Active" })
+        flagsHiddenFromAutomation &= parameters.count(title) != 0 && (parameters[title].flags & ParameterInfo::kCanAutomate) == 0;
+    check(flagsHiddenFromAutomation, "Envelope compatibility flags cannot be automated by the host");
+    String128 text {};
+    const auto attackId = parameters["Amp Envelope Attack"].id;
+    check(controller->getParamStringByValue(attackId, 1.0, text) == kResultOk && std::stod(asAscii(text)) == 32.0,
+          "VST3 attack parameter's maximum displays 32 seconds");
+    check(controller->setParamNormalized(attackId, 0.8) == kResultOk, "Host automates full-range attack without opening the editor");
+    StateStream automatedState;
+    check(component->getState(&automatedState) == kResultOk, "Save automated full-range state from the VST3");
+    const std::string stateText(automatedState.bytes.begin(), automatedState.bytes.end());
+    const auto flagAt = stateText.find("ampAttackWideActive");
+    check(flagAt != std::string::npos && stateText.substr(flagAt, 96).find("value=\"1") != std::string::npos,
+          "VST3 component state remembers the newly automated full-range stage");
 
     auto* view = controller->createView(ViewType::kEditor); check(view != nullptr, "Create editor view");
     ViewRect bounds {};

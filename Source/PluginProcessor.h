@@ -7,13 +7,13 @@
 #include "PresetCodec.h"
 #include "SynthEngine.h"
 
-class VantaProcessor final : public juce::AudioProcessor
+class VantaProcessor final : public juce::AudioProcessor, private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     VantaProcessor();
-    ~VantaProcessor() override = default;
+    ~VantaProcessor() override;
 
-    const juce::String getName() const override { return "Vanta Beta 0.13"; }
+    const juce::String getName() const override { return "Vanta Beta 0.14"; }
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -42,6 +42,9 @@ public:
     vanta::PresetResult loadPresetFile(const juce::File&);
     juce::Result savePresetFile(const juce::File&);
     juce::String presetName() const;
+    // Marks a genuine UI gesture even when its value equals the wide parameter's
+    // existing value (for example a double-click reset on a legacy project).
+    void touchWideEnvelopeFromUI(int stage);
     // UI-only size, kept separately from parameters and never read by the audio callback.
     int editorScalePercent() const noexcept { return uiScale.load(std::memory_order_relaxed); }
     void setEditorScalePercent(int percent) noexcept { uiScale.store(juce::jlimit(vanta::minEditorScale, vanta::maxEditorScale, percent), std::memory_order_relaxed); }
@@ -55,6 +58,9 @@ public:
     juce::MidiKeyboardState keyboardState;
 
 private:
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
+    std::atomic<unsigned> wideEnvelopeTouched { 0 };
+    std::atomic<bool> applyingState { false };
     std::atomic<int> uiScale { vanta::defaultEditorScale };
     vanta::SynthEngine engine;
     std::array<std::atomic<float>*, vanta::parameterCount> rawParameters {};

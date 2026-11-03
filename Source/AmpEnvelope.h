@@ -20,7 +20,17 @@ public:
         adsr.setSampleRate(sampleRate);
     }
 
-    void setParameters(const juce::ADSR::Parameters& parameters) { adsr.setParameters(parameters); }
+    void setParameters(const juce::ADSR::Parameters& parameters)
+    {
+        realParameters = parameters;
+        auto applied = parameters;
+        // A host may automate attack to zero while a delayed/held note is
+        // still approaching its peak. Preserve the hold in that case too.
+        instantAttackForHold = waitingForPeak && applied.attack <= 0.0f;
+        if (instantAttackForHold)
+            applied.attack = static_cast<float>(0.5 / sampleRate);
+        adsr.setParameters(applied);
+    }
     void setDelayAndHold(float delay, float hold) noexcept
     {
         delaySeconds = boundedTime(delay);
@@ -33,6 +43,16 @@ public:
         holdLength = toSamples(holdSeconds);
         holdRemaining = 0;
         waitingForPeak = holdLength > 0;
+        // JUCE skips straight past the peak for zero attack. Give it a
+        // one-sample attack only when needed to anchor a real hold at 1.0.
+        // The peak sample is counted as the first hold sample below.
+        instantAttackForHold = waitingForPeak && realParameters.attack <= 0.0f;
+        if (instantAttackForHold)
+        {
+            auto applied = realParameters;
+            applied.attack = static_cast<float>(0.5 / sampleRate);
+            adsr.setParameters(applied);
+        }
         adsr.noteOn();
     }
 
@@ -44,6 +64,8 @@ public:
         holdRemaining = 0;
         waitingForPeak = false;
         adsr.noteOff();
+        if (instantAttackForHold) adsr.setParameters(realParameters);
+        instantAttackForHold = false;
     }
 
     void reset() noexcept
@@ -51,6 +73,8 @@ public:
         adsr.reset();
         delayRemaining = holdLength = holdRemaining = 0;
         waitingForPeak = false;
+        if (instantAttackForHold) adsr.setParameters(realParameters);
+        instantAttackForHold = false;
     }
 
     bool isActive() const noexcept { return adsr.isActive(); }
@@ -69,12 +93,13 @@ public:
         }
 
         const auto value = adsr.getNextSample();
-        // The existing attack has a positive minimum, so JUCE emits an exact
-        // peak of one before advancing to decay. Pause it there for the hold.
+        // Pause JUCE at the exact peak before it starts decay.
         if (waitingForPeak && value >= 1.0f)
         {
             waitingForPeak = false;
-            holdRemaining = holdLength;
+            holdRemaining = holdLength - (instantAttackForHold ? 1 : 0);
+            if (instantAttackForHold) adsr.setParameters(realParameters);
+            instantAttackForHold = false;
         }
         return value;
     }
@@ -92,9 +117,10 @@ private:
     }
 
     juce::ADSR adsr;
+    juce::ADSR::Parameters realParameters;
     double sampleRate = 44100.0;
     float delaySeconds = 0.0f, holdSeconds = 0.0f;
     int delayRemaining = 0, holdLength = 0, holdRemaining = 0;
-    bool waitingForPeak = false;
+    bool waitingForPeak = false, instantAttackForHold = false;
 };
 }
