@@ -218,14 +218,16 @@ Engine::Pair Engine::applyEffect(int module, int bandIndex, Pair in, const BandS
         auto& delay = timeDelay[static_cast<std::size_t>(bandIndex)];
         const float samples = static_cast<float>(rate) * (.001f + .25f * amount * v);
         const Pair delayed{delay.tap(0, samples), delay.tap(1, samples)};
-        delay.push(in);
+        const float feedback = detail * .65f;
+        delay.push({in.l + delayed.l * feedback, in.r + delayed.r * feedback});
         const float blend = std::min(1.0f, amount * v * 8.0f);
         wet = {lerp(in.l, delayed.l, blend), lerp(in.r, delayed.r, blend)};
         break;
     }
     case Pan:
     {
-        const float pan = std::clamp((v - .5f) * 2.0f * amount, -1.0f, 1.0f);
+        const float position = std::clamp((v - .5f) * 2.0f * amount, -1.0f, 1.0f);
+        const float pan = std::copysign(std::pow(std::abs(position), .5f + detail), position);
         const float angle = (pan + 1.0f) * pi * .25f;
         wet = {in.l * std::cos(angle) * 1.41421356237f, in.r * std::sin(angle) * 1.41421356237f};
         break;
@@ -233,7 +235,7 @@ Engine::Pair Engine::applyEffect(int module, int bandIndex, Pair in, const BandS
     case Width:
     {
         const float mid = (in.l + in.r) * .5f, side = (in.l - in.r) * .5f;
-        const float width = std::clamp(1.0f + (v - .5f) * 2.0f * amount, 0.0f, 2.0f);
+        const float width = std::clamp(1.0f + (v - .5f) * 2.0f * amount * (.5f + detail), 0.0f, 2.0f);
         wet = {mid + side * width, mid - side * width};
         break;
     }
@@ -278,7 +280,7 @@ Engine::Pair Engine::applyEffect(int module, int bandIndex, Pair in, const BandS
     case Pitch:
     {
         auto& delay = pitchDelay[static_cast<std::size_t>(bandIndex)];
-        const float semitones = (v - .5f) * 48.0f * amount;
+        const float semitones = (v - .5f) * 2.0f * amount * (2.0f + detail * 22.0f);
         const double window = rate * .075, ratio = std::pow(2.0, semitones / 12.0);
         st.pitchPhase += (1.0 - ratio) / window;
         st.pitchPhase -= std::floor(st.pitchPhase);

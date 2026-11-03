@@ -173,10 +173,10 @@ const char* descriptions[] = {
     "Shape stereo width.",          "Add moving noise texture.",         "Animate a phase-like effect.",
     "Sculpt a short stereo space.", "Shift pitch with moving grains.",   "Shape a linked compressor."};
 const char* controlNames[][3] = {
-    {"AMOUNT", "TRIM", "MIX"},   {"DEPTH", "RESONANCE", "MIX"}, {"DRIVE", "TONE", "MIX"},
-    {"BITS", "RATE", "MIX"},     {"OFFSET", "DETAIL", "MIX"},   {"AMOUNT", "DETAIL", "MIX"},
-    {"AMOUNT", "DETAIL", "MIX"}, {"LEVEL", "COLOR", "MIX"},     {"DEPTH", "DETAIL", "MIX"},
-    {"DEPTH", "DECAY", "MIX"},   {"PITCH", "DETAIL", "MIX"},    {"THRESHOLD", "RATIO", "MIX"}};
+    {"AMOUNT", "TRIM", "MIX"},  {"DEPTH", "RESONANCE", "MIX"}, {"DRIVE", "TONE", "MIX"},
+    {"BITS", "RATE", "MIX"},    {"OFFSET", "FEEDBACK", "MIX"}, {"AMOUNT", "CURVE", "MIX"},
+    {"AMOUNT", "RANGE", "MIX"}, {"LEVEL", "COLOR", "MIX"},     {"DEPTH", "DETAIL", "MIX"},
+    {"DEPTH", "DECAY", "MIX"},  {"PITCH", "RANGE", "MIX"},     {"THRESHOLD", "RATIO", "MIX"}};
 const char* bankNames[][8] = {{"TIGHT", "DEEP", "SOFT", "PULSE", "LIFT", "DOUBLE", "BOUNCE", "FLAT"},
                               {"WAVE", "BOUNCE", "RAMP", "FALL", "CHOP", "STAIR", "TRI", "DOUBLE"},
                               {"FLAT", "CENTER", "FLOOR", "RAMP", "FALL", "TRI", "WAVE", "PULSE"}};
@@ -380,8 +380,8 @@ class SidechainEditor::CurveEditor final : public juce::Component
             g.drawEllipse(x - 4, y - 4, 8, 8, 1.4f);
         }
         g.restoreState();
-        mono(g, "0 dB", 13, 12, 60, 14, 9, secondary);
-        mono(g, "-INF", 13, getHeight() - 26, 60, 14, 9, secondary);
+        mono(g, m == sidechain::Volume ? "0 dB" : "100%", 13, 12, 60, 14, 9, secondary);
+        mono(g, m == sidechain::Volume ? "-INF" : "0%", 13, getHeight() - 26, 60, 14, 9, secondary);
         mono(g, owner.showKey ? "KEY INPUT" : "KEY HIDDEN", getWidth() - 110, 12, 95, 14, 9, muted,
              juce::Justification::centredRight);
     }
@@ -1038,6 +1038,8 @@ void SidechainEditor::paintCanvas(juce::Graphics& g)
         juce::String text = juce::String(v * 100, 0) + "%";
         if (m == sidechain::Volume && i == 1)
             text = juce::String((v - .5f) * 48, 0) + " dB";
+        if (m == sidechain::Pitch && i == 1)
+            text = juce::String(2 + v * 22, 0) + " st";
         if (m == sidechain::Compressor && i == 0)
             text = juce::String(-48 + v * 48, 0) + " dB";
         if (m == sidechain::Compressor && i == 1)

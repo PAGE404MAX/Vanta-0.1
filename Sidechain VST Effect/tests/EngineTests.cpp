@@ -210,6 +210,36 @@ int main()
         std::cout << "module " << module << " difference " << diff << '\n';
         check(finite && diff > 1, "Each enabled shaper has an audible finite effect");
     }
+    // Every visible secondary control must change the actual audio, not only
+    // the drawing. Use matched inputs and reset delay/noise state each time.
+    std::vector<float> otherL(count), otherR(count);
+    for (int module = 0; module < moduleCount; ++module)
+    {
+        Settings one;
+        for (auto& m : one.module)
+            m.enabled = false;
+        auto& m = one.module[module];
+        m.enabled = true;
+        m.source = Sync;
+        flat(m, module == Filter ? .15f : module == Time ? .4f : .85f);
+        if (module == Compressor)
+            m.band[0].amount = .3f;
+        m.band[0].detail = 0.0f;
+        engine.reset();
+        a = inputL;
+        b = inputR;
+        engine.process(a.data(), b.data(), nullptr, nullptr, count, one, {120, 0, true});
+        m.band[0].detail = 1.0f;
+        engine.reset();
+        otherL = inputL;
+        otherR = inputR;
+        engine.process(otherL.data(), otherR.data(), nullptr, nullptr, count, one, {120, 0, true});
+        double diff = 0;
+        for (int i = 0; i < count; ++i)
+            diff += std::abs(a[i] - otherL[i]) + std::abs(b[i] - otherR[i]);
+        std::cout << "secondary control " << module << " difference " << diff << '\n';
+        check(diff > 1.0, "Each shaper's secondary control changes audio");
+    }
     Settings fuzz;
     for (int m = 0; m < moduleCount; ++m)
     {
