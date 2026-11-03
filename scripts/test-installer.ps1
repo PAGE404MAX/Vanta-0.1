@@ -23,7 +23,10 @@ $shortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Va
 $uninstallShortcut = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta\Uninstall Vanta Beta 0.13.lnk'
 $unrelated = Join-Path $standardRoot 'Other Synth - Vanta installer test.vst3'
 $similarName = Join-Path $standardRoot 'Vanta Beta 0.6 not-a-vanta-plugin.vst3'
-$registryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
+$registryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1'
+# Beta 0.12 kept its own uninstall entry. Setup and cleanup must preserve it.
+$previousRegistryKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
+$previousRegistryName = 'Vanta Beta 0.12 (installer-test fixture)'
 
 function Bundle([string]$Root, [int]$Beta) { Join-Path $Root "Vanta Beta 0.$Beta.vst3" }
 function Binary([string]$Root, [int]$Beta) {
@@ -85,11 +88,16 @@ $guardPaths = @($destination, $customRoot, $unscannedRoot, $linkTarget, $linkedR
 foreach ($path in $guardPaths) {
     if (Test-Path -LiteralPath $path) { throw "Installer test path already exists: $path" }
 }
-if (Test-Path -LiteralPath $registryKey) { throw "Installer test registry key already exists: $registryKey" }
+if ($registryKey -eq $previousRegistryKey) { throw 'Each beta must have a separate uninstall AppId.' }
+foreach ($key in @($registryKey, $previousRegistryKey)) {
+    if (Test-Path -LiteralPath $key) { throw "Installer test registry key already exists: $key" }
+}
 
 $runningApp = $null
 $lockedStream = $null
 try {
+    New-Item -Path $previousRegistryKey -Force | Out-Null
+    New-ItemProperty -LiteralPath $previousRegistryKey -Name 'DisplayName' -Value $previousRegistryName | Out-Null
     New-Item -ItemType Directory -Path $standardRoot, $customRoot, $unscannedRoot, $outsideData -Force | Out-Null
     [IO.File]::WriteAllText((Bundle $standardRoot 1), 'flat test VST3')
     New-TestBundle $standardRoot 6 'Important Project.flp'
@@ -131,6 +139,7 @@ try {
     Assert-Present (Join-Path $destination 'THIRD_PARTY_NOTICES.md') 'Third-party notices were not installed'
     if ((Get-FileHash -LiteralPath $sourceApp -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $installedApp -Algorithm SHA256).Hash) { throw 'Installed standalone differs from the build.' }
     Assert-Present $registryKey 'Windows Settings uninstall entry is missing'
+    if ((Get-ItemPropertyValue -LiteralPath $previousRegistryKey -Name 'DisplayName') -ne $previousRegistryName) { throw 'Setup changed the Beta 0.12 uninstall entry.' }
     Assert-Present $shortcut 'Standalone Start Menu shortcut is missing'
     Assert-Present $uninstallShortcut 'Uninstaller Start Menu shortcut is missing'
     $shell = New-Object -ComObject WScript.Shell
@@ -266,7 +275,8 @@ try {
         Assert-Present $path 'Uninstall cleanup touched retained data'
     }
     foreach ($path in @($installedApp, $shortcut, $uninstallShortcut, $registryKey)) { Assert-Absent $path 'Final uninstall did not remove an installed item' }
-    Write-Host 'Installer tests passed: consent, old/current/future versions, custom paths, preservation, locked files, junctions, retries, reinstall and uninstall.'
+    if ((Get-ItemPropertyValue -LiteralPath $previousRegistryKey -Name 'DisplayName') -ne $previousRegistryName) { throw 'Uninstall changed the Beta 0.12 uninstall entry.' }
+    Write-Host 'Installer tests passed: consent, old/current/future versions, independent uninstall entries, custom paths, preservation, locked files, junctions, retries, reinstall and uninstall.'
 }
 finally {
     if ($null -ne $lockedStream) { $lockedStream.Dispose() }
@@ -280,5 +290,8 @@ finally {
     Remove-TestJunction $linkedRoot
     foreach ($path in $guardPaths) {
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+    }
+    foreach ($key in @($registryKey, $previousRegistryKey)) {
+        if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
     }
 }

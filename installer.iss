@@ -6,7 +6,7 @@
 
 [Setup]
 ; Keep this beta's uninstall entry separate from earlier betas.
-AppId={{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}
+AppId={{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Vanta

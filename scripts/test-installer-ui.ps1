@@ -49,7 +49,7 @@ $current = Join-Path $root 'Vanta Beta 0.13.vst3'
 $programs = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta'
 $shortcut = Join-Path $programs 'Vanta Beta 0.13.lnk'
 $uninstallShortcut = Join-Path $programs 'Uninstall Vanta Beta 0.13.lnk'
-$reg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
+$reg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1'
 $guard = @($destination, $bundle9, $bundle8, $current, $shortcut, $uninstallShortcut, $reg)
 foreach ($path in $guard) {
     if (Test-Path -LiteralPath $path) { throw "UI test path already exists: $path" }
