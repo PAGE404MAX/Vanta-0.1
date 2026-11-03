@@ -84,7 +84,7 @@ function Run-SetupUi([bool]$KeepOld, [string]$Name) {
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
-            $wizard = [VantaUi]::Top() | Where-Object { $_.ClassName -eq 'TWizardForm' -and $_.Text -match 'Vanta Beta 0\.12' } | Select-Object -First 1
+            $wizard = [VantaUi]::Top() | Where-Object { $_.ClassName -eq 'TWizardForm' -and $_.Text -match 'Vanta Beta 0\.13' } | Select-Object -First 1
             if ($wizard) {
                 $idle = 0
                 $controls = @([VantaUi]::Children($wizard.Handle))
