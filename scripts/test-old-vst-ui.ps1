@@ -114,11 +114,18 @@ function Run-SetupUi([bool]$SearchOld, [bool]$RemoveOld, [string]$Name, [string[
                     }
                     break
                 }
+                if ($text -match 'Older VANTA plugin binaries were removed') {
+                    $handled = $true
+                    $ok = Button $controls 'OK'
+                    if ($ok) { [VantaUi]::Click($ok.Handle) }
+                    break
+                }
                 if ($window.Text -eq 'Older VANTA VSTs found') {
                     $handled = $true
                     if (!$questionSeen -or !$SearchOld) { throw 'Old-version review appeared before the yes/no question.' }
                     if ($reviewSeen) { break }
-                    $memo = $controls | Where-Object { $_.ClassName -match 'Memo' -or $_.Text -match 'No older VANTA VSTs found|Vanta Beta 0\.[0-9]+' } | Select-Object -First 1
+                    $memo = $controls | Where-Object { $_.ClassName -match 'Memo' } | Select-Object -First 1
+                    if (!$memo) { $memo = $controls | Where-Object { $_.ClassName -match 'Edit' -and $_.Text -match 'No older VANTA VSTs found|Vanta Beta 0\.[0-9]+' } | Select-Object -First 1 }
                     $edit = $controls | Where-Object { $_.ClassName -match 'Edit' -and $_.Handle -ne $memo.Handle } | Select-Object -First 1
                     $remove = Button $controls 'Remove listed VSTs' $false
                     $keep = Button $controls 'Keep / Continue'

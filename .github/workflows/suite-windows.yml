@@ -47,8 +47,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Continue'
           foreach ($file in @('installer.iss', 'Laggify VST Effect/installer/Laggify.iss', 'scripts/test-fixtures/legacy-suite-0.13.1.iss', 'suite-installer.iss')) {
-            $defines = if ($file -eq 'suite-installer.iss') { @('/DSuiteTestLegacyFixture') } else { @() }
-            $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" @defines $file 2>&1 | Out-String -Width 4096)
+            [string[]]$arguments = @()
+            if ($file -eq 'suite-installer.iss') { $arguments += '/DSuiteTestLegacyFixture' }
+            $arguments += $file
+            $output = (& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" @arguments 2>&1 | Out-String -Width 4096)
             $code = $LASTEXITCODE; Write-Output $output
             if ($code -ne 0) {
               $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
