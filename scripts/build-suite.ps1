@@ -6,7 +6,9 @@ function Checked([string]$label, [string]$exe, [string[]]$arguments) {
     $code = $LASTEXITCODE
     Write-Output $output
     if ($code -ne 0) {
-        if ($output.Length -gt 40000) { $output = $output.Substring($output.Length - 40000) }
+        # GitHub truncates annotations at about 4096 characters; keep the tail
+        # short enough that the actual compiler or test failure is visible.
+        if ($output.Length -gt 2400) { $output = $output.Substring($output.Length - 2400) }
         $escaped = $output.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
         Write-Output "::error title=$label failed::$escaped"
         exit $code
@@ -27,7 +29,9 @@ switch ($Part) {
     }
     'sidechain' {
         Checked 'Configure Sidechain' 'cmake' @('-S','Sidechain VST Effect','-B','build/sidechain','-A','x64')
-        Checked 'Build Sidechain and tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainEngineTests','SidechainProcessorTests','SidechainVST3Tests','--parallel','2')
+        Checked 'Build Sidechain engine and editor tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainEngineTests','SidechainProcessorTests','--parallel','2')
+        Checked 'Build Sidechain VST3' 'cmake' @('--build','build/sidechain','--config','Release','--target','VantaSidechainFx_VST3','--parallel','2')
+        Checked 'Build Sidechain VST3 host tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainVST3Tests','--parallel','2')
         Checked 'Test Sidechain' 'ctest' @('--test-dir','build/sidechain','-C','Release','--output-on-failure','--no-tests=error')
     }
     'package' {
