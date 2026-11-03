@@ -28,10 +28,15 @@ foreach ($path in $paths) { if (Test-Path -LiteralPath $path) { throw "Suite tes
 function Binary([string]$Bundle) { Join-Path $Bundle ("Contents\x86_64-win\" + (Split-Path -Leaf $Bundle)) }
 function Present([string]$Path) { if (!(Test-Path -LiteralPath $Path)) { throw "Expected path is missing: $Path" } }
 function Absent([string]$Path) { if (Test-Path -LiteralPath $Path) { throw "Expected path was not removed: $Path" } }
-function Run([string]$exe, [string[]]$args, [bool]$expectSuccess = $true) {
-    $result = Start-Process -FilePath $exe -ArgumentList $args -Wait -PassThru
+function Run([string]$exe, [string[]]$arguments, [bool]$expectSuccess = $true) {
+    Write-Host "Running $exe $($arguments -join ' ')"
+    $result = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
+    if (!$result.WaitForExit(60000)) {
+        Stop-Process -Id $result.Id -Force -ErrorAction SilentlyContinue
+        throw "Timed out running $exe with arguments $($arguments -join ' ')"
+    }
     if (($expectSuccess -and $result.ExitCode -ne 0) -or (!$expectSuccess -and $result.ExitCode -eq 0)) {
-        throw "Unexpected exit $($result.ExitCode) from $exe; arguments $($args -join ' ')"
+        throw "Unexpected exit $($result.ExitCode) from $exe; arguments $($arguments -join ' ')"
     }
 }
 function Setup([string]$exe, [string]$dir, [bool]$ok = $true, [string[]]$extra = @()) {
