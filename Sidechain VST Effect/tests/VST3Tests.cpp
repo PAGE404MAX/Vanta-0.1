@@ -457,6 +457,28 @@ int main(int argc, char** argv)
     saved.position = 0;
     check(component->setState(&saved) == kResultOk, "Restore VST3 component state");
     check(audio->setProcessing(false) == kResultOk && component->setActive(false) == kResultOk, "Stop processing");
+
+    inputs[0] = inputs[1] = SpeakerArr::kMono;
+    outputs[0] = SpeakerArr::kMono;
+    check(audio->setBusArrangements(inputs, 2, outputs, 1) == kResultTrue,
+          "Host can switch both main and sidechain inputs to mono");
+    check(audio->setupProcessing(setup) == kResultOk && component->setActive(true) == kResultOk &&
+              audio->setProcessing(true) == kResultOk,
+          "Start mono processing");
+    bus[0].numChannels = bus[1].numChannels = out.numChannels = 1;
+    std::fill(std::begin(keyLeft), std::end(keyLeft), 0.0f);
+    for (int i = 32; i < 320; ++i)
+        keyLeft[i] = 1.0f;
+    changes.queues[0].id = bypassId;
+    changes.queues[0].value = 0;
+    changes.queues[1].id = attackId;
+    changes.queues[1].value = 0;
+    data.inputParameterChanges = &changes;
+    check(audio->process(data) == kResultOk && std::abs(outLeft[16] - .4f) < .001f && outLeft[32] < .16f,
+          "Mono key triggers real mono main-audio ducking");
+    data.inputParameterChanges = nullptr;
+    check(audio->setProcessing(false) == kResultOk && component->setActive(false) == kResultOk,
+          "Stop mono processing");
     audio->release();
     auto* view = controller->createView(ViewType::kEditor);
     check(view != nullptr, "Create native VST3 editor");

@@ -470,6 +470,31 @@ begin
   Result := RegKeyExists(HKLM64, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{096E7B0E-1C14-4696-B9A7-6402B2571F91}_is1');
 end;
 
+function Vanta13Registered(): Boolean;
+begin
+  Result := RegKeyExists(HKLM64, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1');
+end;
+
+function ExistingVantaInstallMatches(): Boolean;
+var
+  Key, PreviousPath, Version, Target: String;
+begin
+  Result := True;
+  if not Vanta13Registered() then Exit;
+  Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1';
+  Result := False;
+  if not RegQueryStringValue(HKLM64, Key, 'DisplayVersion', Version) then Exit;
+  if (Version <> '0.13.0') and (Version <> '0.13.1') then Exit;
+  if not RegQueryStringValue(HKLM64, Key, 'InstallLocation', PreviousPath) or (Trim(PreviousPath) = '') then
+    if not RegQueryStringValue(HKLM64, Key, 'Inno Setup: App Path', PreviousPath) then Exit;
+  if Trim(PreviousPath) = '' then Exit;
+  PreviousPath := RemoveBackslashUnlessRoot(ExpandFileName(PreviousPath));
+  Target := RemoveBackslashUnlessRoot(ExpandFileName(ExpandConstant('{app}')));
+  { The 0.13 uninstaller must be updated in place. Moving the app folder
+    would leave a second old uninstaller able to delete suite-owned files. }
+  Result := CompareText(PreviousPath, Target) = 0;
+end;
+
 function UnownedBundleHasPlugin(const Name: String): Boolean;
 var
   Bundle: String;
@@ -486,7 +511,9 @@ begin
     Protect an unowned binary/manifest, but allow data-only directories left
     by a prior uninstall. Extra files are never recursively removed. }
   Result := (not IsRealFile(ExpandConstant('{app}\Vanta-suite-installed.txt'))) and
-    (UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
+    (((not Vanta13Registered()) and
+      (UnownedBundleHasPlugin('Vanta Beta 0.13.vst3') or PathExists(ExpandConstant('{app}\Vanta Beta 0.13.exe')))) or
+     UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
      PathExists(ExpandConstant('{app}\Laggify-third-party-notices.md')) or
      PathExists(ExpandConstant('{app}\Sidechain-README.md')) or
      PathExists(ExpandConstant('{app}\third-party\JUCE-LICENSE.md')) or
@@ -662,10 +689,12 @@ begin
 #ifdef SuiteBuild
   if not SuitePathsAreSafe() then
     Result := 'A Laggify or Sidechain VST3 path is linked, unexpected, or inaccessible. Setup stopped to protect your files.'
+  else if not ExistingVantaInstallMatches() then
+    Result := 'VANTA 0.13 or a suite is already registered in another folder or is an unrecognised version. Choose its existing app folder to upgrade it in place, or uninstall it safely first.'
   else if LegacyLaggifyRegistered() then
     Result := 'The separately installed Laggify has its own uninstaller. Close your DAW, uninstall the old Laggify from Windows Settings, then run Vanta Suite Setup again. Your projects and presets are not removed.'
   else if UnownedEffectExists() then
-    Result := 'An existing effect or suite-named app file is not owned by this suite. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
+    Result := 'An existing plugin or suite-named app file is not owned by this setup. Back it up and move it aside before continuing; setup will not overwrite unowned files.';
 #endif
 end;
 

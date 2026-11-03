@@ -48,7 +48,15 @@ function Uninstaller([string]$dir) {
     return $items[0].FullName
 }
 function Uninstall([string]$dir, [bool]$ok = $true, [string[]]$extra = @()) {
-    Run (Uninstaller $dir) (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') + $extra) $ok
+    $executable = Uninstaller $dir
+    Run $executable (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') + $extra) $ok
+    if ($ok) {
+        # Inno's temporary child removes the original uninstaller after the
+        # parent exits. Don't race that cleanup with an immediate reinstall.
+        $deadline = [DateTime]::UtcNow.AddSeconds(20)
+        while ((Test-Path -LiteralPath $executable) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+        if (Test-Path -LiteralPath $executable) { throw "Uninstaller did not finish removing itself: $executable" }
+    }
 }
 function Remove-Junction([string]$path) {
     if (Test-Path -LiteralPath $path) {
@@ -76,6 +84,20 @@ try {
     $project = Join-Path $outside 'My Project.flp'; $preset = Join-Path $outside 'My Sound.vanta'
     [IO.File]::WriteAllText($project, 'user project'); [IO.File]::WriteAllText($preset, 'user preset')
 
+    # Even an ancestor of a new app folder may not be a junction.
+    $linkTarget = Join-Path $outside 'link target'; New-Item -ItemType Directory -Path $linkTarget -Force | Out-Null
+    $protected = Join-Path $linkTarget 'DO NOT TOUCH.flp'; [IO.File]::WriteAllText($protected, 'protected')
+    New-Item -ItemType Junction -Path $parentLink -Target $linkTarget | Out-Null
+    Setup $setup (Join-Path $parentLink 'nested-app') $false
+    Present $protected; Absent (Join-Path $linkTarget 'nested-app\Vanta Beta 0.13.exe'); Remove-Junction $parentLink
+
+    # An unmanaged current-version synth is also not suite-owned.
+    $manualSynth = Binary $synth; New-Item -ItemType Directory -Path (Split-Path -Parent $manualSynth) -Force | Out-Null
+    [IO.File]::WriteAllText($manualSynth, 'manual VANTA - preserve')
+    Setup $setup $app $false
+    if ([IO.File]::ReadAllText($manualSynth) -ne 'manual VANTA - preserve') { throw 'An unmanaged VANTA was overwritten.' }
+    Remove-Item -LiteralPath $synth -Recurse -Force
+
     # Reproduce both independently installed products. The suite must NOT take
     # over Laggify while that product's old uninstaller owns the same VST3.
     Setup $vantaSetup $app; Setup $laggifySetup $legacyApp
@@ -87,6 +109,12 @@ try {
     Absent (Binary $sidechain)
     Uninstall $legacyApp; Absent $laggifyReg; Absent (Binary $laggify)
 
+    # The old 0.13 uninstaller must be replaced in its existing app folder.
+    # A different /DIR must not create an orphan uninstaller with shared files.
+    $differentApp = Join-Path $outside 'different app location'
+    Setup $setup $differentApp $false; Absent (Join-Path $differentApp 'Vanta Beta 0.13.exe')
+    Present (Uninstaller $app); Present (Binary $synth); Present $synthReg
+
     # A manually-installed module with the same name is not ours to overwrite.
     $manual = Binary $sidechain; New-Item -ItemType Directory -Path (Split-Path -Parent $manual) -Force | Out-Null
     [IO.File]::WriteAllText($manual, 'unmanaged effect - do not overwrite')
@@ -95,13 +123,8 @@ try {
     Remove-Item -LiteralPath $sidechain -Recurse -Force
 
     # A final path or any ancestor that is a junction must stop setup.
-    $linkTarget = Join-Path $outside 'link target'; New-Item -ItemType Directory -Path $linkTarget -Force | Out-Null
-    $protected = Join-Path $linkTarget 'DO NOT TOUCH.flp'; [IO.File]::WriteAllText($protected, 'protected')
     New-Item -ItemType Junction -Path $sidechain -Target $linkTarget | Out-Null
     Setup $setup $app $false; Present $protected; Present (Binary $synth); Remove-Junction $sidechain
-    New-Item -ItemType Junction -Path $parentLink -Target $linkTarget | Out-Null
-    Setup $setup (Join-Path $parentLink 'nested-app') $false
-    Present $protected; Absent (Join-Path $linkTarget 'nested-app\Vanta Beta 0.13.exe'); Remove-Junction $parentLink
 
     # Explicit in-place upgrade of the exact 0.13 app: one registry entry and
     # one uninstaller own all three. Silent setup keeps older copies by default.
