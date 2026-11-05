@@ -796,12 +796,16 @@ void testStandalone(const juce::File& previews)
     checkLayout(*editor); snapshot(*editor, previews, "oscillator.png");
     auto* waveform = dynamic_cast<juce::ComboBox*>(findVisible(*editor, "parameter-wave"));
     check(waveform != nullptr, "OSC A waveform selector is visible");
-    const auto sineView = editor->createComponentSnapshot(editor->getLocalBounds());
-    click(*editor, "wave-saw");
-    check(waveform->getSelectedId() == 2, "Preview-style SAW button updates the source selector");
     const auto sawView = editor->createComponentSnapshot(editor->getLocalBounds());
-    check(processor.currentValues()[vanta::wave] == 1.0f, "OSC A saw updates the original parameter");
+    check(waveform->getSelectedId() == 2, "VANTA INIT oscillator preview starts on SAW");
+    click(*editor, "wave-sine");
+    check(waveform->getSelectedId() == 1, "Preview-style SINE button updates the source selector");
+    const auto sineView = editor->createComponentSnapshot(editor->getLocalBounds());
+    check(processor.currentValues()[vanta::wave] == 0.0f, "OSC A sine updates the original parameter");
     check(changedPixels(sineView, sawView, { 44, 384, 564, 114 }) > 100, "Waveform preview follows the selected waveform");
+    click(*editor, "wave-saw");
+    check(waveform->getSelectedId() == 2 && processor.currentValues()[vanta::wave] == 1.0f,
+          "OSC A saw updates the original parameter");
     waveform->setSelectedId(3, juce::sendNotificationSync);
     check(processor.currentValues()[vanta::oscAExtraWave] == 1.0f, "OSC A square uses the appended shape parameter");
     waveform->setSelectedId(4, juce::sendNotificationSync);
