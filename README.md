@@ -129,6 +129,6 @@ ctest --test-dir build/sidechain -C Release --output-on-failure
 ./scripts/build-suite.ps1 package
 ```
 
-The three plugin identities remain independent. The intended suite version is 0.14.0, with VANTA Beta 0.14, Laggify 0.2 and Sidechain 0.1. The suite packaging script fails closed until the published 0.13.2 ownership hashes are verified.
+The three plugin identities remain independent. The suite version is 0.14.0, with VANTA Beta 0.14, Laggify 0.2 and Sidechain 0.1. The published 0.13.2 ownership hashes are verified and embedded in `suite-installer.iss`; the suite packaging script still fails closed if any of those hashes is blank.
 
 The installer defaults to `C:\Program Files\Vanta\Vanta Beta 0.13` and the standard `C:\Program Files\Common Files\VST3` folder. After installing, test audio/MIDI devices, import/save/reopen and DAW project restoration at low volume. See [third-party notices](THIRD_PARTY_NOTICES.md) and review JUCE licensing obligations before distribution.
