@@ -640,6 +640,9 @@ void testImportedState()
           "Processor-saved VANTA file contains sample and modulation");
     temporary.deleteFile();
     processor.loadFactoryPreset(0);
+    check(processor.currentValues()[vanta::wave] == 1.0f && processor.currentValues()[vanta::oscAExtraWave] == 0.0f
+          && vanta::oscillatorShape(processor.currentValues(), 0) == 1,
+          "VANTA INIT factory preset uses a saw wave");
     check(!processor.hasWaveTable(0) && !processor.hasSample(3), "Factory patch clears previous imported audio assets");
     processor.setStateInformation(stateBytes.getData(), static_cast<int>(stateBytes.getSize()));
     check(processor.hasWaveTable(0) && processor.hasSample(3) && processor.currentValues()[vanta::ottEnabled] == 1,

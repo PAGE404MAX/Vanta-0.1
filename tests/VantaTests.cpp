@@ -190,7 +190,7 @@ void testAmpEnvelope()
 void testAudio()
 {
     constexpr int rate = 44100;
-    auto p = vanta::defaultValues(); p[vanta::attack] = 0.001f;
+    auto p = vanta::defaultValues(); p[vanta::attack] = 0.001f; p[vanta::wave] = 0.0f;
     auto silent = render(p, rate / 10, -1, false);
     check(rms(silent, 0, silent.getNumSamples()) == 0.0f, "No MIDI produces silence");
     auto sine = render(p, rate / 4);
@@ -295,7 +295,7 @@ void testAudio()
 void testOscillators()
 {
     constexpr int samples = 11025;
-    auto base = vanta::defaultValues(); base[vanta::attack] = 0.001f;
+    auto base = vanta::defaultValues(); base[vanta::attack] = 0.001f; base[vanta::wave] = 0.0f;
     const auto sine = render(base, samples);
     auto squareParams = base; squareParams[vanta::oscAExtraWave] = 1.0f;
     auto triangleParams = base; triangleParams[vanta::oscAExtraWave] = 2.0f;
@@ -428,6 +428,8 @@ void testVitalRanges()
           && parameterSpecs[lfoStereo].minValue == -0.5f && parameterSpecs[lfoStereo].maxValue == 0.5f,
           "Pitch LFO smooth, delay and stereo cover the requested ranges");
     auto defaults = defaultValues();
+    check(defaults[wave] == 1.0f && oscillatorShape(defaults, 0) == 1,
+          "VANTA INIT defaults OSC A to a saw wave");
     check(defaults[ampAttackWideActive] == 0.0f && defaults[ampDecayWideActive] == 0.0f
           && defaults[ampReleaseWideActive] == 0.0f && defaults[lfoSmooth] == 0.0f
           && defaults[lfoDelay] == 0.0f && defaults[lfoStereo] == 0.0f,

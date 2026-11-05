@@ -103,7 +103,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VantaProcessor::makeLayout()
         {
             // Do not expand this choice: old host automation maps 0/1 to sine/saw.
             layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { p.id, 1 }, p.name,
-                                                                   juce::StringArray { "Sine", "Saw" }, 0));
+                                                                   juce::StringArray { "Sine", "Saw" }, 1));
         }
         else if (i == vanta::oscAExtraWave)
         {
@@ -197,11 +197,11 @@ void VantaProcessor::loadFactoryPreset(int index)
     auto v = vanta::defaultValues();
     switch (index)
     {
-        case 1: v[vanta::attack] = 0.003f; v[vanta::decay] = 0.55f; v[vanta::sustain] = 0.18f; v[vanta::release] = 0.85f; v[vanta::reverbMix] = 0.22f; break;
+        case 1: v[vanta::wave] = 0.0f; v[vanta::attack] = 0.003f; v[vanta::decay] = 0.55f; v[vanta::sustain] = 0.18f; v[vanta::release] = 0.85f; v[vanta::reverbMix] = 0.22f; break;
         case 2: v[vanta::wave] = 1.0f; v[vanta::attack] = 0.60f; v[vanta::release] = 1.6f; v[vanta::cutoff] = 1800.0f; v[vanta::reverbSize] = 0.8f; v[vanta::reverbMix] = 0.28f; break;
         case 3: v[vanta::wave] = 1.0f; v[vanta::attack] = 0.008f; v[vanta::release] = 0.18f; v[vanta::cutoff] = 1100.0f; v[vanta::resonance] = 0.35f; v[vanta::delayMix] = 0.18f; break;
-        case 4: v[vanta::attack] = 0.01f; v[vanta::decay] = 0.8f; v[vanta::sustain] = 0.3f; v[vanta::release] = 1.0f; v[vanta::vibrato] = 0.08f; v[vanta::reverbMix] = 0.32f; break;
-        default: break;
+        case 4: v[vanta::wave] = 0.0f; v[vanta::attack] = 0.01f; v[vanta::decay] = 0.8f; v[vanta::sustain] = 0.3f; v[vanta::release] = 1.0f; v[vanta::vibrato] = 0.08f; v[vanta::reverbMix] = 0.32f; break;
+        default: v[vanta::wave] = 1.0f; break; // VANTA INIT is a saw wave.
     }
     auto empty = std::make_unique<vanta::WaveTableBank>();
     engine.publishWaveTables(*empty);

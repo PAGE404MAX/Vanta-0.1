@@ -61,7 +61,7 @@ inline constexpr std::array<ParameterSpec, parameterCount> parameterSpecs {{
     { "level",           "Level",            0.0f,    1.0f,    0.70f, 0.0f,   1.0f },
     { "attack",          "Attack",           0.001f,  2.0f,    0.02f, 0.001f, 0.4f },
     { "release",         "Release",          0.01f,   4.0f,    0.35f, 0.001f, 0.4f },
-    { "wave",            "Waveform",         0.0f,    1.0f,    0.0f,  1.0f,   1.0f },
+    { "wave",            "Waveform",         0.0f,    1.0f,    1.0f,  1.0f,   1.0f },
     { "decay",           "Decay",            0.001f,  4.0f,    0.10f, 0.001f, 0.4f },
     { "sustain",         "Sustain",          0.0f,    1.0f,    0.80f, 0.001f, 1.0f },
     { "cutoff",          "Filter Cutoff",   30.0f, 18000.0f, 14000.0f, 1.0f, 0.28f },
