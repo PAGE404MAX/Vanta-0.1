@@ -45,16 +45,18 @@
 #endif
 
 ; The 0.13.2 release was built separately from 0.13.1; its exact published
-; binaries must be independently verified. Until the diagnostic build can run,
-; blank hashes deliberately fail closed (the old suite can still be safely
-; uninstalled before a fresh install). Never accept unverified replacement files.
-#define Legacy132SynthBinaryHash ""
-#define Legacy132SynthInfoHash ""
-#define Legacy132StandaloneHash ""
-#define Legacy132LaggifyBinaryHash ""
-#define Legacy132LaggifyInfoHash ""
-#define Legacy132SidechainBinaryHash ""
-#define Legacy132SidechainInfoHash ""
+; binaries were independently verified by installing the published Suite
+; 0.13.2 artifact (Actions run 41580072836) in diagnostic run 41951065564
+; and hashing the seven installed files. Never accept unverified
+; replacement files: an installed file must match the current build, the
+; 0.13.1 hashes above, or these verified 0.13.2 hashes to be upgraded.
+#define Legacy132SynthBinaryHash "AC26833825C7F34B00D6DF69CF78816C87BA9C9E2347EDD14F7E71C4527CC2B7"
+#define Legacy132SynthInfoHash "FB0222EF8CEFB9BA48A4771987FED5A12A1D417C9E492DA8BEA1CFCE9CB07DE6"
+#define Legacy132StandaloneHash "6ADBFF5963D68FA3328EB5DDD2434EA0A145EF73C785F54DC8FAE4708ED596FD"
+#define Legacy132LaggifyBinaryHash "FC53392E16036D41BD53F95A1B48ECF236F310473BA3B63D9610545A9D0B9B4E"
+#define Legacy132LaggifyInfoHash "5DAFC97D89045C9089F689A107A86901B88FCD3BD3E64C8C1B50FFCD94D1C727"
+#define Legacy132SidechainBinaryHash "000345432BDB9AEC6C9FD0EE4F98C7F6D1E281B887EEAEC35ADB87D15ED2B14D"
+#define Legacy132SidechainInfoHash "CD94406B84D69121B87B127828CBD08547B8AFC2CEBCC952BD0020CA1C44509E"
 
 [Setup]
 ; This intentionally upgrades the existing VANTA 0.13 setup, rather than

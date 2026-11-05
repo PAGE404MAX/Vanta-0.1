@@ -1,4 +1,4 @@
-param([switch]$SkipLaunch, [switch]$TestLegacyFixture)
+param([switch]$SkipLaunch, [switch]$TestLegacyFixture, [switch]$TestPublished132)
 $ErrorActionPreference = 'Stop'
 # This test writes to the system VST3 and Start Menu folders. Never run it on
 # a user's computer: it is strictly for disposable GitHub-hosted Windows VMs.
@@ -247,6 +247,37 @@ try {
         }
         Setup $setup $app
         if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.14.0') { throw 'The previous suite was not upgraded in place.' }
+        if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
+        Present (Uninstaller $app)
+        foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
+        Uninstall $app
+        foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain), $synthReg)) { Absent $path }
+        foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
+    }
+    if ($TestPublished132) {
+        # The real published Suite 0.13.2 (Actions run 41580072836) must
+        # upgrade in place, but only while its exact verified bytes remain.
+        $publishedItems = @(Get-ChildItem -LiteralPath 'old-suite' -Filter '*.exe' -File -ErrorAction SilentlyContinue)
+        if ($publishedItems.Count -ne 1) { throw "Expected exactly one published 0.13.2 installer in old-suite; found $($publishedItems.Count)" }
+        $publishedSuite = $publishedItems[0].FullName
+        Setup $publishedSuite $app
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.13.2') { throw 'Published suite has the wrong registered version.' }
+        foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain))) { Present $path }
+        $publishedSideHash = (Get-FileHash -LiteralPath (Binary $sidechain)).Hash
+        $newSideHash = (Get-FileHash -LiteralPath 'build\sidechain\VantaSidechainFx_artefacts\Release\VST3\VANTA Sidechain.vst3\Contents\x86_64-win\VANTA Sidechain.vst3').Hash
+        if ($publishedSideHash -eq $newSideHash) { throw 'Published and current Sidechain must have different bytes.' }
+        $oldModule = Binary $sidechain; $heldModule = Join-Path $outside 'held-published-sidechain.vst3'
+        Move-Item -LiteralPath $oldModule -Destination $heldModule
+        [IO.File]::WriteAllText($oldModule, 'foreign file, not the published release')
+        try {
+            Setup $setup $app $false
+            if ([IO.File]::ReadAllText($oldModule) -ne 'foreign file, not the published release') { throw 'Published upgrade overwrote an unrelated file.' }
+        } finally {
+            Remove-Item -LiteralPath $oldModule -Force -ErrorAction SilentlyContinue
+            Move-Item -LiteralPath $heldModule -Destination $oldModule
+        }
+        Setup $setup $app
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.14.0') { throw 'The published 0.13.2 suite was not upgraded in place.' }
         if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
         Present (Uninstaller $app)
         foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }

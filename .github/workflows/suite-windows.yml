@@ -154,11 +154,18 @@ jobs:
       - name: Compile suite and migration fixtures
         shell: pwsh
         run: ./scripts/build-suite.ps1 package
+      - name: Download the previously published Suite 0.13.2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41580072836 --repo "${{ github.repository }}" --name "VANTA SUITE HERE" --dir old-suite
+          if ($LASTEXITCODE -ne 0) { throw 'Could not retrieve the published 0.13.2 suite.' }
       - name: Exercise actual suite installer and standalone
         shell: pwsh
         timeout-minutes: 10
         run: |
-          try { ./scripts/test-suite-installer.ps1 }
+          try { ./scripts/test-suite-installer.ps1 -TestPublished132 }
           catch {
             $message = (($_ | Out-String) + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Suite install/launch/uninstall failed::$message"; exit 1
