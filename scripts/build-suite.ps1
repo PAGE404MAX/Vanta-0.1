@@ -36,7 +36,7 @@ switch ($Part) {
     }
     'fx' {
         Checked 'Configure FX' 'cmake' @('-S','VANTA FX','-B','build/fx','-A','x64')
-        Checked 'Build FX' 'cmake' @('--build','build/fx','--config','Release','--target','VantaFX_VST3','VantaFXEngineTests','--parallel','2')
+        Checked 'Build FX' 'cmake' @('--build','build/fx','--config','Release','--target','VantaFX_VST3','VantaFXEngineTests','VantaFXProcessorTests','--parallel','2')
         Checked 'Test FX' 'ctest' @('--test-dir','build/fx','-C','Release','--output-on-failure','--no-tests=error')
     }
     'package' {

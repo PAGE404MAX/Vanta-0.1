@@ -15,7 +15,7 @@ jobs:
       - name: Configure
         run: cmake -S "VANTA FX" -B build/fx -A x64
       - name: Build VST3 and engine tests
-        run: cmake --build build/fx --config Release --target VantaFX_VST3 VantaFXEngineTests --parallel 2
+        run: cmake --build build/fx --config Release --target VantaFX_VST3 VantaFXEngineTests VantaFXProcessorTests --parallel 2
       - name: Test all nine engines
         run: ctest --test-dir build/fx -C Release --output-on-failure
       - uses: actions/upload-artifact@v4

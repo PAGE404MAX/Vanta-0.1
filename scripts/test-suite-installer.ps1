@@ -249,7 +249,7 @@ try {
             Move-Item -LiteralPath $heldModule -Destination $oldModule
         }
         Setup $setup $app
-        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.14.0') { throw 'The previous suite was not upgraded in place.' }
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.15.0') { throw 'The previous suite was not upgraded in place.' }
         if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
         Present (Uninstaller $app)
         foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
@@ -280,7 +280,7 @@ try {
             Move-Item -LiteralPath $heldModule -Destination $oldModule
         }
         Setup $setup $app
-        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.14.0') { throw 'The published 0.13.2 suite was not upgraded in place.' }
+        if ((Get-ItemProperty -LiteralPath $synthReg).DisplayVersion -ne '0.15.0') { throw 'The published 0.13.2 suite was not upgraded in place.' }
         if ((Get-FileHash -LiteralPath (Binary $sidechain)).Hash -ne $newSideHash) { throw 'The upgraded Sidechain module did not match the current build.' }
         Present (Uninstaller $app)
         foreach ($path in ($userFiles + @($oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
