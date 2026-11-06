@@ -540,7 +540,7 @@ begin
   Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1';
   Result := False;
   if not RegQueryStringValue(HKLM64, Key, 'DisplayVersion', Version) then Exit;
-  if (Version <> '0.13.0') and (Version <> '0.13.1') and (Version <> '0.13.2') and (Version <> '0.14.0') then Exit;
+  if (Version <> '0.13.0') and (Version <> '0.13.1') and (Version <> '0.13.2') and (Version <> '0.14.0') and (Version <> '0.15.0') then Exit;
   if not RegQueryStringValue(HKLM64, Key, 'InstallLocation', PreviousPath) or (Trim(PreviousPath) = '') then
     if not RegQueryStringValue(HKLM64, Key, 'Inno Setup: App Path', PreviousPath) then Exit;
   if Trim(PreviousPath) = '' then Exit;
