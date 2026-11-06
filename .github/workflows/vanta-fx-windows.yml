@@ -1,0 +1,24 @@
+name: VANTA FX Windows development build
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'VANTA FX/**'
+      - '.github/workflows/vanta-fx-windows.yml'
+permissions:
+  contents: read
+jobs:
+  fx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure
+        run: cmake -S "VANTA FX" -B build/fx -A x64
+      - name: Build VST3 and engine tests
+        run: cmake --build build/fx --config Release --target VantaFX_VST3 VantaFXEngineTests --parallel 2
+      - name: Test all nine engines
+        run: ctest --test-dir build/fx -C Release --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VANTA-FX-development-VST3
+          path: build/fx/VantaFX_artefacts/Release/VST3/
