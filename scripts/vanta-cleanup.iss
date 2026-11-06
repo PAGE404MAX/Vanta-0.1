@@ -455,7 +455,7 @@ end;
 function SuitePathsAreSafe(): Boolean;
 begin
   Result := SuiteBundlePathsAreSafe('Laggify.vst3') and
-    SuiteBundlePathsAreSafe('VANTA Sidechain.vst3');
+    SuiteBundlePathsAreSafe('VANTA Sidechain.vst3') and SuiteBundlePathsAreSafe('VANTA FX.vst3');
 end;
 
 function SuiteBinariesExist(): Boolean;
@@ -511,6 +511,8 @@ begin
     InstalledFileMatchesAnySuiteBuild(AddBackslash(Laggify) + 'Resources\moduleinfo.json', '{#LaggifyInfoHash}', '{#LegacyLaggifyInfoHash}', '{#Legacy132LaggifyInfoHash}') and
     InstalledFileMatchesAnySuiteBuild(AddBackslash(Sidechain) + 'x86_64-win\VANTA Sidechain.vst3', '{#SidechainBinaryHash}', '{#LegacySidechainBinaryHash}', '{#Legacy132SidechainBinaryHash}') and
     InstalledFileMatchesAnySuiteBuild(AddBackslash(Sidechain) + 'Resources\moduleinfo.json', '{#SidechainInfoHash}', '{#LegacySidechainInfoHash}', '{#Legacy132SidechainInfoHash}') and
+    InstalledFileMatches(AddBackslash(StandardRoot()) + 'VANTA FX.vst3\Contents\x86_64-win\VANTA FX.vst3', '{#FxBinaryHash}') and
+    InstalledFileMatches(AddBackslash(StandardRoot()) + 'VANTA FX.vst3\Contents\Resources\moduleinfo.json', '{#FxInfoHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Vanta-suite-installed.txt'), '{#MarkerHash}') and
     InstalledFileMatches(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md'), '{#NoticesHash}') and
     InstalledFileMatches(ExpandConstant('{app}\Laggify-third-party-notices.md'), '{#LaggifyNoticesHash}') and
@@ -568,7 +570,7 @@ begin
     (((not Vanta13Registered()) and
       (UnownedBundleHasPlugin('Vanta Beta 0.13.vst3') or PathExists(ExpandConstant('{app}\Vanta Beta 0.13.exe')) or
        PathExists(ExpandConstant('{app}\THIRD_PARTY_NOTICES.md')))) or
-     UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
+     UnownedBundleHasPlugin('VANTA FX.vst3') or UnownedBundleHasPlugin('Laggify.vst3') or UnownedBundleHasPlugin('VANTA Sidechain.vst3') or
      PathExists(ExpandConstant('{app}\Laggify-third-party-notices.md')) or
      PathExists(ExpandConstant('{app}\Sidechain-README.md')) or
      PathExists(ExpandConstant('{app}\third-party\JUCE-LICENSE.md')) or

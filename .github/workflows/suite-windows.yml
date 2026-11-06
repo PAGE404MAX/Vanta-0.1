@@ -18,6 +18,7 @@ jobs:
           $bundles = @(
             @{ Dir = 'build/VantaBeta_artefacts/Release/VST3/Vanta Beta 0.13.vst3'; Name = 'Vanta Beta 0.13.vst3' },
             @{ Dir = 'build/laggify/LaggifyFx_artefacts/Release/VST3/Laggify.vst3'; Name = 'Laggify.vst3' },
+            @{ Dir = 'build/fx/VantaFX_artefacts/Release/VST3/VANTA FX.vst3'; Name = 'VANTA FX.vst3' },
             @{ Dir = 'build/sidechain/VantaSidechainFx_artefacts/Release/VST3/VANTA Sidechain.vst3'; Name = 'VANTA Sidechain.vst3' }
           )
           foreach ($bundle in $bundles) {
@@ -126,8 +127,22 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  fx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and test VANTA FX
+        shell: pwsh
+        run: ./scripts/build-suite.ps1 fx
+      - uses: actions/upload-artifact@v7
+        with:
+          name: suite-build-fx
+          path: build/fx/VantaFX_artefacts/Release/VST3/VANTA FX.vst3/
+          retention-days: 1
+          if-no-files-found: error
+
   package:
-    needs: [vanta, laggify, sidechain, installer-tests]
+    needs: [vanta, laggify, sidechain, fx, installer-tests]
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -147,6 +162,11 @@ jobs:
         with:
           name: suite-build-sidechain
           path: build/sidechain/VantaSidechainFx_artefacts/Release/VST3/VANTA Sidechain.vst3/
+      - name: Collect FX
+        uses: actions/download-artifact@v8
+        with:
+          name: suite-build-fx
+          path: build/fx/VantaFX_artefacts/Release/VST3/VANTA FX.vst3/
       - name: Install Inno Setup if needed
         shell: pwsh
         run: |

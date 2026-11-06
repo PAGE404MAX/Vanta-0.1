@@ -1,5 +1,5 @@
 #define AppName "Vanta Suite"
-#define AppVersion "0.14.0"
+#define AppVersion "0.15.0"
 ; 0.13 is the stable bundle path, not the displayed product version.
 #define CurrentBeta 13
 #define SuiteBuild
@@ -7,6 +7,9 @@
 #define StandaloneExe "build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe"
 #define LaggifyBundle "build\laggify\LaggifyFx_artefacts\Release\VST3\Laggify.vst3"
 #define SidechainBundle "build\sidechain\VantaSidechainFx_artefacts\Release\VST3\VANTA Sidechain.vst3"
+#define FxBundle "build\fx\VantaFX_artefacts\Release\VST3\VANTA FX.vst3"
+#define FxBinaryHash GetSHA256OfFile(FxBundle + "\Contents\x86_64-win\VANTA FX.vst3")
+#define FxInfoHash GetSHA256OfFile(FxBundle + "\Contents\Resources\moduleinfo.json")
 ; Embed hashes of the files this specific build owns. The uninstaller can
 ; then refuse to delete an unrelated replacement at the same path.
 #define SynthBinaryHash GetSHA256OfFile(PluginBundle + "\Contents\x86_64-win\Vanta Beta 0.13.vst3")
@@ -76,10 +79,11 @@ OutputBaseFilename=Vanta-Suite-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayName=VANTA Suite (Synth, Laggify and Sidechain)
+UninstallDisplayName=VANTA Suite (Synth, Laggify, Sidechain and FX)
 UninstallDisplayIcon={app}\Vanta Beta 0.13.exe
 
 [Files]
+Source: "{#FxBundle}\*"; DestDir: "{commoncf64}\VST3\VANTA FX.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PluginBundle}\*"; DestDir: "{commoncf64}\VST3\Vanta Beta 0.13.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StandaloneExe}"; DestDir: "{app}"; Flags: ignoreversion
 ; Write the marker only after conflict checks, before new effect files, so an interrupted install can be repaired.
@@ -94,7 +98,7 @@ Source: "Laggify VST Effect\third-party\VST3-SDK-LICENSE.txt"; DestDir: "{app}\t
 
 [Icons]
 Name: "{commonprograms}\Vanta\Vanta Beta 0.13"; Filename: "{app}\Vanta Beta 0.13.exe"; WorkingDir: "{app}"
-Name: "{commonprograms}\Vanta\Uninstall Vanta Suite"; Filename: "{uninstallexe}"; Comment: "Uninstall VANTA, Laggify and Sidechain"
+Name: "{commonprograms}\Vanta\Uninstall Vanta Suite"; Filename: "{uninstallexe}"; Comment: "Uninstall VANTA, Laggify, Sidechain and FX"
 
 [Run]
 Filename: "{app}\Vanta Beta 0.13.exe"; Description: "Launch Vanta Beta 0.13"; Flags: nowait postinstall skipifsilent unchecked

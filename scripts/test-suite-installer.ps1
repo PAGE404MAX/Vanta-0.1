@@ -16,6 +16,7 @@ $parentLink = Join-Path $env:RUNNER_TEMP 'vanta-suite-parent-junction-test'
 $synth = Join-Path $root 'Vanta Beta 0.13.vst3'
 $laggify = Join-Path $root 'Laggify.vst3'
 $sidechain = Join-Path $root 'VANTA Sidechain.vst3'
+$fx = Join-Path $root 'VANTA FX.vst3'
 $old = Join-Path $root 'Vanta Beta 0.8.vst3'
 $other = Join-Path $root 'Unrelated instrument - suite test.vst3'
 $synthReg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}_is1'
@@ -23,7 +24,7 @@ $laggifyReg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{096E7B
 $previousReg = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{86F8C91C-4DD4-467B-919A-8CD576ED4AA9}_is1'
 $programs = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Vanta'
 $shortcuts = @((Join-Path $programs 'Vanta Beta 0.13.lnk'), (Join-Path $programs 'Uninstall Vanta Beta 0.13.lnk'), (Join-Path $programs 'Uninstall Vanta Suite.lnk'))
-$paths = @($app, $legacyApp, $outside, $parentLink, $synth, $laggify, $sidechain, $old, $other, $synthReg, $laggifyReg, $previousReg) + $shortcuts
+$paths = @($app, $legacyApp, $outside, $parentLink, $synth, $laggify, $sidechain, $fx, $old, $other, $synthReg, $laggifyReg, $previousReg) + $shortcuts
 foreach ($path in $paths) { if (Test-Path -LiteralPath $path) { throw "Suite test path already exists: $path" } }
 function Binary([string]$Bundle) { Join-Path $Bundle ("Contents\x86_64-win\" + (Split-Path -Leaf $Bundle)) }
 function Present([string]$Path) { if (!(Test-Path -LiteralPath $Path)) { throw "Expected path is missing: $Path" } }
@@ -145,6 +146,8 @@ try {
     if ($shell.CreateShortcut($shortcuts[2]).TargetPath -ne $suiteUninstall) { throw 'Suite uninstaller shortcut points elsewhere.' }
     Compare-Bundle 'build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3' $synth
     Compare-Bundle 'build\laggify\LaggifyFx_artefacts\Release\VST3\Laggify.vst3' $laggify
+    Present (Binary $fx)
+    Compare-Bundle 'build\fx\VantaFX_artefacts\Release\VST3\VANTA FX.vst3' $fx
     Compare-Bundle 'build\sidechain\VantaSidechainFx_artefacts\Release\VST3\VANTA Sidechain.vst3' $sidechain
     if ((Get-FileHash -LiteralPath 'build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe').Hash -ne (Get-FileHash -LiteralPath (Join-Path $app 'Vanta Beta 0.13.exe')).Hash) { throw 'Standalone differs from build.' }
     $userFiles = @((Join-Path $synth 'User synth project.flp'), (Join-Path $laggify 'User laggify project.flp'), (Join-Path $sidechain 'User sidechain preset.vanta'))
@@ -216,7 +219,7 @@ try {
         } finally { $proc.Refresh(); if (!$proc.HasExited) { Stop-Process -Id $proc.Id -Force } }
     }
     Uninstall $app
-    foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain), $synthReg, $shortcuts[0], $shortcuts[2])) { Absent $path }
+    foreach ($path in @((Binary $synth), (Binary $laggify), (Binary $sidechain), (Binary $fx), $synthReg, $shortcuts[0], $shortcuts[2])) { Absent $path }
     foreach ($path in ($userFiles + @($oldBinary, $oldPreset, $other, $project, $preset, $previousReg))) { Present $path }
 
     # Reinstall over data-only folders left by uninstall, then explicitly opt

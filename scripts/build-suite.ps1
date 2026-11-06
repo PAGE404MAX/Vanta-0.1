@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][ValidateSet('vanta','laggify','sidechain','package')][string]$Part)
+param([Parameter(Mandatory=$true)][ValidateSet('vanta','laggify','sidechain','fx','package')][string]$Part)
 $ErrorActionPreference = 'Continue'
 function Checked([string]$label, [string]$exe, [string[]]$arguments) {
     Write-Host "`n=== $label ==="
@@ -33,6 +33,11 @@ switch ($Part) {
         Checked 'Build Sidechain engine and editor tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainEngineTests','SidechainProcessorTests','--parallel','2')
         Checked 'Build Sidechain VST3 host tests' 'cmake' @('--build','build/sidechain','--config','Release','--target','SidechainVST3Tests','--parallel','2')
         Checked 'Test Sidechain' 'ctest' @('--test-dir','build/sidechain','-C','Release','--output-on-failure','--no-tests=error')
+    }
+    'fx' {
+        Checked 'Configure FX' 'cmake' @('-S','VANTA FX','-B','build/fx','-A','x64')
+        Checked 'Build FX' 'cmake' @('--build','build/fx','--config','Release','--target','VantaFX_VST3','VantaFXEngineTests','--parallel','2')
+        Checked 'Test FX' 'ctest' @('--test-dir','build/fx','-C','Release','--output-on-failure','--no-tests=error')
     }
     'package' {
         # Do not publish an upgrade installer until every released 0.13.2
