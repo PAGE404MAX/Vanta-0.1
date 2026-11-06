@@ -17,7 +17,7 @@ Approved visual reference: `../design/vanta-fx-concept.html`.
 
 This is the first native prototype, not a completed nine-effect product. The native layout is a fixed-size initial translation of the approved design. Spectrum/space views, preset browser, resize support and final visual polish remain. Frequency Echo currently uses amplitude modulation (not a true analytic frequency shifter). Plate/Room/Vintage share a preliminary feedback network and need distinct tuned algorithms. Some exposed advanced controls are reserved and not yet connected to DSP (including dedicated early/late shaping, predelay, multi-tap count, multiband EQ and era behavior). They must be completed or removed before release. Engine switching currently shares delay storage; crossfades and independent reset policy remain. No tempo transport integration yet (sync uses a placeholder 120 BPM).
 
-Windows VST3/editor compilation, host loading, automation/state tests and listening/CPU tests are not yet verified. This product is deliberately **not** added to the Suite installer until those gates pass. Existing suite installers/uninstallers are unchanged.
+Windows VST3 compilation, native editor creation/snapshots, processor audio, project-state round trips and Suite install/uninstall/upgrade tests passed in [run 42313103854](https://github.com/PAGE404MAX/Vanta-0.1/actions/runs/42313103854). FX is included as an **early development effect** in Suite 0.15.0. FL Studio host loading, real listening/CPU tests and complete host automation remain manually unverified. The installer guards the FX bundle against unsafe paths and unverified replacements; the shared uninstaller removes its installed files without recursive deletion.
 
 ## Build
 
