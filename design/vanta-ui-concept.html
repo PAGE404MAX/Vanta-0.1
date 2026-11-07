@@ -1,0 +1,1599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>VANTA — Interface concept</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #151414;
+    --case: #8b1216;
+    --case-edge: #d43b3a;
+    --recess: #0c0909;
+    --recess-2: #171011;
+    --line: #552024;
+    --red: #f04438;
+    --red-bright: #ff5b43;
+    --amber: #ffc36a;
+    --cream: #f4e6df;
+    --muted: #a98d87;
+    --dim: #79615e;
+    --sans: "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 32px 24px 44px;
+    background: radial-gradient(ellipse at 50% 6%, #262020 0, #171616 38%, #111111 100%);
+    color: var(--cream);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #ffd18c; outline-offset: 3px; }
+  .preview {
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+  .preview-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    margin: 0 1px 14px;
+    color: #a99c98;
+    font: 10px/1.2 var(--mono);
+    letter-spacing: .08em;
+  }
+  .preview-heading { display: flex; align-items: center; gap: 12px; }
+  .preview-heading strong { color: #e7d8d0; font-size: 11px; letter-spacing: .13em; }
+  .preview-heading span { color: #8d7c78; }
+  .view-switch { display: flex; align-items: center; gap: 4px; }
+  .view-switch > span { margin-right: 6px; color: #887773; }
+  .view-switch button {
+    border: 1px solid #49403f;
+    background: #242021;
+    color: #b2a3a0;
+    min-height: 28px;
+    padding: 0 10px;
+    font: 10px var(--mono);
+  }
+  .view-switch button[aria-pressed="true"] { color: #f7e4d8; background: #63302b; border-color: #9e5244; }
+
+  /* A small, physical instrument chassis rather than a web dashboard. */
+  .instrument {
+    position: relative;
+    overflow: visible;
+    border: 1px solid #d04038;
+    border-radius: 5px;
+    background:
+      linear-gradient(90deg, #ffffff0b 0, transparent 12%, transparent 85%, #00000022 100%),
+      linear-gradient(155deg, #a92227 0%, #8f1116 36%, #710a0e 100%);
+    box-shadow: inset 0 1px 0 #f68b735c, inset 0 -2px 0 #300304,
+                0 25px 80px #000a, 0 2px 8px #0008;
+  }
+  .instrument::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px solid #ffc4a315;
+    pointer-events: none;
+    border-radius: 3px;
+  }
+  .topline { height: 4px; background: linear-gradient(90deg, #db5040, #a21a1d 56%, #561013); }
+  .instrument-header {
+    min-height: 76px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 22px;
+    padding: 13px 20px 11px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; flex: 0 0 auto; }
+  .brand-mark { width: 38px; height: 38px; display: block; }
+  .brand-name { font-weight: 800; font-size: 23px; line-height: .95; letter-spacing: .16em; }
+  .brand-sub { margin-top: 5px; font: 9px var(--mono); letter-spacing: .11em; color: #edaaa0; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .nav {
+    display: flex;
+    gap: 3px;
+    padding: 4px;
+    background: #150b0c;
+    border: 1px solid #451417;
+    border-radius: 4px;
+    box-shadow: 0 1px 0 #e24b3850, inset 0 1px 2px #000;
+  }
+  .nav button {
+    position: relative;
+    min-width: 66px;
+    min-height: 29px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    background: #231112;
+    color: #bd8d86;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: .1em;
+  }
+  .nav button:hover { color: #ffe3d5; background: #481a1b; }
+  .nav button[aria-selected="true"] {
+    border-color: #ffad7b;
+    background: linear-gradient(#ffcc80, #f0854e);
+    box-shadow: inset 0 1px #ffe7b8, 0 0 8px #f6693033;
+    color: #35100c;
+  }
+  .header-rule { width: 100%; display: flex; align-items: center; gap: 6px; }
+  .header-rule i { height: 3px; background: #41090b; flex: 1; }
+  .header-rule span { font: 9px var(--mono); color: #efafa4; letter-spacing: .08em; }
+  .inside { padding: 0 16px 13px; }
+  .screen {
+    position: relative;
+    background: linear-gradient(135deg, #120e0e, #080707 65%, #11090a);
+    border: 1px solid #e24b3f;
+    border-radius: 5px;
+    box-shadow: inset 0 1px #ffaf9a1c, 0 1px 0 #400608, 0 5px 12px #41060765;
+  }
+  .screen::after { content: ""; position: absolute; inset: 3px; border: 1px solid #ff9c7610; pointer-events: none; border-radius: 2px; }
+
+  .preset {
+    min-height: 122px;
+    display: grid;
+    grid-template-columns: 59px minmax(0, 1fr) 220px;
+    align-items: stretch;
+    z-index: 5;
+  }
+  .preset-arrows { display: flex; flex-direction: column; padding: 11px 8px; gap: 3px; }
+  .arrow {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: #ff5b43;
+    display: grid;
+    place-items: center;
+  }
+  .arrow:hover { color: #ffcf91; background: #401415; }
+  .arrow svg { width: 22px; height: 13px; }
+  .patch-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: 0;
+    padding: 10px 8px 10px 2px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    color: inherit;
+  }
+  .patch-button:hover .patch-name, .patch-button[aria-expanded="true"] .patch-name { color: #fff5e7; }
+  .patch-kicker { display: flex; align-items: center; gap: 10px; font-size: 10px; letter-spacing: .11em; font-weight: 700; }
+  .patch-kicker .red { color: var(--red-bright); }
+  .patch-kicker .divider { color: #68302e; }
+  .patch-kicker .category { color: #d2a39b; }
+  .patch-title { display: flex; align-items: baseline; gap: 15px; width: 100%; margin-top: 8px; }
+  .patch-number { color: #ff5845; font: 34px/.95 var(--mono); letter-spacing: -.05em; }
+  .patch-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #fce9df; font-size: 25px; font-weight: 650; letter-spacing: .04em; }
+  .patch-caption { margin-top: 8px; color: #987973; font: 10px var(--mono); letter-spacing: .04em; }
+  .patch-caption b { color: #e88b76; font-weight: 400; }
+  .patch-actions {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 17px 18px 15px;
+    border-left: 1px solid #321417;
+  }
+  .action-row { display: flex; gap: 6px; }
+  .hardware-button {
+    min-width: 75px;
+    height: 28px;
+    padding: 0 11px;
+    background: linear-gradient(#491a1c, #2a1112);
+    border: 1px solid #71302c;
+    box-shadow: inset 0 1px #ffb49a18;
+    color: #f0d1c6;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+  }
+  .hardware-button:hover { background: #762725; border-color: #db6553; color: #fff; }
+  .hardware-button:disabled { opacity: .42; cursor: not-allowed; }
+  .tuning { color: #a77d74; font: 10px var(--mono); letter-spacing: .04em; }
+  .tuning strong { color: #f4c6b2; font-weight: 500; }
+
+  .library {
+    position: absolute;
+    z-index: 12;
+    left: 54px;
+    right: 14px;
+    top: calc(100% + 5px);
+    border: 1px solid #c44236;
+    padding: 14px;
+    background: #140d0e;
+    box-shadow: 0 12px 30px #000b, inset 0 1px #ffad7920;
+  }
+  .library-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #dfbbb0; font-size: 10px; font-weight: 700; letter-spacing: .13em; }
+  .library-heading button { background: none; border: 0; color: #d6a99b; font-size: 17px; line-height: 1; }
+  .library-search { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: #b98e81; font: 9px var(--mono); letter-spacing: .08em; }
+  .library-search input { flex: 1; min-width: 0; height: 30px; padding: 0 9px; border: 1px solid #512421; background: #0e090a; color: #f5d9c9; font: 10px var(--mono); }
+  .library-search input::placeholder { color: #765b55; }
+  .library-body { display: grid; grid-template-columns: 140px 1fr; gap: 12px; margin-top: 10px; }
+  .library-filters { display: grid; gap: 4px; align-content: start; }
+  .library-filters button, .preset-option {
+    border: 1px solid #48201f;
+    background: #211112;
+    color: #bba39d;
+    min-height: 32px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    padding: 0 11px;
+  }
+  .library-filters button[aria-pressed="true"], .preset-option[aria-current="true"] { border-color: #b84435; background: #5f1d1c; color: #ffe2cd; }
+  .preset-list { display: grid; gap: 4px; align-content: start; }
+  .preset-empty { padding: 12px; color: #a1847a; border: 1px solid #48201f; font: 10px var(--mono); }
+  .preset-option { display: flex; align-items: center; gap: 13px; min-height: 32px; }
+  .preset-option:hover, .library-filters button:hover { border-color: #d65b48; color: white; }
+  .preset-option .index { color: #ff7055; font: 11px var(--mono); }
+  .preset-option .type { color: #9b7e78; font: 9px var(--mono); margin-left: auto; }
+
+  .level-strip { display: grid; grid-template-columns: 60px 1fr 55px; align-items: center; gap: 12px; min-height: 48px; padding: 0 7px; }
+  .level-strip label { color: #ffe0d2; font-weight: 800; font-size: 11px; letter-spacing: .12em; }
+  .level-strip output { color: #ffd4bd; text-align: right; font: 11px var(--mono); }
+  .level-strip input {
+    width: 100%; height: 16px; margin: 0; appearance: none; -webkit-appearance: none;
+    background: transparent; cursor: ew-resize;
+  }
+  .level-strip input::-webkit-slider-runnable-track { height: 5px; border: 1px solid #4b1011; background: linear-gradient(to right, #ffb05e 0%, #ff5438 var(--fill), #250a0c var(--fill), #250a0c 100%); }
+  .level-strip input::-moz-range-track { height: 4px; border: 1px solid #4b1011; background: #250a0c; }
+  .level-strip input::-moz-range-progress { height: 4px; background: #ff6742; }
+  .level-strip input::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 9px; height: 13px; margin-top: -5px; background: #ffe0a3; border: 1px solid #6c2a1e; }
+  .level-strip input::-moz-range-thumb { width: 8px; height: 12px; border-radius: 0; border: 1px solid #6c2a1e; background: #ffe0a3; }
+
+  .workspace { min-height: 240px; padding: 13px 16px 15px; }
+  .workspace-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #4b1d1d; padding-bottom: 10px; }
+  .eyebrow { display: flex; align-items: center; gap: 9px; color: #efc2b3; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+  .eyebrow b { color: #f25a43; font: 10px var(--mono); }
+  .workspace-note { color: #8f706a; font: 9px var(--mono); letter-spacing: .07em; text-align: right; }
+  .main-controls { display: grid; grid-template-columns: 145px 1fr; gap: 20px; padding-top: 15px; }
+  .mode-section { border-right: 1px solid #321819; padding-right: 14px; }
+  .small-label { color: #aa8178; font-size: 9px; font-weight: 700; letter-spacing: .13em; }
+  .mode-list { display: grid; gap: 5px; margin-top: 9px; }
+  .mode {
+    min-height: 24px; border: 1px solid #341617; background: #1b1010; color: #89716a;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 8px;
+    font-size: 9px; font-weight: 700; letter-spacing: .08em; text-align: left;
+  }
+  .mode.active { color: #ffd9bd; background: #501918; border-color: #9c3a30; }
+  .mode.active::before { content: ""; width: 4px; height: 4px; background: #ffc37a; margin-right: 6px; box-shadow: 0 0 5px #ff5d31; }
+  .mode.active span { margin-left: auto; color: #df987f; font: 9px var(--mono); }
+  .mode:disabled { cursor: not-allowed; color: #765b57; background: #160e0e; }
+  .mode-note { margin-top: 9px; color: #85645d; font: 9px/1.35 var(--mono); }
+  .knob-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; align-items: start; }
+  .knob-item { min-width: 0; text-align: center; }
+  .dial {
+    position: relative; width: min(138px, 100%); aspect-ratio: 1; margin: 0 auto;
+    border-radius: 50%; touch-action: none; user-select: none;
+  }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .ring-track { fill: none; stroke: #632325; stroke-width: 2.6; stroke-linecap: round; }
+  .ring-progress { fill: none; stroke: #ff563c; stroke-width: 3.2; stroke-linecap: round; filter: drop-shadow(0 0 2px #ff452b60); }
+  .ring-marker { fill: #ffd58e; }
+  .knob-face {
+    position: absolute; inset: 17%; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: 1px solid #bd3932;
+    background: radial-gradient(circle at 50% 0, #332323 0, #151010 38%, #0a0808 100%);
+    box-shadow: inset 0 1px #ffd5b929, inset 0 -5px 9px #0008, 0 0 0 3px #250e0f;
+    pointer-events: none;
+  }
+  .knob-face .face-label { color: #e9b6a5; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+  .knob-face output { color: #fff2e2; font: 12px var(--mono); white-space: nowrap; }
+  .dial input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ns-resize; touch-action: none; }
+  .dial:focus-within { outline: 2px solid #ffd18c; outline-offset: 3px; }
+  .knob-caption { margin-top: 7px; color: #97746b; font: 9px var(--mono); letter-spacing: .08em; }
+
+  .osc-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, .8fr); gap: 10px; padding-top: 13px; }
+  .subpanel { min-width: 0; background: #170d0e; border: 1px solid #422022; padding: 12px; }
+  .subpanel-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .subpanel-title { color: #efc5b3; font-size: 10px; font-weight: 800; letter-spacing: .11em; }
+  .subpanel-title span { color: #ff634b; margin-right: 6px; }
+  .osc-tabbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding-top: 13px; }
+  .osc-tabs { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+  .osc-tabs button, .osc-add, .osc-remove {
+    min-height: 28px; border: 1px solid #512524; background: #211011; color: #bc9388;
+    padding: 0 11px; font-size: 9px; font-weight: 800; letter-spacing: .08em;
+  }
+  .osc-tabs button:hover, .osc-add:hover:not(:disabled), .osc-remove:hover { border-color: #cf624e; color: #ffe1ca; }
+  .osc-tabs button[aria-selected="true"] { border-color: #dd7055; background: #6a241e; color: #ffe4ca; }
+  .osc-add { border-color: #a84234; background: #351415; color: #ffb698; white-space: nowrap; }
+  .osc-add:disabled { opacity: .45; cursor: not-allowed; }
+  .osc-count { margin-left: auto; color: #9d776d; font: 9px var(--mono); white-space: nowrap; }
+  .osc-notice { display: flex; align-items: baseline; gap: 8px; margin-top: 9px; color: #b29185; font: 9px/1.45 var(--mono); }
+  .osc-notice strong { flex: none; color: #ff9b7b; font-weight: 500; }
+  .osc-editor-head { flex-wrap: wrap; }
+  .osc-editor-tools { display: flex; flex-wrap: wrap; min-width: 0; align-items: center; gap: 7px; }
+  .osc-remove { min-height: 25px; padding: 0 8px; color: #b88e84; }
+  .wave-buttons { display: flex; flex-wrap: wrap; min-width: 0; gap: 4px; }
+  .wave-buttons button { border: 1px solid #5d2925; background: #2a1111; color: #b88e84; padding: 5px 11px; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+  .wave-buttons button[aria-pressed="true"] { border-color: #d45c42; color: #ffe0c2; background: #68251e; }
+  .wave-display { margin-top: 10px; height: 166px; background: #0c0909; border: 1px solid #3a1c1b; }
+  .wave-display svg { width: 100%; height: 100%; }
+  .grid-lines { fill: none; stroke: #47211d; stroke-width: 1; opacity: .6; }
+  .wave-line { fill: none; stroke: #ff6348; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .graph-caption { display: flex; justify-content: space-between; margin-top: 7px; color: #8a635b; font: 9px var(--mono); }
+  .filter-knobs { display: grid; grid-template-columns: repeat(2, 1fr); padding-top: 8px; }
+  .compact .dial { width: min(92px, 100%); }
+  .compact .knob-face .face-label { font-size: 8px; }
+  .compact .knob-face output { font-size: 10px; }
+  .compact .knob-caption { display: none; }
+  .rack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 13px; }
+  .effect-group { min-width: 0; background: #170d0e; border: 1px solid #422022; padding: 11px 10px 12px; }
+  .effect-top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 9px; border-bottom: 1px solid #402020; }
+  .effect-top strong { color: #efc5b3; font-size: 10px; letter-spacing: .1em; }
+  .effect-top span { color: #cf5c49; font: 9px var(--mono); }
+  .effect-knobs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 13px; }
+  .mod-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 13px; }
+  .mod-knobs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+  .lfo-knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 12px; }
+  .help-line { margin-top: 12px; color: #96756d; font: 9px/1.4 var(--mono); }
+  .system-layout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 13px; }
+  .system-layout .subpanel { min-height: 165px; }
+  .system-layout p { margin: 11px 0 0; color: #b99b91; font: 11px/1.55 var(--sans); }
+  .system-layout p strong { color: #f4d7c6; }
+
+  /* Parameter views are illustrative; they are not live audio meters. */
+  .visual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 17px; }
+  .visual-card { min-width: 0; padding: 11px; border: 1px solid #422020; background: #160d0e; }
+  .visual-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 20px; }
+  .visual-head strong { color: #efc5b3; font-size: 10px; letter-spacing: .1em; }
+  .visual-head strong span { margin-right: 7px; color: #ff634b; font: 10px var(--mono); }
+  .visual-head small { color: #96766e; font: 9px var(--mono); letter-spacing: .04em; }
+  .visual-link { border: 0; padding: 3px 0 3px 6px; background: transparent; color: #db9884; font: 9px var(--mono); letter-spacing: .06em; }
+  .visual-link:hover { color: #ffe1c5; }
+  .graph-frame { height: 105px; margin-top: 8px; border: 1px solid #3a1d1c; background: #0b0909; overflow: hidden; }
+  .graph-frame svg, .fx-plot svg { display: block; width: 100%; height: 100%; }
+  .plot-grid { fill: none; stroke: #492422; stroke-width: 1; opacity: .65; vector-effect: non-scaling-stroke; }
+  .plot-area { fill: #ff6546; opacity: .13; }
+  .plot-line { fill: none; stroke: #ff7957; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .plot-point { fill: #171011; stroke: #ffa87d; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .plot-guide { fill: none; stroke: #496d66; stroke-width: 1; stroke-dasharray: 4 4; opacity: .6; vector-effect: non-scaling-stroke; }
+  .pitch-graph .plot-line { stroke: #80d6bf; }
+  .pitch-graph .plot-area { fill: #80d6bf; opacity: .12; }
+  .plot-values { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 7px 12px; margin-top: 9px; color: #97766e; font: 9px var(--mono); }
+  .plot-values b { margin-left: 4px; color: #edc0ae; font-weight: 500; }
+  .mini-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .mini-controls.single { grid-template-columns: 1fr; }
+  .mini-control { display: grid; grid-template-columns: auto minmax(24px, 1fr) auto; align-items: center; gap: 7px; min-width: 0; padding: 6px 7px; border: 1px solid #3a1d1c; background: #100b0b; }
+  .mini-control label { color: #caa094; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
+  .mini-control output { color: #f5d7c5; font: 9px var(--mono); text-align: right; }
+  .mini-control input { appearance: none; -webkit-appearance: none; width: 100%; height: 14px; margin: 0; background: transparent; cursor: ew-resize; }
+  .mini-control input::-webkit-slider-runnable-track { height: 3px; background: #5d2c26; }
+  .mini-control input::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 7px; height: 11px; margin-top: -4px; background: #ffb47e; border: 1px solid #7a3128; }
+  .mini-control input::-moz-range-track { height: 3px; background: #5d2c26; }
+  .mini-control input::-moz-range-thumb { width: 6px; height: 10px; border: 1px solid #7a3128; border-radius: 0; background: #ffb47e; }
+  .osc-side { display: grid; gap: 10px; align-content: start; }
+  .osc-readouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 12px; }
+  .osc-readout { min-width: 0; padding: 9px; border: 1px solid #3a1c1c; background: #100a0a; }
+  .osc-readout small, .osc-readout strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .osc-readout small { color: #8f6a61; font: 9px var(--mono); }
+  .osc-readout strong { margin-top: 5px; color: #efd1bf; font: 10px var(--mono); }
+  .filter-plot { height: 62px; }
+  .slot-note { color: #82645d; font: 9px/1.4 var(--mono); }
+  .unavailable { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 10px; }
+  .unavailable button {
+    min-height: 24px; padding: 0 8px; border: 1px solid #54322e; background: #1a1010;
+    color: #b09388; font-size: 9px; font-weight: 700; letter-spacing: .06em; cursor: not-allowed;
+  }
+  .unavailable-label { margin-left: auto; color: #80625b; font: 9px var(--mono); }
+  .fx-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding-top: 13px; color: #ad847a; font: 9px var(--mono); letter-spacing: .05em; }
+  .fx-flow span { padding: 6px 9px; border: 1px solid #40201e; background: #1b0e0e; }
+  .fx-flow i { color: #7e4238; font-style: normal; }
+  .fx-plot { height: 60px; margin-top: 11px; border: 1px solid #391b1a; background: #0b0909; }
+  .fx-line { fill: none; stroke: #ee795a; stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+  .fx-area { fill: #d74e37; opacity: .14; }
+  .fx-caption { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: #88665e; font: 8px var(--mono); }
+  .fx-availability { padding: 10px 11px; margin-top: 10px; border: 1px solid #39201f; background: #120c0c; }
+  .mod-editor { display: grid; grid-template-columns: 55px minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+  .mod-slots { display: grid; align-content: start; gap: 4px; }
+  .mod-slots span, .mod-slots button {
+    display: grid; place-items: center; min-height: 30px; padding: 0 3px; border: 1px solid #3b2020;
+    background: #110b0c; color: #715b56; font: 9px var(--mono);
+  }
+  .mod-slots .selected { border-color: #a94134; background: #501c1b; color: #ffd8bc; }
+  .mod-slots button:disabled { cursor: not-allowed; }
+  .mod-editor .graph-frame { height: 130px; margin: 0; }
+  .mod-editor .mod-knobs, .mod-editor .lfo-knobs { margin-top: 8px; }
+  .mod-sources { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 10px; padding: 10px 11px; border: 1px solid #3e201e; background: #140c0d; }
+  .mod-sources strong { margin-right: 4px; color: #cf9f90; font-size: 9px; letter-spacing: .1em; }
+  .mod-sources span { padding: 5px 7px; border: 1px solid #4b2924; color: #c1a195; font: 9px var(--mono); }
+  .system-readouts { display: grid; margin-top: 10px; }
+  .system-readouts div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #39201f; color: #a8857a; font: 9px var(--mono); }
+  .system-readouts strong { color: #f1d3c1; font-weight: 500; text-align: right; }
+  .system-action { width: 100%; margin-top: 13px; }
+  .system-actions { display: flex; gap: 6px; margin-top: 12px; }
+  .system-actions button { flex: 1; min-width: 0; }
+  .future-panel { margin-top: 10px; padding: 11px; border: 1px solid #48211f; background: #130c0d; }
+  .future-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .future-head strong { color: #e6b5a2; font-size: 10px; letter-spacing: .1em; }
+  .future-head span { color: #bc7968; font: 9px var(--mono); letter-spacing: .05em; }
+  .future-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .future-card { min-width: 0; padding: 10px; border: 1px solid #39201e; background: #100a0b; }
+  .future-card strong { display: block; color: #cfa397; font-size: 9px; letter-spacing: .1em; }
+  .future-card p { margin: 7px 0 0; color: #9b7b70; font: 9px/1.45 var(--mono); }
+  .future-card .unavailable { margin-top: 7px; }
+  .mixer-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
+  .mixer-strip { min-width: 0; padding: 10px; border: 1px solid #422020; background: #160d0e; }
+  .mixer-strip-head { display: flex; justify-content: space-between; gap: 6px; color: #e2b7a5; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+  .mixer-strip-head span { color: #956d62; font: 9px var(--mono); }
+  .mixer-strip label { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 6px; margin-top: 12px; color: #8e7067; font: 9px var(--mono); }
+  .mixer-strip input { width: 100%; min-width: 0; accent-color: #a94d3e; cursor: not-allowed; }
+  .mixer-strip .unavailable { margin-top: 8px; }
+  .mixer-master { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border: 1px solid #4c2823; background: #1a0d0d; }
+  .mixer-master label { color: #e5c2b2; font-size: 9px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
+  .mixer-master input { flex: 1; min-width: 0; accent-color: #ff805a; }
+  .mixer-master output { min-width: 38px; text-align: right; color: #f0d2bf; font: 10px var(--mono); }
+  .sequence-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 13px; }
+  .step-grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; margin-top: 11px; }
+  .step-cell { min-width: 0; display: flex; align-items: flex-end; height: 28px; padding: 2px; border: 1px solid #40201f; background: #0d0909; }
+  .step-cell i { width: 100%; background: #a64b3c; opacity: .16; }
+  .step-cell[aria-pressed="true"] { border-color: #995244; background: #291311; }
+  .step-cell[aria-pressed="true"] i { opacity: .9; }
+  .clip-grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; margin-top: 11px; }
+  .clip-cell { min-width: 0; height: 20px; padding: 0; border: 1px solid #35201e; background: #0d0909; }
+  .clip-cell[aria-pressed="true"] { background: #a15040; border-color: #d4795d; }
+  .step-cell:focus-visible, .clip-cell:focus-visible { position: relative; z-index: 1; outline: 2px solid #ffe1a6; outline-offset: 1px; }
+  .design-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 11px; color: #ab8175; font: 9px var(--mono); }
+  .design-tools select { min-width: 145px; padding: 7px; color: #e9c6b5; border: 1px solid #572c28; background: #1c0e0f; font: 10px var(--mono); }
+  .design-tools button, .design-row button { padding: 6px 9px; border: 1px solid #75362f; background: #341513; color: #efb9a6; font: 9px var(--mono); }
+  .design-tools button:disabled, .design-row button:disabled { opacity: .35; cursor: not-allowed; }
+  .design-rack { display: grid; gap: 5px; margin-top: 9px; }
+  .design-row { display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid #422020; background: #100a0b; }
+  .design-row strong { flex: 1; min-width: 0; color: #d8aa99; font-size: 9px; letter-spacing: .08em; }
+  .design-row small { color: #a6786a; font: 9px var(--mono); }
+  .mod-concepts { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-top: 8px; }
+  .matrix-row { display: grid; grid-template-columns: 1fr 1fr 44px; gap: 6px; padding: 7px 0; border-bottom: 1px solid #3c211e; color: #b69182; font: 9px var(--mono); }
+  .matrix-row:last-child { border: 0; }
+  .matrix-row:first-of-type { color: #825f56; }
+  .macro-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+  .macro-draft { display: grid; justify-items: center; gap: 5px; color: #a07a6e; font: 9px var(--mono); }
+  .macro-draft i { display: block; width: 27px; height: 27px; border-radius: 50%; border: 2px solid #804237; background: radial-gradient(circle at 36% 30%, #63352e, #241111 70%); box-shadow: 0 0 0 2px #2d1514; }
+
+  .keyboard-area { padding: 13px 1px 0; }
+  .keyboard-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 0 0 7px; }
+  .keyboard-head strong { color: #ffe2ce; font-size: 10px; letter-spacing: .11em; }
+  .keyboard-head strong span { color: #ff9d77; margin-right: 8px; }
+  .keyboard-head small { color: #e7a699; font: 9px var(--mono); text-align: right; }
+  .keyboard {
+    display: flex; position: relative; width: 100%; height: 72px; background: #090707;
+    border: 3px solid #240b0c; border-radius: 2px; overflow: hidden;
+    box-shadow: 0 1px 0 #e34b3a52;
+  }
+  .white-key { flex: 1 1 0; min-width: 0; height: 100%; padding: 0; border: 0; border-right: 1px solid #9b9993; background: linear-gradient(#faf7ef, #d6d0c4); }
+  .white-key:last-of-type { border-right: 0; }
+  .white-key:hover { background: #ffe0c5; }
+  .white-key.pressed { background: linear-gradient(#ffbf9d, #e97154); }
+  .black-key {
+    position: absolute; top: 0; width: calc(100% / 22 * .61); height: 62%; padding: 0;
+    border: 1px solid #080707; border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, #111010, #292222 35%, #171414 100%);
+    box-shadow: 0 3px 0 #090707, inset 0 -3px #080808; z-index: 1;
+  }
+  .black-key:hover { background: #4a2926; }
+  .black-key.pressed {
+    background: #b73929;
+    border-color: #b73929;
+    box-shadow: 0 3px 0 #b73929;
+  }
+  .keyboard:focus-visible:not(.pointer-focus) { outline: 2px solid #ffb46d; outline-offset: 3px; }
+  .keyboard.pointer-focus:focus-visible { outline: none; }
+  .keyboard button:focus-visible { outline: 2px solid #ffb46d; outline-offset: -3px; }
+  .instrument-foot { display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 26px; padding: 0 19px 4px; color: #e4a299; font: 9px var(--mono); letter-spacing: .05em; }
+  .instrument-foot strong { color: #f8d4bf; font-weight: 500; }
+  .preview-caption { display: flex; justify-content: space-between; gap: 16px; margin: 13px 2px 0; color: #a3948e; font: 11px/1.45 var(--sans); }
+  .preview-caption strong { color: #d8c3b9; font-weight: 600; }
+  .preview-caption a { color: #dfab97; text-decoration: none; }
+  .preview-caption a:hover { color: #ffe7d6; }
+  .preview-caption .caption-right { color: #796a66; font: 10px/1.4 var(--mono); text-align: right; }
+  .toast { position: fixed; z-index: 30; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 11px 15px; border: 1px solid #a44639; background: #1c1010; box-shadow: 0 8px 30px #000a; color: #f5d5c6; font: 11px/1.4 var(--sans); }
+
+  @media (max-width: 800px) {
+    body { padding: 20px 14px 35px; }
+    .instrument-header { align-items: flex-start; flex-direction: column; gap: 14px; }
+    .header-right { width: 100%; align-items: stretch; }
+    .nav { width: 100%; }
+    .nav button { flex: 1; min-width: 0; padding: 0 5px; font-size: 9px; }
+    .preset { grid-template-columns: 48px minmax(0, 1fr); }
+    .preset-arrows { padding: 9px 5px; }
+    .patch-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; padding: 8px 12px; border-left: 0; border-top: 1px solid #321417; }
+    .patch-title { gap: 9px; }
+    .patch-number { font-size: 27px; }
+    .patch-name { font-size: 20px; }
+    .main-controls { grid-template-columns: 1fr; gap: 14px; }
+    .mode-section { border-right: 0; border-bottom: 1px solid #321819; padding: 0 0 11px; }
+    .mode-list { grid-template-columns: repeat(4, 1fr); }
+    .mode-note { display: none; }
+    .mode.active::before { display: none; }
+    .mode { padding: 0 5px; justify-content: center; }
+    .mode.active span { display: none; }
+    .osc-layout, .mod-layout, .visual-grid, .sequence-layout { grid-template-columns: 1fr; }
+    .mixer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rack { grid-template-columns: 1fr; }
+    .effect-knobs, .filter-knobs, .mod-knobs, .lfo-knobs { max-width: 440px; margin-left: auto; margin-right: auto; }
+    .system-layout { grid-template-columns: 1fr; }
+    .workspace { min-height: 0; }
+    .library { left: 8px; right: 8px; }
+  }
+  @media (max-width: 520px) {
+    body { padding: 14px 9px 28px; }
+    .preview-bar, .preview-caption { align-items: flex-start; flex-direction: column; }
+    .preview-heading { flex-wrap: wrap; }
+    .preview-caption .caption-right { text-align: left; }
+    .instrument-header { padding: 12px; }
+    .inside { padding: 0 9px 10px; }
+    .nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .nav button { letter-spacing: .04em; font-size: 8px; }
+    .future-grid, .mod-concepts { grid-template-columns: 1fr; }
+    .patch-number { font-size: 23px; }
+    .patch-name { font-size: 17px; }
+    .patch-kicker { gap: 5px; font-size: 9px; }
+    .tuning { font-size: 9px; }
+    .workspace { padding: 12px; }
+    .workspace-note { font-size: 8px; }
+    .osc-readout strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+    .mod-editor { grid-template-columns: 46px minmax(0, 1fr); }
+    .mod-knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .mini-controls { grid-template-columns: 1fr; }
+    .unavailable-label { width: 100%; margin-left: 0; }
+    .knob-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
+    .mode { font-size: 8px; letter-spacing: 0; }
+    .library-body { grid-template-columns: 1fr; }
+    .library-filters { grid-template-columns: repeat(4, 1fr); }
+    .library-filters button { padding: 0 5px; text-align: center; font-size: 8px; }
+    .keyboard-head { align-items: flex-start; flex-direction: column; gap: 5px; }
+    .keyboard-head small { text-align: left; }
+    .instrument-foot { flex-wrap: wrap; padding: 7px 12px; font-size: 8px; }
+  }
+
+  /* Proposed effects page: original VANTA controls, not an audio plug-in. */
+  .fx-workbench { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; padding-top: 12px; }
+  .fx-browser, .fx-stage { border: 1px solid #482321; background: #160d0e; }
+  .fx-browser { padding: 9px; }
+  .fx-browser-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 3px 9px; color: #d9a99a; font: 9px var(--mono); letter-spacing: .08em; }
+  .fx-browser-head b { color: #f16b53; font-weight: 500; }
+  .fx-slots { display: grid; gap: 4px; }
+  .fx-slot { min-width: 0; display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: stretch; border: 1px solid #35201e; background: #110b0c; }
+  .fx-slot[data-selected="true"] { border-color: #a64234; background: linear-gradient(90deg, #351412, #261010); box-shadow: inset 2px 0 #f16a4e; }
+  .fx-power { display: grid; place-items: center; min-height: 29px; padding: 0; border: 0; background: transparent; }
+  .fx-power::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #3a2928; border: 1px solid #77504b; }
+  .fx-power[aria-pressed="true"]::before { background: #ff7353; border-color: #ffc090; box-shadow: 0 0 7px #f35b42a8; }
+  .fx-select { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 29px; padding: 0 6px 0 0; border: 0; background: transparent; color: #cbb0a7; text-align: left; font-size: 9px; font-weight: 800; letter-spacing: .055em; }
+  .fx-select:hover, .fx-slot[data-selected="true"] .fx-select { color: #ffe3d3; }
+  .fx-select .fx-number { color: #865e55; font: 8px var(--mono); }
+  .fx-select .fx-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .fx-select svg { flex: none; width: 23px; height: 17px; fill: none; stroke: #ae7466; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .fx-slot[data-selected="true"] svg { stroke: #ff9672; }
+  .fx-browser-note { margin: 9px 2px 1px; color: #87675e; font: 9px/1.45 var(--mono); }
+  .fx-stage { display: flex; min-width: 0; flex-direction: column; padding: 14px; }
+  .fx-stage-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .fx-stage-kicker { color: #f27859; font: 9px var(--mono); letter-spacing: .09em; }
+  .fx-stage h3 { margin: 6px 0 4px; color: #fae2d3; font-size: 17px; line-height: 1.1; letter-spacing: .1em; }
+  .fx-stage p { margin: 0; color: #a9877d; font: 10px/1.4 var(--mono); }
+  .fx-stage-toggle {
+    min-height: 26px; padding: 0 10px; border: 1px solid #61302a; background: #251111;
+    color: #c1998b; font-size: 9px; font-weight: 800; letter-spacing: .07em; white-space: nowrap;
+  }
+  .fx-stage-toggle:hover { border-color: #d57058; color: #ffe7d7; }
+  .fx-stage-toggle[aria-pressed="true"] {
+    background: #62221c; color: #ffe1ce; border-color: #da6d50; box-shadow: inset 0 1px #ffc8a020;
+  }
+  .fx-stage-panel { min-width: 0; }
+  .fx-stage .fx-plot { height: 116px; margin-top: 14px; background: #0a0808; }
+  .fx-stage .fx-line { stroke: #ff7455; stroke-width: 2; filter: drop-shadow(0 0 2px #e34b3c75); }
+  .fx-stage .fx-area { fill: #e0523b; opacity: .1; }
+  .fx-stage .fx-caption { margin-top: 7px; letter-spacing: .04em; }
+  .fx-stage .effect-knobs { grid-template-columns: repeat(var(--knob-count, 3), minmax(0, 1fr)); max-width: 610px; margin: 13px 0 0; }
+  .fx-stage .compact .dial { width: min(92px, 100%); }
+  .fx-stage-spacer { flex: 1; min-height: 12px; }
+  .fx-chain { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 9px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #3d201e; font: 9px/1.5 var(--mono); }
+  .fx-chain b { color: #de9885; font-weight: 500; white-space: nowrap; }
+  .fx-chain span { color: #927168; }
+  .fx-future { margin-top: 10px; }
+  .fx-future summary { cursor: pointer; list-style: none; }
+  .fx-future summary::-webkit-details-marker { display: none; }
+  .fx-future summary::before { content: "+"; float: right; color: #d3937e; font: 14px var(--mono); }
+  .fx-future[open] summary::before { content: "−"; }
+  .fx-future .future-head { padding-right: 24px; }
+
+  @media (max-width: 800px) {
+    .fx-workbench { grid-template-columns: 175px minmax(0, 1fr); }
+    .fx-select .fx-number { display: none; }
+    .fx-stage .effect-knobs { max-width: 100%; margin-left: 0; }
+    .fx-stage .fx-plot { height: 100px; }
+  }
+  @media (max-width: 520px) {
+    .fx-workbench { grid-template-columns: 1fr; }
+    .fx-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fx-select { gap: 4px; font-size: 9px; }
+    .fx-select .fx-number { display: none; }
+    .fx-select svg { width: 20px; }
+    .fx-browser-note { display: none; }
+    .fx-stage { padding: 11px; }
+    .fx-stage h3 { font-size: 15px; }
+    .fx-stage .effect-knobs { gap: 2px; }
+    .fx-stage .compact .knob-face .face-label { font-size: 7px; }
+    .fx-stage .compact .knob-face output { font-size: 8px; }
+  }
+
+</style>
+</head>
+<body>
+<div class="preview">
+  <header class="preview-bar">
+    <div class="preview-heading"><strong>VANTA / INTERFACE STUDY</strong><span>EFFECTS PROPOSAL · NO AUDIO</span></div>
+    <div class="view-switch" aria-label="Preview format">
+      <span>VIEW</span>
+      <button type="button" data-format="standalone" aria-pressed="true">STANDALONE</button>
+      <button type="button" data-format="vst" aria-pressed="false">VST3</button>
+    </div>
+  </header>
+
+  <main class="instrument" aria-label="VANTA instrument interface concept">
+    <div class="topline"></div>
+    <header class="instrument-header">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+          <rect x=".5" y=".5" width="39" height="39" rx="3" fill="#200d0e" stroke="#f08469" stroke-opacity=".55"/>
+          <path d="M8 10h6l6 16 6-16h6L23 31h-6z" fill="#ffe0c4"/>
+          <path d="M29 30h4" stroke="#ff6549" stroke-width="2"/>
+        </svg>
+        <div><div class="brand-name">VANTA</div><div class="brand-sub">SOFTWARE INSTRUMENT / 01</div></div>
+      </div>
+      <div class="header-right">
+        <nav class="nav" role="tablist" aria-label="Instrument pages">
+          <button type="button" id="tab-main" role="tab" aria-selected="false" aria-controls="page-main" data-page="main" tabindex="-1">MAIN</button>
+          <button type="button" id="tab-osc" role="tab" aria-selected="false" aria-controls="page-osc" data-page="osc" tabindex="-1">OSC</button>
+          <button type="button" id="tab-fx" role="tab" aria-selected="true" aria-controls="page-fx" data-page="fx">EFFECTS</button>
+          <button type="button" id="tab-mod" role="tab" aria-selected="false" aria-controls="page-mod" data-page="mod" tabindex="-1">MOD</button>
+          <button type="button" id="tab-mixer" role="tab" aria-selected="false" aria-controls="page-mixer" data-page="mixer" tabindex="-1">MIXER</button>
+          <button type="button" id="tab-seq" role="tab" aria-selected="false" aria-controls="page-seq" data-page="seq" tabindex="-1">SEQ</button>
+          <button type="button" id="tab-system" role="tab" aria-selected="false" aria-controls="page-system" data-page="system" tabindex="-1">SYSTEM</button>
+        </nav>
+        <div class="header-rule"><i></i><span>16 VOICES / STEREO</span></div>
+      </div>
+    </header>
+
+    <div class="inside">
+      <section class="preset screen" aria-label="Current preset">
+        <div class="preset-arrows">
+          <button class="arrow" id="previous-preset" type="button" aria-label="Previous factory preset"><svg viewBox="0 0 24 14" fill="none" aria-hidden="true"><path d="m3 11 9-8 9 8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="arrow" id="next-preset" type="button" aria-label="Next factory preset"><svg viewBox="0 0 24 14" fill="none" aria-hidden="true"><path d="m3 3 9 8 9-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <button class="patch-button" id="patch-button" type="button" aria-expanded="false" aria-controls="library" aria-label="Browse factory presets. Current: VANTA INIT">
+          <span class="patch-kicker"><span class="red">PRESET</span><span>VANTA FACTORY</span><span class="divider">/</span><span id="patch-category" class="category">INIT</span></span>
+          <span class="patch-title"><span class="patch-number" id="patch-number">001:</span><span class="patch-name" id="patch-name">VANTA INIT</span></span>
+          <span class="patch-caption">FACTORY COLLECTION <b>·</b> CLICK TO BROWSE</span>
+        </button>
+        <div class="patch-actions">
+          <div class="action-row"><button type="button" class="hardware-button" id="write-preset">WRITE</button><button type="button" class="hardware-button" id="import-preset">IMPORT</button></div>
+          <div class="tuning">TUNING &nbsp;<strong>A = 440 Hz</strong></div>
+        </div>
+        <div class="library" id="library" hidden>
+          <div class="library-heading"><span>FACTORY PRESET BROWSER</span><button type="button" id="close-library" aria-label="Close preset browser">×</button></div>
+          <label class="library-search" for="preset-search"><span>SEARCH</span><input id="preset-search" type="search" placeholder="Name or category" autocomplete="off"></label>
+          <div class="library-body">
+            <div class="library-filters" aria-label="Preset categories">
+              <button type="button" data-filter="ALL" aria-pressed="true">ALL SOUNDS</button><button type="button" data-filter="PADS" aria-pressed="false">PADS</button><button type="button" data-filter="LEADS" aria-pressed="false">LEADS</button><button type="button" data-filter="SYNTH" aria-pressed="false">SYNTH</button>
+            </div>
+            <div class="preset-list" id="preset-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="level-strip">
+        <label for="master-level">LEVEL</label>
+        <input id="master-level" type="range" min="0" max="100" step="1" value="70" aria-label="Master output level">
+        <output id="master-output" for="master-level">70%</output>
+      </div>
+
+      <section class="workspace screen" aria-label="Sound controls">
+        <div id="page-main" role="tabpanel" aria-labelledby="tab-main" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>01</b> PERFORMANCE / SOUND</div><div class="workspace-note">PARAMETER VIEW · NO AUDIO</div></div>
+          <div class="main-controls">
+            <div class="mode-section">
+              <div class="small-label">PLAY MODE</div>
+              <div class="mode-list">
+                <div class="mode active">POLY <span>16</span></div>
+                <button class="mode" type="button" disabled title="Not implemented yet">UNISON</button>
+                <button class="mode" type="button" disabled title="Not implemented yet">LEGATO</button>
+                <button class="mode" type="button" disabled title="Not implemented yet">PORTAMENTO</button>
+              </div>
+              <div class="mode-note">Additional modes<br>are not available yet.</div>
+            </div>
+            <div class="knob-grid" data-knob-group="cutoff,resonance,attack,release,vibrato"></div>
+          </div>
+          <div class="visual-grid">
+            <section class="visual-card" aria-label="Amplitude envelope parameter view">
+              <div class="visual-head"><strong><span>01</span> AMP ENVELOPE</strong><button class="visual-link" type="button" data-go-page="mod">EDIT ↗</button></div>
+              <div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on delay, attack, hold, decay, sustain and release">
+                    <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
+                    <path class="plot-area" data-area/><path class="plot-line" data-line/>
+                    <circle class="plot-point" data-point="delay" r="3"/><circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="hold" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
+                  </svg></div>
+              <div class="plot-values"><span>DL <b data-display="ampDelay"></b></span><span>A <b data-display="attack"></b></span><span>H <b data-display="ampHold"></b></span><span>D <b data-display="decay"></b></span><span>S <b data-display="sustain"></b></span><span>R <b data-display="release"></b></span></div>
+              <div class="mini-controls" data-mini-group="decay,sustain"></div>
+            </section>
+            <section class="visual-card" aria-label="Vibrato parameter view">
+              <div class="visual-head"><strong><span>02</span> PITCH VIBRATO</strong><button class="visual-link" type="button" data-go-page="mod">EDIT ↗</button></div>
+              <div class="graph-frame"><svg class="pitch-graph" data-graph="vibrato" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative sine vibrato based on depth and rate">
+                    <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
+                    <path class="plot-guide" data-guide/><path class="plot-area" data-area/><path class="plot-line" data-line/>
+                  </svg></div>
+              <div class="plot-values"><span>DEPTH <b data-display="vibrato"></b></span><span>RATE <b data-display="vibratoRate"></b></span><span>SINE · 1 SEC</span><span>DASH = FULL DEPTH</span></div>
+              <div class="mini-controls single" data-mini-group="vibratoRate"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="page-osc" role="tabpanel" aria-labelledby="tab-osc" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>02</b> OSCILLATOR / FILTER</div><div class="workspace-note">BETA 0.7 ENGINE · UP TO 8 OSCILLATORS</div></div>
+          <div class="osc-tabbar">
+            <div class="osc-tabs" id="osc-tabs" role="tablist" aria-label="Oscillator tabs"></div>
+            <button class="osc-add" id="add-osc" type="button" aria-label="Add oscillator tab">+ NEW TAB</button>
+            <span class="osc-count" id="osc-count" aria-live="polite"></span>
+          </div>
+          <div class="osc-notice"><strong>PREVIEW ONLY</strong><span>Beta 0.7 supports up to eight oscillators and four wave shapes. These HTML tabs are visual drafts, stored per preset for this session only.</span></div>
+          <div class="osc-layout">
+            <section class="subpanel" id="osc-editor" role="tabpanel" aria-labelledby="osc-tab-0">
+              <div class="subpanel-top osc-editor-head">
+                <div class="subpanel-title" id="osc-title"><span>01</span> OSCILLATOR A</div>
+                <div class="osc-editor-tools"><button class="osc-remove" id="remove-osc" type="button" hidden>REMOVE</button><div class="wave-buttons"><button type="button" data-wave="sine" aria-pressed="true">SINE</button><button type="button" data-wave="saw" aria-pressed="false">SAW</button><button type="button" data-wave="square" aria-pressed="false" title="Visual draft only in this HTML preview">SQUARE</button><button type="button" data-wave="triangle" aria-pressed="false" title="Visual draft only in this HTML preview">TRIANGLE</button></div></div>
+              </div>
+              <div class="wave-display"><svg viewBox="0 0 480 100" preserveAspectRatio="none" role="img" aria-label="Selected waveform shape"><path class="grid-lines" d="M0 25H480M0 50H480M0 75H480M80 0V100M160 0V100M240 0V100M320 0V100M400 0V100"/><path id="wave-path" class="wave-line" d=""/></svg></div>
+              <div class="graph-caption"><span>WAVE SHAPE / ILLUSTRATIVE</span><span id="osc-stage-note">HTML PREVIEW / NO AUDIO</span></div>
+              <div class="osc-readouts"><div class="osc-readout"><small>WAVE</small><strong data-wave-name>SINE</strong></div><div class="osc-readout"><small>VOICES</small><strong id="osc-voices">16 POLY</strong></div><div class="osc-readout"><small>OUTPUT</small><strong id="osc-output">NOT CONNECTED</strong></div></div>
+            </section>
+            <div class="osc-side">
+              <section class="subpanel" aria-label="Low-pass filter">
+                <div class="visual-head"><strong><span>02</span> GLOBAL LOW-PASS</strong><small>RESPONSE / MODEL</small></div>
+                <div class="graph-frame filter-plot"><svg data-graph="filter" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative low-pass filter response based on cutoff and resonance">
+                      <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
+                      <path class="plot-area" data-area/><path class="plot-line" data-line/>
+                    </svg></div>
+                <div class="filter-knobs compact" data-knob-group="cutoff,resonance"></div>
+              </section>
+              <section class="subpanel" aria-label="Unavailable oscillator features">
+                <div class="visual-head"><strong><span>03</span> OTHER SOURCES</strong><small>NOT IMPLEMENTED</small></div>
+                <div class="unavailable"><button type="button" disabled title="Not implemented">SUB</button><button type="button" disabled title="Not implemented">NOISE</button><button type="button" disabled title="Not implemented">UNISON</button></div>
+              </section>
+            </div>
+          </div>
+          <section class="future-panel" aria-label="HYBRID ENGINE &amp; FILTER ROADMAP, planned features">
+            <div class="future-head"><strong>HYBRID ENGINE &amp; FILTER ROADMAP</strong><span>PLANNED · NOT IN ENGINE</span></div>
+            <div class="future-grid"><div class="future-card"><strong>SOURCE ENGINES</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">WAVETABLE</button><button type="button" disabled title="Planned concept; not implemented">SAMPLE</button><button type="button" disabled title="Planned concept; not implemented">MULTISAMPLE / SFZ</button><button type="button" disabled title="Planned concept; not implemented">GRANULAR</button><button type="button" disabled title="Planned concept; not implemented">SPECTRAL</button><button type="button" disabled title="Planned concept; not implemented">SUB / NOISE</button></div><p>Additional oscillator engines are design placeholders, not audio sources.</p></div><div class="future-card"><strong>WAVETABLE EDITING</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">256 FRAMES</button><button type="button" disabled title="Planned concept; not implemented">2D / 3D VIEW</button><button type="button" disabled title="Planned concept; not implemented">AUDIO → TABLE</button><button type="button" disabled title="Planned concept; not implemented">FORMULA</button><button type="button" disabled title="Planned concept; not implemented">TEXT → WAVE</button></div></div><div class="future-card"><strong>WARP &amp; SPECTRAL</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">FM / AM / PHASE</button><button type="button" disabled title="Planned concept; not implemented">BEND / SYNC</button><button type="button" disabled title="Planned concept; not implemented">ASYMMETRY / REMAP</button><button type="button" disabled title="Planned concept; not implemented">PWM</button><button type="button" disabled title="Planned concept; not implemented">FORMANT / VOCODE</button><button type="button" disabled title="Planned concept; not implemented">HARMONIC SHIFT / SQUEEZE</button></div></div><div class="future-card"><strong>FILTERS &amp; ROUTING</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">HP / BP / PEAK</button><button type="button" disabled title="Planned concept; not implemented">ANALOG / LADDER</button><button type="button" disabled title="Planned concept; not implemented">COMB / FORMANT</button><button type="button" disabled title="Planned concept; not implemented">DUAL FILTER</button><button type="button" disabled title="Planned concept; not implemented">SERIES / PARALLEL</button><button type="button" disabled title="Planned concept; not implemented">PER-OSC FILTER</button></div></div></div>
+          </section>
+        </div>
+
+        <div id="page-fx" role="tabpanel" aria-labelledby="tab-fx">
+          <div class="workspace-head"><div class="eyebrow"><b>03</b> EFFECTS / SIGNAL CHAIN</div><div class="workspace-note">NINE PROCESSORS · PREVIEW ONLY</div></div>
+          <div class="fx-workbench">
+            <aside class="fx-browser" aria-label="Effects selection">
+              <div class="fx-browser-head"><span><b>FX</b> / RACK</span><span>09 MODULES</span></div>
+              <div class="fx-slots" id="fx-slots"></div>
+              <div class="fx-browser-note">Select a module to edit.<br>Click its light to enable / bypass.</div>
+            </aside>
+            <section class="fx-stage" aria-label="Selected effect controls">
+              <div class="fx-stage-top"><div><div class="fx-stage-kicker" id="fx-stage-kicker">01 / MODULATION</div><h3 id="fx-stage-title">CHORUS</h3><p id="fx-stage-description">Stereo movement / soft width</p></div><button type="button" class="fx-stage-toggle" id="fx-stage-toggle" aria-pressed="false">BYPASSED</button></div>
+              <div id="fx-panels"></div>
+              <div class="fx-stage-spacer"></div>
+              <div class="fx-chain"><b>SIGNAL PATH</b><span>REVERB → DELAY → DISTORTION → COMP → CHORUS → EQ → FILTER → FLANGER → PHASER → OUT</span></div>
+            </section>
+          </div>
+          <details class="fx-future future-panel" aria-label="Additional effects design ideas">
+            <summary><span class="future-head"><strong>MORE RACK IDEAS</strong><span>OPTIONAL CONCEPT · NO AUDIO</span></span></summary>
+            <div class="future-grid"><div class="future-card"><strong>FURTHER PROCESSORS</strong><div class="unavailable"><button type="button" disabled title="Future concept">DIMENSION</button><button type="button" disabled title="Future concept">AMP SIM</button><button type="button" disabled title="Future concept">TAPE DELAY</button><button type="button" disabled title="Future concept">EXTRA DISTORTIONS</button></div></div><div class="future-card"><strong>ROUTING CONCEPTS</strong><div class="unavailable"><button type="button" disabled title="Future concept">MULTI-INSTANCE</button><button type="button" disabled title="Future concept">REORDER</button><button type="button" disabled title="Future concept">3-BAND SPLIT</button></div></div></div>
+            <div class="design-tools"><label for="fx-choice">PROCESSOR</label><select id="fx-choice"><option>CHORUS</option><option>FLANGER</option><option>PHASER</option><option>EQ</option><option>MULTIBAND COMP</option><option>FILTER</option><option>DIMENSION</option><option>DELAY</option><option>REVERB</option><option>DISTORTION</option><option>AMP SIM</option></select><button type="button" id="fx-add">+ ADD MODULE</button><span id="fx-draft-count" aria-live="polite"></span></div>
+            <div class="design-rack" id="fx-draft-rack" aria-label="Preview effects order"></div>
+            <div class="help-line">A separate, session-only idea: adding or moving modules here does not change the fixed signal path above.</div>
+          </details>
+        </div>
+
+        <div id="page-mod" role="tabpanel" aria-labelledby="tab-mod" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>04</b> MODULATION / ENVELOPE</div><div class="workspace-note">PARAMETER VIEWS · NO AUDIO</div></div>
+          <div class="mod-layout">
+            <section class="subpanel" aria-label="Amplitude envelope controls">
+              <div class="visual-head"><strong><span>01</span> AMPLITUDE ENVELOPE</strong><small>ENV 1 / AMP</small></div>
+              <div class="mod-editor">
+                <div class="mod-slots"><span class="selected">ENV 1</span><button type="button" disabled title="Additional envelopes are not implemented">ENV 2</button><button type="button" disabled title="Additional envelopes are not implemented">ENV 3</button><button type="button" disabled title="Additional envelopes are not implemented">ENV 4</button></div>
+                <div><div class="graph-frame"><svg data-graph="envelope" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative amplitude envelope based on delay, attack, hold, decay, sustain and release">
+                    <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
+                    <path class="plot-area" data-area/><path class="plot-line" data-line/>
+                    <circle class="plot-point" data-point="delay" r="3"/><circle class="plot-point" data-point="attack" r="3"/><circle class="plot-point" data-point="hold" r="3"/><circle class="plot-point" data-point="decay" r="3"/><circle class="plot-point" data-point="sustain" r="3"/>
+                  </svg></div></div>
+              </div>
+              <div class="mod-knobs compact" data-knob-group="ampDelay,attack,ampHold,decay,sustain,release"></div>
+              <div class="help-line">One shared amplitude envelope. Delay and hold range from 0 to 4 seconds.</div>
+            </section>
+            <section class="subpanel" aria-label="Vibrato controls">
+              <div class="visual-head"><strong><span>02</span> PITCH VIBRATO</strong><small>SINE / PITCH ONLY</small></div>
+              <div class="mod-editor">
+                <div class="mod-slots"><span class="selected">VIB</span><button type="button" disabled title="General-purpose LFOs are not implemented">LFO A</button><button type="button" disabled title="General-purpose LFOs are not implemented">LFO B</button></div>
+                <div><div class="graph-frame"><svg class="pitch-graph" data-graph="vibrato" viewBox="0 0 520 120" preserveAspectRatio="none" role="img" aria-label="Illustrative sine vibrato based on depth and rate">
+                    <path class="plot-grid" d="M0 30H520M0 60H520M0 90H520M104 0V120M208 0V120M312 0V120M416 0V120"/>
+                    <path class="plot-guide" data-guide/><path class="plot-area" data-area/><path class="plot-line" data-line/>
+                  </svg></div><div class="lfo-knobs compact" data-knob-group="vibrato,vibratoRate"></div></div>
+              </div>
+              <div class="help-line">Sine vibrato only. General-purpose LFO routing is not implemented.</div>
+            </section>
+          </div>
+          <div class="mod-sources"><strong>MIDI INPUT</strong><span>VELOCITY → AMP</span><span>PITCH BEND ±2 ST</span><span>SUSTAIN CC64</span><span>MATRIX: PLANNED</span></div>
+          <section class="future-panel" aria-label="MODULATION EXPANSION, planned features">
+            <div class="future-head"><strong>MODULATION EXPANSION</strong><span>PLANNED · NOT IN ENGINE</span></div>
+            <div class="future-grid"><div class="future-card"><strong>ENVELOPES</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">ENV 2–4</button><button type="button" disabled title="Planned concept; not implemented">PITCH ENV</button><button type="button" disabled title="Planned concept; not implemented">FILTER ENV</button><button type="button" disabled title="Planned concept; not implemented">PER-OSC ENV</button></div></div><div class="future-card"><strong>LFO DESIGN</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">LFO 1–10</button><button type="button" disabled title="Planned concept; not implemented">CURVE DRAW</button><button type="button" disabled title="Planned concept; not implemented">STEP LFO</button><button type="button" disabled title="Planned concept; not implemented">CHAOS</button><button type="button" disabled title="Planned concept; not implemented">TEMPO SYNC</button><button type="button" disabled title="Planned concept; not implemented">STEREO OFFSET</button></div></div><div class="future-card"><strong>MACROS &amp; SOURCES</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">MACROS 1–8</button><button type="button" disabled title="Planned concept; not implemented">KEYTRACK</button><button type="button" disabled title="Planned concept; not implemented">MOD WHEEL</button><button type="button" disabled title="Planned concept; not implemented">EXPRESSION</button></div></div><div class="future-card"><strong>MODULATION MATRIX</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">DRAG TO ASSIGN</button><button type="button" disabled title="Planned concept; not implemented">ROUTING MATRIX</button><button type="button" disabled title="Planned concept; not implemented">LIVE FEEDBACK</button></div></div></div>
+          <div class="mod-concepts">
+              <div class="future-card"><strong>ROUTING MATRIX / EXAMPLE ONLY</strong>
+                <div class="matrix-row"><span>SOURCE</span><span>DESTINATION</span><span>AMOUNT</span></div>
+                <div class="matrix-row"><span>LFO 1</span><span>FILTER A</span><span>+38</span></div>
+                <div class="matrix-row"><span>ENV 2</span><span>OSC A WARP</span><span>+24</span></div>
+                <div class="matrix-row"><span>MACRO 1</span><span>FX MIX</span><span>+50</span></div>
+                <p>Illustrative rows; no modulation is being routed.</p>
+              </div>
+              <div class="future-card"><strong>MACRO CONTROLS / PLANNED</strong><div class="macro-grid" aria-label="Eight illustrative macro controls"><div class="macro-draft"><i></i><span>M1</span></div><div class="macro-draft"><i></i><span>M2</span></div><div class="macro-draft"><i></i><span>M3</span></div><div class="macro-draft"><i></i><span>M4</span></div><div class="macro-draft"><i></i><span>M5</span></div><div class="macro-draft"><i></i><span>M6</span></div><div class="macro-draft"><i></i><span>M7</span></div><div class="macro-draft"><i></i><span>M8</span></div></div><p>Eight assignable macros are a design target, not active controls.</p></div>
+            </div>
+          </section>
+        </div>
+
+        <div id="page-mixer" role="tabpanel" aria-labelledby="tab-mixer" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>05</b> MIXER / ROUTING</div><div class="workspace-note">CHANNEL MIXER · PLANNED / NO AUDIO</div></div>
+          <div class="osc-notice"><strong>DESIGN CONCEPT</strong><span>Beta 0.7 has layer gain, pan and enable controls. This HTML mixer is a static preview.</span></div>
+          <div class="mixer-grid" id="mixer-channels" aria-label="Illustrative oscillator mixer channels"></div>
+          <div class="mixer-master"><label for="mixer-master">MASTER LEVEL</label><input id="mixer-master" type="range" min="0" max="100" step="1" value="70" aria-label="Master level preview"><output id="mixer-output" for="mixer-master">70%</output></div>
+          <section class="future-panel" aria-label="Mixer routing roadmap"><div class="future-head"><strong>ROUTING EXPANSION</strong><span>PLANNED · NOT IN ENGINE</span></div><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">PER-OSC ROUTING</button><button type="button" disabled title="Planned concept; not implemented">FILTER A / B</button><button type="button" disabled title="Planned concept; not implemented">FX BUS</button><button type="button" disabled title="Planned concept; not implemented">3-BAND SPLIT</button></div></section>
+        </div>
+
+        <div id="page-seq" role="tabpanel" aria-labelledby="tab-seq" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>06</b> SEQUENCING</div><div class="workspace-note">CONCEPT ONLY · NOT IN ENGINE</div></div>
+          <div class="sequence-layout">
+            <section class="subpanel" aria-label="Planned 32 step arpeggiator">
+              <div class="visual-head"><strong><span>01</span> ARPEGGIATOR</strong><small>32 STEPS / PLANNED</small></div>
+              <div class="step-grid" id="arp-steps" role="group" aria-label="32 arpeggiator preview steps. Use arrow keys to navigate."></div>
+              <div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">MODE</button><button type="button" disabled title="Planned concept; not implemented">RATE / SYNC</button><button type="button" disabled title="Planned concept; not implemented">GATE</button><button type="button" disabled title="Planned concept; not implemented">OCTAVES</button></div>
+              <div class="help-line">Click steps to sketch a session-only pattern. No arpeggiator or audio is implemented.</div>
+            </section>
+            <section class="subpanel" aria-label="Planned 64 step clip sequencer">
+              <div class="visual-head"><strong><span>02</span> CLIP SEQUENCER</strong><small>64 STEPS / PLANNED</small></div>
+              <div class="clip-grid" id="clip-steps" role="group" aria-label="64 clip preview steps. Use arrow keys to navigate."></div>
+              <div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">NOTE LANES</button><button type="button" disabled title="Planned concept; not implemented">AUTOMATION</button><button type="button" disabled title="Planned concept; not implemented">STEP LENGTH</button><button type="button" disabled title="Planned concept; not implemented">TRANSPORT</button></div>
+              <div class="help-line">Click steps to sketch a session-only pattern. No clip sequencer or automation is implemented.</div>
+            </section>
+          </div>
+        </div>
+
+        <div id="page-system" role="tabpanel" aria-labelledby="tab-system" hidden>
+          <div class="workspace-head"><div class="eyebrow"><b>07</b> SYSTEM / INFORMATION</div><div class="workspace-note">WINDOWS · VST3 + STANDALONE</div></div>
+          <div class="system-layout">
+            <section class="subpanel" aria-label="Audio and MIDI settings">
+              <div class="subpanel-title"><span>01</span> AUDIO &amp; MIDI</div>
+              <p id="device-help">In the standalone app, use <strong>Options → Audio/MIDI Settings</strong> to select an output and enable a MIDI input.</p>
+              <button class="hardware-button system-action" id="preview-device" type="button">AUDIO / MIDI SETTINGS</button>
+              <p class="slot-note">The device dialog is not connected in this preview.</p>
+            </section>
+            <section class="subpanel" aria-label="Engine specifications">
+              <div class="subpanel-title"><span>02</span> VOICE &amp; MIDI</div>
+              <div class="system-readouts"><div><span>VOICE MODE</span><strong>POLY / 16</strong></div><div><span>PITCH BEND</span><strong>±2 SEMITONES</strong></div><div><span>RESPONSE</span><strong>VELOCITY + SUSTAIN</strong></div><div><span>REFERENCE</span><strong>A = 440 Hz</strong></div></div>
+            </section>
+            <section class="subpanel" aria-label="Preset support">
+              <div class="subpanel-title"><span>03</span> PRESET SUPPORT</div>
+              <div class="system-readouts"><div><span>.VANTA</span><strong>SAVE / LOAD</strong></div><div><span>.VITAL</span><strong>PARTIAL IMPORT</strong></div><div><span>SERUM / ZENOLOGY</span><strong>UNSUPPORTED</strong></div></div>
+              <div class="system-actions"><button class="hardware-button" type="button" data-preview-action="write">WRITE</button><button class="hardware-button" type="button" data-preview-action="import">IMPORT</button></div>
+            </section>
+          </div>
+          <section class="future-panel" aria-label="WINDOWS &amp; CONTROL ROADMAP, planned features">
+            <div class="future-head"><strong>WINDOWS &amp; CONTROL ROADMAP</strong><span>PLANNED · NOT IN ENGINE</span></div>
+            <div class="future-grid"><div class="future-card"><strong>ENGINE SETTINGS</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">VOICE LIMIT</button><button type="button" disabled title="Planned concept; not implemented">BEND RANGE</button><button type="button" disabled title="Planned concept; not implemented">TUNING</button><button type="button" disabled title="Planned concept; not implemented">OVERSAMPLING</button></div></div><div class="future-card"><strong>MIDI &amp; PRESETS</strong><div class="unavailable"><button type="button" disabled title="Planned concept; not implemented">MIDI LEARN</button><button type="button" disabled title="Planned concept; not implemented">MOD WHEEL</button><button type="button" disabled title="Planned concept; not implemented">EXPRESSION</button><button type="button" disabled title="Planned concept; not implemented">USER TAGS</button><button type="button" disabled title="Planned concept; not implemented">PRESET MANAGEMENT</button></div></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="keyboard-area" id="keyboard-area" aria-label="Standalone keyboard preview">
+        <div class="keyboard-head"><strong><span>02</span> PERFORMANCE KEYBOARD</strong><small>CLICK A KEY, THEN PLAY Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P · NO AUDIO IN PREVIEW</small></div>
+        <div class="keyboard" id="keyboard" tabindex="0" role="group" aria-label="Visual piano keyboard; play with Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P"></div>
+      </section>
+    </div>
+    <footer class="instrument-foot"><span><strong>VANTA</strong> / SOFTWARE SYNTHESIZER</span><span id="format-label">STANDALONE CONCEPT</span></footer>
+  </main>
+  <div class="preview-caption"><span><strong>Design preview only.</strong> Controls do not produce sound or change the VST. <a href="laggify-ui-concept.html">View the separate Laggify concept ↗</a></span><span class="caption-right">DRAG KNOBS TO ADJUST<br>DOUBLE-CLICK TO RESET</span></div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+(() => {
+  'use strict';
+
+  // Existing controls keep their ranges. New controls below are proposed UI values only.
+  const specs = {
+    cutoff:          { label: 'CUTOFF',    sub: 'FILTER',     min: 30,    max: 18000, initial: 14000, step: 1,     skew: .28, format: v => v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : Math.round(v) + ' Hz' },
+    resonance:       { label: 'RESO',      sub: 'FILTER',     min: 0,     max: .95,   initial: 0,     step: .001,  skew: 1,   format: pct },
+    ampDelay:        { label: 'DELAY',     sub: 'ENVELOPE',   min: 0,     max: 4,     initial: 0,     step: .001,  skew: .4,  format: time },
+    attack:          { label: 'ATTACK',    sub: 'ENVELOPE',   min: .001,  max: 2,     initial: .02,   step: .001,  skew: .4,  format: time },
+    ampHold:         { label: 'HOLD',      sub: 'ENVELOPE',   min: 0,     max: 4,     initial: 0,     step: .001,  skew: .4,  format: time },
+    decay:           { label: 'DECAY',     sub: 'ENVELOPE',   min: .001,  max: 4,     initial: .1,    step: .001,  skew: .4,  format: time },
+    sustain:         { label: 'SUSTAIN',   sub: 'ENVELOPE',   min: 0,     max: 1,     initial: .8,    step: .001,  skew: 1,   format: pct },
+    release:         { label: 'RELEASE',   sub: 'ENVELOPE',   min: .01,   max: 4,     initial: .35,   step: .001,  skew: .4,  format: time },
+    vibrato:         { label: 'VIBRATO',   sub: 'PITCH',      min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
+    vibratoRate:     { label: 'RATE',      sub: 'VIBRATO',    min: .1,    max: 12,    initial: 5,     step: .01,   skew: .5,  format: v => v.toFixed(1) + ' Hz' },
+    reverbSize:      { label: 'SIZE',      sub: 'REVERB',     min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    reverbDecay:     { label: 'DECAY',     sub: 'REVERB',     min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    reverbMix:       { label: 'MIX',       sub: 'REVERB',     min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
+    delayTime:       { label: 'TIME',      sub: 'DELAY',      min: .04,   max: 1.5,   initial: .3,    step: .001,  skew: .45, format: time },
+    delayFeedback:   { label: 'FEEDBACK',  sub: 'DELAY',      min: 0,     max: .85,   initial: .3,    step: .001,  skew: 1,   format: pct },
+    delayMix:        { label: 'MIX',       sub: 'DELAY',      min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
+    distortionDrive: { label: 'DRIVE',     sub: 'DISTORTION', min: 1,     max: 12,    initial: 2,     step: .01,   skew: .5,  format: v => v.toFixed(1) + 'x' },
+    distortionTone:  { label: 'TONE',      sub: 'DISTORTION', min: 0,     max: 1,     initial: .65,   step: .001,  skew: 1,   format: pct },
+    distortionMix:   { label: 'MIX',       sub: 'DISTORTION', min: 0,     max: 1,     initial: 0,     step: .001,  skew: 1,   format: pct },
+    chorusRate:      { label: 'RATE',      sub: 'CHORUS',     min: .05,   max: 5,     initial: .7,    step: .01,   skew: .5,  format: hz },
+    chorusDepth:     { label: 'DEPTH',     sub: 'CHORUS',     min: 0,     max: 1,     initial: .6,    step: .001,  skew: 1,   format: pct },
+    chorusMix:       { label: 'MIX',       sub: 'CHORUS',     min: 0,     max: 1,     initial: .45,   step: .001,  skew: 1,   format: pct },
+    ottDepth:        { label: 'DEPTH',     sub: 'COMPRESSOR', min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    ottMix:          { label: 'MIX',       sub: 'COMPRESSOR', min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    eqLow:           { label: 'LOW',       sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqMid:           { label: 'MID',       sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqHigh:          { label: 'HIGH',      sub: 'EQUALIZER',  min: -12,   max: 12,    initial: 0,     step: .1,    skew: 1,   format: db },
+    eqMix:           { label: 'MIX',       sub: 'EQUALIZER',  min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    fxFilterCutoff:  { label: 'CUTOFF',    sub: 'FX FILTER',  min: 30,    max: 18000, initial: 5000,  step: 1,     skew: .28, format: frequency },
+    fxFilterResonance:{label: 'RESO',      sub: 'FX FILTER',  min: 0,     max: .95,   initial: .2,    step: .001,  skew: 1,   format: pct },
+    fxFilterMix:     { label: 'MIX',       sub: 'FX FILTER',  min: 0,     max: 1,     initial: 1,     step: .001,  skew: 1,   format: pct },
+    flangerRate:     { label: 'RATE',      sub: 'FLANGER',    min: .05,   max: 5,     initial: .35,   step: .01,   skew: .5,  format: hz },
+    flangerDepth:    { label: 'DEPTH',     sub: 'FLANGER',    min: 0,     max: 1,     initial: .7,    step: .001,  skew: 1,   format: pct },
+    flangerFeedback: { label: 'FEEDBACK',  sub: 'FLANGER',    min: -.8,   max: .8,    initial: .3,    step: .001,  skew: 1,   format: pct },
+    flangerMix:      { label: 'MIX',       sub: 'FLANGER',    min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct },
+    phaserRate:      { label: 'RATE',      sub: 'PHASER',     min: .05,   max: 5,     initial: .4,    step: .01,   skew: .5,  format: hz },
+    phaserDepth:     { label: 'DEPTH',     sub: 'PHASER',     min: 0,     max: 1,     initial: .7,    step: .001,  skew: 1,   format: pct },
+    phaserFeedback:  { label: 'FEEDBACK',  sub: 'PHASER',     min: -.8,   max: .8,    initial: .2,    step: .001,  skew: 1,   format: pct },
+    phaserMix:       { label: 'MIX',       sub: 'PHASER',     min: 0,     max: 1,     initial: .5,    step: .001,  skew: 1,   format: pct }
+  };
+  function pct(value) { return Math.round(value * 100) + '%'; }
+  function hz(value) { return value.toFixed(2) + ' Hz'; }
+  function db(value) { return (value > 0 ? '+' : '') + value.toFixed(1) + ' dB'; }
+  function frequency(value) { return value >= 1000 ? (value / 1000).toFixed(1) + ' kHz' : Math.round(value) + ' Hz'; }
+  function time(value) { return value < 1 ? Math.round(value * 1000) + ' ms' : value.toFixed(2) + ' s'; }
+  const defaults = Object.fromEntries(Object.entries(specs).map(([key, spec]) => [key, spec.initial]));
+  const presets = [
+    { name: 'VANTA INIT',    category: 'INIT',  wave: 'sine', values: {} },
+    { name: 'CRIMSON BELL',  category: 'SYNTH', wave: 'sine', values: { attack: .003, decay: .55, sustain: .18, release: .85, reverbMix: .22 } },
+    { name: 'RED HORIZON',   category: 'PADS',  wave: 'saw',  values: { attack: .6, release: 1.6, cutoff: 1800, reverbSize: .8, reverbMix: .28 } },
+    { name: 'NIGHT CIRCUIT', category: 'LEADS', wave: 'saw',  values: { attack: .008, release: .18, cutoff: 1100, resonance: .35, delayMix: .18 } },
+    { name: 'GLASS SIGNAL',  category: 'SYNTH', wave: 'sine', values: { attack: .01, decay: .8, sustain: .3, release: 1, vibrato: .08, reverbMix: .32 } }
+  ];
+  // All oscillator controls here are session-only drafts, separate from the native audio engine.
+  const maxOscillators = 8;
+  const presetDrafts = new Map();
+  let presetLoaded = false;
+  function defaultFxEnabled() {
+    // Existing reverb/delay/distortion retain their original mix-controlled behavior.
+    return { chorus: false, compressor: false, delay: true, distortion: true, equalizer: false, filter: false, flanger: false, phaser: false, reverb: true };
+  }
+  const state = {
+    values: { ...defaults }, level: 70, preset: 0, filter: 'ALL', format: 'standalone',
+    oscillators: [{ id: 0, wave: 'sine' }], selectedOsc: 0,
+    fxEnabled: defaultFxEnabled(), selectedFx: 'chorus'
+  };
+  const $ = selector => document.querySelector(selector);
+  const $$ = selector => [...document.querySelectorAll(selector)];
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const normalized = (value, spec) => Math.pow(clamp((value - spec.min) / (spec.max - spec.min), 0, 1), spec.skew);
+  function actual(normal, spec) {
+    const raw = spec.min + (spec.max - spec.min) * Math.pow(clamp(normal, 0, 1), 1 / spec.skew);
+    return clamp(spec.min + Math.round((raw - spec.min) / spec.step) * spec.step, spec.min, spec.max);
+  }
+
+  const effects = [
+    { id: 'chorus', name: 'CHORUS', category: 'MODULATION', description: 'Stereo movement / soft width', graph: 'MODULATION SHAPE', mix: 'chorusMix', knobs: ['chorusRate', 'chorusDepth', 'chorusMix'], icon: '<circle cx="8" cy="9" r="5"/><circle cx="12" cy="9" r="5"/><circle cx="16" cy="9" r="5"/>' },
+    { id: 'compressor', name: 'COMPRESSOR', category: 'DYNAMICS', description: 'Three-band dynamics / +3 dB high band', graph: 'DYNAMICS CURVE', mix: 'ottMix', knobs: ['ottDepth', 'ottMix'], icon: '<path d="M3 14L9 9l4-2 8-3M3 4h5M16 14h5"/>' },
+    { id: 'delay', name: 'DELAY', category: 'TIME', description: 'Stereo echoes / free time', graph: 'ECHO REPEATS', mix: 'delayMix', knobs: ['delayTime', 'delayFeedback', 'delayMix'], icon: '<path d="M4 3v12M8 5v8M12 6v6M16 7v4M20 8v2"/>' },
+    { id: 'distortion', name: 'DISTORTION', category: 'COLOR', description: 'Saturation / low-pass tone', graph: 'DRIVE CURVE', mix: 'distortionMix', knobs: ['distortionDrive', 'distortionTone', 'distortionMix'], icon: '<path d="M3 14h4l3-10h4l3 10h4"/>' },
+    { id: 'equalizer', name: 'EQUALIZER', category: 'TONE', description: 'Three bands / low, mid & high', graph: 'TONE RESPONSE', mix: 'eqMix', knobs: ['eqLow', 'eqMid', 'eqHigh', 'eqMix'], icon: '<path d="M3 12c3 0 3-7 6-7s3 8 6 8 3-5 6-5"/>' },
+    { id: 'filter', name: 'FILTER', category: 'TONE', description: 'Post-effects low-pass / resonance', graph: 'FILTER RESPONSE', mix: 'fxFilterMix', knobs: ['fxFilterCutoff', 'fxFilterResonance', 'fxFilterMix'], icon: '<path d="M3 5h9c3 0 4 1 5 4l4 5"/>' },
+    { id: 'flanger', name: 'FLANGER', category: 'MODULATION', description: 'Short moving delay / feedback', graph: 'COMB COLOR', mix: 'flangerMix', knobs: ['flangerRate', 'flangerDepth', 'flangerFeedback', 'flangerMix'], icon: '<path d="M3 6v6M7 4v10M11 7v4M15 4v10M19 6v6"/>' },
+    { id: 'phaser', name: 'PHASER', category: 'MODULATION', description: 'Four-stage phase sweep / feedback', graph: 'PHASE SWEEP', mix: 'phaserMix', knobs: ['phaserRate', 'phaserDepth', 'phaserFeedback', 'phaserMix'], icon: '<path d="M2 9c2-7 4-7 6 0s4 7 6 0 4-7 6 0 2 4 3 2"/>' },
+    { id: 'reverb', name: 'REVERB', category: 'SPACE', description: 'Stereo space / size + decay', graph: 'ROOM SHAPE', mix: 'reverbMix', knobs: ['reverbSize', 'reverbDecay', 'reverbMix'], icon: '<path d="M4 14V6l8-3 8 3v8l-8 3zM4 6l8 3 8-3M12 9v8"/>' }
+  ];
+  function buildFxUi() {
+    const slots = $('#fx-slots'), panels = $('#fx-panels');
+    effects.forEach((effect, index) => {
+      const row = document.createElement('div'); row.className = 'fx-slot'; row.dataset.fxRow = effect.id;
+      row.innerHTML = `<button type="button" class="fx-power" data-fx-power="${effect.id}" aria-label="Toggle ${effect.name}" aria-pressed="false"></button>
+        <button type="button" class="fx-select" data-fx-select="${effect.id}" aria-controls="fx-panel-${effect.id}" aria-pressed="false"><span class="fx-number">${String(index + 1).padStart(2, '0')}</span><span class="fx-name">${effect.name}</span><svg viewBox="0 0 24 18" aria-hidden="true">${effect.icon}</svg></button>`;
+      slots.append(row);
+      const panel = document.createElement('section'); panel.className = 'fx-stage-panel'; panel.id = `fx-panel-${effect.id}`; panel.dataset.fxPanel = effect.id;
+      panel.setAttribute('aria-label', `${effect.name} controls`); panel.hidden = effect.id !== state.selectedFx;
+      const graphId = effect.id === 'filter' ? 'fxFilter' : effect.id;
+      panel.innerHTML = `<div class="fx-plot"><svg data-graph="${graphId}" viewBox="0 0 280 60" preserveAspectRatio="none" role="img" aria-label="Illustrative ${effect.graph.toLowerCase()}"><path class="plot-grid" d="M0 15H280M0 30H280M0 45H280M56 0V60M112 0V60M168 0V60M224 0V60"/><path class="fx-area" data-area/><path class="fx-line" data-line/></svg></div>
+        <div class="fx-caption"><span>${effect.graph} / ILLUSTRATIVE</span><span data-fx-status="${effect.mix}"></span></div>
+        <div class="effect-knobs compact" style="--knob-count:${effect.knobs.length}" data-knob-group="${effect.knobs.join(',')}"></div>`;
+      panels.append(panel);
+    });
+    slots.addEventListener('click', event => {
+      const power = event.target.closest('[data-fx-power]');
+      const select = event.target.closest('[data-fx-select]');
+      if (power) { const id = power.dataset.fxPower; state.fxEnabled[id] = !state.fxEnabled[id]; renderFxSelection(); }
+      else if (select) { state.selectedFx = select.dataset.fxSelect; renderFxSelection(); }
+    });
+    $('#fx-stage-toggle').addEventListener('click', () => {
+      state.fxEnabled[state.selectedFx] = !state.fxEnabled[state.selectedFx]; renderFxSelection();
+    });
+  }
+  function renderFxSelection() {
+    const effect = effects.find(item => item.id === state.selectedFx);
+    const index = effects.indexOf(effect), enabled = state.fxEnabled[effect.id];
+    $('#fx-stage-kicker').textContent = `${String(index + 1).padStart(2, '0')} / ${effect.category}`;
+    $('#fx-stage-title').textContent = effect.name; $('#fx-stage-description').textContent = effect.description;
+    const toggle = $('#fx-stage-toggle'); toggle.setAttribute('aria-pressed', String(enabled));
+    toggle.textContent = enabled ? 'MODULE ON' : 'BYPASSED'; toggle.setAttribute('aria-label', `${enabled ? 'Bypass' : 'Enable'} ${effect.name}`);
+    $$('[data-fx-row]').forEach(row => { row.dataset.selected = String(row.dataset.fxRow === effect.id); });
+    $$('[data-fx-select]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.fxSelect === effect.id)); });
+    $$('[data-fx-power]').forEach(button => {
+      const isOn = state.fxEnabled[button.dataset.fxPower];
+      button.setAttribute('aria-pressed', String(isOn));
+      button.setAttribute('aria-label', `${isOn ? 'Bypass' : 'Enable'} ${button.dataset.fxPower}`);
+    });
+    $$('[data-fx-panel]').forEach(panel => { panel.hidden = panel.dataset.fxPanel !== effect.id; });
+  }
+  buildFxUi();
+
+  function makeKnob(key) {
+    const spec = specs[key];
+    const item = document.createElement('div');
+    item.className = 'knob-item';
+    item.dataset.knob = key;
+    item.innerHTML = `<div class="dial">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><path class="ring-track" d="M26.77 93.23 A47 47 0 1 1 93.23 93.23" pathLength="100"/><path class="ring-progress" d="M26.77 93.23 A47 47 0 1 1 93.23 93.23" pathLength="100"/><circle class="ring-marker" r="2.5"/></svg>
+      <div class="knob-face"><span class="face-label">${spec.label}</span><output></output></div>
+      <input type="range" min="0" max="1000" step="1" aria-label="${spec.sub} ${spec.label}" title="Drag up/down or use arrow keys. Double-click to reset.">
+    </div><div class="knob-caption">${spec.sub}</div>`;
+    const input = item.querySelector('input');
+    input.addEventListener('input', () => setValue(key, actual(Number(input.value) / 1000, spec)));
+    let drag = null;
+    input.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      input.focus(); input.setPointerCapture(event.pointerId);
+      drag = { y: event.clientY, start: Number(input.value) };
+    });
+    input.addEventListener('pointermove', event => {
+      if (!drag) return;
+      input.value = String(clamp(Math.round(drag.start + (drag.y - event.clientY) * 5), 0, 1000));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    input.addEventListener('pointerup', () => { drag = null; });
+    input.addEventListener('pointercancel', () => { drag = null; });
+    input.addEventListener('dblclick', () => setValue(key, spec.initial));
+    return item;
+  }
+  $$('[data-knob-group]').forEach(group => group.dataset.knobGroup.split(',').forEach(key => group.append(makeKnob(key))));
+  function makeMiniControl(key) {
+    const spec = specs[key], item = document.createElement('div');
+    item.className = 'mini-control'; item.dataset.miniKey = key;
+    item.innerHTML = `<label for="mini-${key}">${spec.label}</label><input id="mini-${key}" type="range" min="0" max="1000" step="1" aria-label="${spec.sub} ${spec.label}"><output for="mini-${key}"></output>`;
+    const input = item.querySelector('input');
+    input.addEventListener('input', () => setValue(key, actual(Number(input.value) / 1000, spec)));
+    input.addEventListener('dblclick', () => setValue(key, spec.initial));
+    return item;
+  }
+  $$('[data-mini-group]').forEach(group => group.dataset.miniGroup.split(',').forEach(key => group.append(makeMiniControl(key))));
+  function setValue(key, value) {
+    const spec = specs[key];
+    state.values[key] = clamp(value, spec.min, spec.max);
+    const n = normalized(state.values[key], spec);
+    $$(`[data-knob="${key}"]`).forEach(item => {
+      const input = item.querySelector('input');
+      input.value = String(Math.round(n * 1000));
+      input.setAttribute('aria-valuetext', spec.format(state.values[key]));
+      item.querySelector('output').textContent = spec.format(state.values[key]);
+      item.querySelector('.ring-progress').setAttribute('stroke-dasharray', `${n * 100} 100`);
+      const angle = (-135 + n * 270) * Math.PI / 180;
+      item.querySelector('.ring-marker').setAttribute('cx', String(60 + 47 * Math.sin(angle)));
+      item.querySelector('.ring-marker').setAttribute('cy', String(60 - 47 * Math.cos(angle)));
+    });
+    $$(`[data-display="${key}"]`).forEach(element => { element.textContent = spec.format(state.values[key]); });
+    $$(`[data-mini-key="${key}"]`).forEach(item => {
+      const input = item.querySelector('input');
+      input.value = String(Math.round(n * 1000));
+      input.setAttribute('aria-valuetext', spec.format(state.values[key]));
+      item.querySelector('output').textContent = spec.format(state.values[key]);
+    });
+    if (['ampDelay', 'attack', 'ampHold', 'decay', 'sustain', 'release'].includes(key)) renderEnvelope();
+    if (['vibrato', 'vibratoRate'].includes(key)) renderVibrato();
+    if (['cutoff', 'resonance'].includes(key)) renderFilter();
+    if (/^(reverb|delay|distortion|chorus|ott|eq|fxFilter|flanger|phaser)/.test(key)) renderEffects();
+  }
+
+  // All curves are parameter illustrations, not measurements of live audio.
+  function renderEnvelope() {
+    const v = state.values;
+    const sustainExample = .5; // Note length is played; this is only an illustrative sustain width.
+    const total = v.ampDelay + v.attack + v.ampHold + v.decay + sustainExample + v.release;
+    const x = seconds => 8 + 504 * seconds / total;
+    const delayEnd = v.ampDelay, attackEnd = delayEnd + v.attack;
+    const holdEnd = attackEnd + v.ampHold, decayEnd = holdEnd + v.decay;
+    const points = {
+      delay: [x(delayEnd), 108],
+      attack: [x(attackEnd), 12],
+      hold: [x(holdEnd), 12],
+      decay: [x(decayEnd), 108 - 96 * v.sustain],
+      sustain: [x(decayEnd + sustainExample), 108 - 96 * v.sustain]
+    };
+    const line = `M8 108 L${points.delay.join(' ')} L${points.attack.join(' ')} L${points.hold.join(' ')} L${points.decay.join(' ')} L${points.sustain.join(' ')} L512 108`;
+    $$('[data-graph="envelope"]').forEach(graph => {
+      graph.querySelector('[data-line]').setAttribute('d', line);
+      graph.querySelector('[data-area]').setAttribute('d', `${line} L8 108 Z`);
+      Object.entries(points).forEach(([name, point]) => {
+        const marker = graph.querySelector(`[data-point="${name}"]`);
+        marker.setAttribute('cx', point[0]); marker.setAttribute('cy', point[1]);
+        marker.style.display = (name === 'delay' && v.ampDelay === 0) || (name === 'hold' && v.ampHold === 0) ? 'none' : '';
+      });
+      graph.setAttribute('aria-label', `Illustrative amplitude envelope: delay ${time(v.ampDelay)}, attack ${time(v.attack)}, hold ${time(v.ampHold)}, decay ${time(v.decay)}, sustain ${pct(v.sustain)}, release ${time(v.release)}.`);
+    });
+  }
+  function renderVibrato() {
+    const v = state.values;
+    function pathFor(depth) {
+      let path = '';
+      for (let i = 0; i <= 300; i++) {
+        const t = i / 300;
+        const y = 60 - 42 * depth * Math.sin(2 * Math.PI * v.vibratoRate * t);
+        path += `${i ? 'L' : 'M'}${(8 + 504 * t).toFixed(2)} ${y.toFixed(2)} `;
+      }
+      return path;
+    }
+    const line = pathFor(v.vibrato), guide = pathFor(1);
+    $$('[data-graph="vibrato"]').forEach(graph => {
+      graph.querySelector('[data-guide]').setAttribute('d', guide);
+      graph.querySelector('[data-line]').setAttribute('d', line);
+      graph.querySelector('[data-area]').setAttribute('d', `${line} L512 60 L8 60 Z`);
+      graph.setAttribute('aria-label', `Illustrative one-second sine vibrato: depth ${pct(v.vibrato)}, rate ${v.vibratoRate.toFixed(1)} hertz.`);
+    });
+  }
+  function renderFilter() {
+    const v = state.values, q = .707 + 5 * v.resonance;
+    let line = '';
+    for (let i = 0; i <= 160; i++) {
+      const t = i / 160, frequency = 30 * Math.pow(600, t), ratio = frequency / v.cutoff;
+      const magnitude = 1 / Math.sqrt(Math.pow(1 - ratio * ratio, 2) + Math.pow(ratio / q, 2));
+      const db = clamp(20 * Math.log10(magnitude), -48, 12);
+      const y = 108 - 96 * (db + 48) / 60;
+      line += `${i ? 'L' : 'M'}${(8 + 504 * t).toFixed(2)} ${y.toFixed(2)} `;
+    }
+    $$('[data-graph="filter"]').forEach(graph => {
+      graph.querySelector('[data-line]').setAttribute('d', line);
+      graph.querySelector('[data-area]').setAttribute('d', `${line} L512 108 L8 108 Z`);
+      graph.setAttribute('aria-label', `Illustrative low-pass filter response: cutoff ${specs.cutoff.format(v.cutoff)}, resonance ${pct(v.resonance)}.`);
+    });
+  }
+  function renderEffects() {
+    const v = state.values;
+    $$('[data-fx-status]').forEach(element => { element.textContent = `${pct(v[element.dataset.fxStatus])} WET`; });
+    let room = '';
+    for (let i = 0; i <= 140; i++) {
+      const t = i / 140;
+      const decay = Math.exp(-t * (4.4 - 3.3 * v.reverbDecay));
+      const texture = .45 + .55 * Math.abs(Math.sin(t * (20 + 22 * v.reverbSize)));
+      room += `${i ? 'L' : 'M'}${(8 + 264 * t).toFixed(2)} ${(53 - 42 * decay * texture).toFixed(2)} `;
+    }
+    const reverb = $('[data-graph="reverb"]');
+    reverb.querySelector('[data-line]').setAttribute('d', room);
+    reverb.querySelector('[data-area]').setAttribute('d', `${room} L272 53 L8 53 Z`);
+
+    let echoes = 'M8 53 H272';
+    for (let i = 0; i < 40; i++) {
+      const position = i * v.delayTime / 1.5;
+      if (position > 1) break;
+      const height = 40 * Math.pow(v.delayFeedback, i);
+      echoes += ` M${(8 + 264 * position).toFixed(2)} 53 V${(53 - height).toFixed(2)}`;
+    }
+    $('[data-graph="delay"] [data-line]').setAttribute('d', echoes);
+
+    let curve = '';
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100, input = 2 * t - 1;
+      const output = Math.tanh(input * v.distortionDrive) / Math.tanh(v.distortionDrive);
+      curve += `${i ? 'L' : 'M'}${(8 + 264 * t).toFixed(2)} ${(30 - 23 * output).toFixed(2)} `;
+    }
+    $('[data-graph="distortion"] [data-line]').setAttribute('d', curve);
+    renderAddedEffects();
+  }
+  function renderAddedEffects() {
+    const v = state.values;
+    const paint = (name, fn, fillBase = 53) => {
+      let line = '';
+      for (let i = 0; i <= 160; i++) {
+        const t = i / 160, x = 8 + t * 264, y = clamp(fn(t), 4, 56);
+        line += `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)} `;
+      }
+      const graph = $(`[data-graph="${name}"]`);
+      graph.querySelector('[data-line]').setAttribute('d', line);
+      graph.querySelector('[data-area]').setAttribute('d', `${line} L272 ${fillBase} L8 ${fillBase} Z`);
+    };
+    paint('chorus', t => 30 - (4 + 18 * v.chorusDepth) * Math.sin(t * Math.PI * (3.4 + v.chorusRate * .55)), 30);
+    paint('compressor', t => {
+      const depth = v.ottDepth * v.ottMix;
+      const compressed = t < .52 ? t * (1 + .22 * depth) : .52 * (1 + .22 * depth) + (t - .52) * (1 - .45 * depth);
+      return 53 - 46 * compressed;
+    });
+    paint('equalizer', t => {
+      const lowWeight = 1 / (1 + Math.exp((t - .30) * 18));
+      const highWeight = 1 / (1 + Math.exp((.70 - t) * 18));
+      const midWeight = Math.max(0, 1 - lowWeight - highWeight);
+      return 30 - (v.eqLow * lowWeight + v.eqMid * midWeight + v.eqHigh * highWeight) * v.eqMix * 1.55;
+    }, 30);
+    paint('fxFilter', t => {
+      const frequency = 30 * Math.pow(600, t), ratio = frequency / v.fxFilterCutoff, q = .707 + 5 * v.fxFilterResonance;
+      const magnitude = 1 / Math.sqrt(Math.pow(1 - ratio * ratio, 2) + Math.pow(ratio / q, 2));
+      return 53 - 46 * (clamp(20 * Math.log10(magnitude), -48, 12) + 48) / 60;
+    });
+    paint('flanger', t => 17 + v.flangerDepth * (10 + 9 * Math.abs(v.flangerFeedback)) * (1 + Math.sin(t * (24 + v.flangerRate * 2))) / 2);
+    paint('phaser', t => 17 + v.phaserDepth * (12 + 7 * Math.abs(v.phaserFeedback)) * Math.pow(Math.sin(t * (13 + v.phaserRate)), 2));
+  }
+  function updateLevel(value) {
+    state.level = clamp(Number(value), 0, 100);
+    $('#master-level').value = String(state.level);
+    $('#master-level').style.setProperty('--fill', `${state.level}%`);
+    $('#master-output').textContent = `${state.level}%`;
+    $('#master-level').setAttribute('aria-valuetext', `${state.level}%`);
+    $('#mixer-master').value = String(state.level);
+    $('#mixer-output').textContent = `${state.level}%`;
+    $('#mixer-master').setAttribute('aria-valuetext', `${state.level}%`);
+  }
+  $('#master-level').addEventListener('input', event => updateLevel(event.target.value));
+  $('#mixer-master').addEventListener('input', event => updateLevel(event.target.value));
+
+  const oscLetter = id => String.fromCharCode(65 + id);
+  const selectedOscillator = () => state.oscillators.find(osc => osc.id === state.selectedOsc);
+  const oscTabLabel = osc => `Oscillator ${oscLetter(osc.id)}, ${osc.wave} waveform, visual preview only, no audio`;
+  function renderOscTabs(focusSelected = false) {
+    const tabs = $('#osc-tabs'); tabs.replaceChildren();
+    state.oscillators.forEach((osc, index) => {
+      const tab = document.createElement('button');
+      tab.type = 'button'; tab.id = `osc-tab-${osc.id}`; tab.dataset.oscId = String(osc.id);
+      tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', 'osc-editor');
+      tab.setAttribute('aria-label', oscTabLabel(osc));
+      tab.setAttribute('aria-selected', String(osc.id === state.selectedOsc));
+      tab.tabIndex = osc.id === state.selectedOsc ? 0 : -1;
+      tab.textContent = `OSC ${oscLetter(osc.id)}`;
+      tab.addEventListener('click', () => selectOscillator(osc.id, true));
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? state.oscillators.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + state.oscillators.length) % state.oscillators.length;
+        selectOscillator(state.oscillators[next].id, true);
+      });
+      tabs.append(tab);
+    });
+    const full = state.oscillators.length >= maxOscillators;
+    $('#add-osc').disabled = full;
+    $('#add-osc').title = full ? `The preview supports ${maxOscillators} oscillator tabs` : 'Add a preview-only oscillator tab';
+    $('#osc-count').textContent = `${state.oscillators.length} / ${maxOscillators} TABS`;
+    renderMixer();
+    if (focusSelected) $(`#osc-tab-${state.selectedOsc}`).focus({ preventScroll: true });
+  }
+  function renderMixer() {
+    const channels = $('#mixer-channels'); channels.replaceChildren();
+    // Show four starting destinations and any additional preview slots through H.
+    const ids = [...new Set([0, 1, 2, 3, ...state.oscillators.map(osc => osc.id)])].sort((a, b) => a - b);
+    ids.forEach(id => {
+      const letter = oscLetter(id);
+      const hasDraft = state.oscillators.some(osc => osc.id === id);
+      const strip = document.createElement('section'); strip.className = 'mixer-strip';
+      strip.setAttribute('aria-label', `Oscillator ${letter} mixer concept, ${hasDraft ? 'preview slot' : 'empty slot'}`);
+      strip.innerHTML = `<div class="mixer-strip-head"><strong>OSC ${letter}</strong><span>${hasDraft ? 'DRAFT' : 'EMPTY'}</span></div>
+        <label>LEVEL <input type="range" min="0" max="100" value="70" disabled aria-label="Oscillator ${letter} level, HTML preview only"></label>
+        <label>PAN <input type="range" min="-100" max="100" value="0" disabled aria-label="Oscillator ${letter} pan, HTML preview only"></label>
+        <div class="unavailable"><button type="button" disabled>MUTE</button><button type="button" disabled>ROUTE</button></div>`;
+      channels.append(strip);
+    });
+  }
+  function renderOscEditor() {
+    const osc = selectedOscillator(), letter = oscLetter(osc.id), wave = osc.wave;
+    $('#osc-editor').setAttribute('aria-labelledby', `osc-tab-${osc.id}`);
+    $('#osc-title').innerHTML = `<span>${String(osc.id + 1).padStart(2, '0')}</span> OSCILLATOR ${letter}`;
+    $('#osc-stage-note').textContent = 'HTML PREVIEW / NO AUDIO';
+    $('#osc-voices').textContent = '16 POLY';
+    $('#osc-output').textContent = 'NOT CONNECTED';
+    $('#remove-osc').hidden = osc.id === 0;
+    $('#remove-osc').setAttribute('aria-label', `Remove oscillator ${letter}`);
+    const tab = $(`#osc-tab-${osc.id}`);
+    if (tab) tab.setAttribute('aria-label', oscTabLabel(osc));
+    $$('[data-wave]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.wave === wave)));
+    $$('[data-wave-name]').forEach(element => { element.textContent = wave.toUpperCase(); });
+    let path = '';
+    for (let i = 0; i <= 360; i++) {
+      const unit = i / 360;
+      const phase = (unit * 3) % 1;
+      const sample = wave === 'saw' ? 2 * phase - 1
+        : wave === 'square' ? (phase < .5 ? 1 : -1)
+        : wave === 'triangle' ? 1 - 4 * Math.abs(phase - .5)
+        : Math.sin(phase * Math.PI * 2);
+      const x = 12 + unit * 456, y = 50 - sample * 35;
+      path += `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)} `;
+    }
+    $('#wave-path').setAttribute('d', path);
+  }
+  function selectOscillator(id, focusSelected = false) {
+    if (!state.oscillators.some(osc => osc.id === id)) return;
+    state.selectedOsc = id;
+    renderOscTabs(focusSelected);
+    renderOscEditor();
+  }
+  $('#add-osc').addEventListener('click', () => {
+    if (state.oscillators.length >= maxOscillators) return;
+    const id = Array.from({ length: maxOscillators }, (_, i) => i).find(i => !state.oscillators.some(osc => osc.id === i));
+    state.oscillators.push({ id, wave: 'sine' });
+    state.oscillators.sort((a, b) => a.id - b.id);
+    selectOscillator(id, true);
+  });
+  $('#remove-osc').addEventListener('click', () => {
+    if (state.selectedOsc === 0) return; // The existing engine source cannot be removed.
+    const index = state.oscillators.findIndex(osc => osc.id === state.selectedOsc);
+    state.oscillators.splice(index, 1);
+    selectOscillator(state.oscillators[Math.max(0, index - 1)].id, true);
+  });
+  $$('[data-wave]').forEach(button => button.addEventListener('click', () => {
+    selectedOscillator().wave = button.dataset.wave;
+    renderOscEditor();
+  }));
+
+  function setPage(name) {
+    $$('[data-page]').forEach(tab => {
+      const active = tab.dataset.page === name;
+      tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1;
+      $(`#page-${tab.dataset.page}`).hidden = !active;
+    });
+    closeLibrary(false);
+  }
+  $$('[data-page]').forEach((tab, index, tabs) => {
+    tab.addEventListener('click', () => setPage(tab.dataset.page));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      setPage(tabs[next].dataset.page); tabs[next].focus();
+    });
+  });
+  $$('[data-go-page]').forEach(button => button.addEventListener('click', () => {
+    setPage(button.dataset.goPage);
+    $(`#tab-${button.dataset.goPage}`).focus();
+  }));
+
+  function renderLibrary() {
+    const list = $('#preset-list'); list.replaceChildren();
+    const query = $('#preset-search').value.trim().toLowerCase();
+    presets.forEach((preset, index) => {
+      if (state.filter !== 'ALL' && preset.category !== state.filter) return;
+      if (query && !`${preset.name} ${preset.category}`.toLowerCase().includes(query)) return;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'preset-option';
+      button.setAttribute('aria-current', String(index === state.preset));
+      const number = document.createElement('span'); number.className = 'index'; number.textContent = String(index + 1).padStart(3, '0');
+      const name = document.createElement('span'); name.textContent = preset.name;
+      const category = document.createElement('span'); category.className = 'type'; category.textContent = preset.category;
+      button.append(number, name, category);
+      button.addEventListener('click', () => { selectPreset(index); closeLibrary(true); });
+      list.append(button);
+    });
+    if (!list.children.length) {
+      const empty = document.createElement('div'); empty.className = 'preset-empty';
+      empty.textContent = 'No factory presets match this search.'; list.append(empty);
+    }
+  }
+  $('#preset-search').addEventListener('input', renderLibrary);
+  function closeLibrary(restoreFocus) {
+    $('#library').hidden = true; $('#patch-button').setAttribute('aria-expanded', 'false');
+    if (restoreFocus) $('#patch-button').focus();
+  }
+  function selectPreset(index) {
+    if (presetLoaded) {
+      presetDrafts.set(state.preset, {
+        values: { ...state.values }, level: state.level,
+        oscillators: state.oscillators.map(osc => ({ ...osc })), selectedOsc: state.selectedOsc,
+        fxEnabled: { ...state.fxEnabled }
+      });
+    }
+    state.preset = (index + presets.length) % presets.length;
+    const preset = presets[state.preset], draft = presetDrafts.get(state.preset);
+    state.oscillators = draft ? draft.oscillators.map(osc => ({ ...osc })) : [{ id: 0, wave: preset.wave }];
+    state.selectedOsc = draft ? draft.selectedOsc : 0;
+    state.fxEnabled = draft ? { ...draft.fxEnabled } : defaultFxEnabled();
+    $('#patch-number').textContent = String(state.preset + 1).padStart(3, '0') + ':';
+    $('#patch-name').textContent = preset.name; $('#patch-category').textContent = preset.category;
+    $('#patch-button').setAttribute('aria-label', `Browse factory presets. Current: ${preset.name}`);
+    const values = draft ? draft.values : { ...defaults, ...preset.values };
+    Object.entries(values).forEach(([key, value]) => setValue(key, value));
+    updateLevel(draft ? draft.level : 70);
+    renderOscTabs(); renderOscEditor(); renderLibrary(); renderFxSelection();
+    presetLoaded = true;
+  }
+  $('#previous-preset').addEventListener('click', () => selectPreset(state.preset - 1));
+  $('#next-preset').addEventListener('click', () => selectPreset(state.preset + 1));
+  $('#patch-button').addEventListener('click', () => {
+    const opening = $('#library').hidden;
+    $('#library').hidden = !opening; $('#patch-button').setAttribute('aria-expanded', String(opening));
+    if (opening) renderLibrary();
+  });
+  $('#close-library').addEventListener('click', () => closeLibrary(true));
+  $$('[data-filter]').forEach(button => button.addEventListener('click', () => {
+    state.filter = button.dataset.filter;
+    $$('[data-filter]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    renderLibrary();
+  }));
+  document.addEventListener('pointerdown', event => {
+    if (!$('#library').hidden && !$('#library').contains(event.target) && !$('#patch-button').contains(event.target)) closeLibrary(false);
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('#library').hidden) closeLibrary(true); });
+
+  let toastTimer;
+  function notify(message) {
+    const toast = $('#toast'); toast.textContent = message; toast.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 3200);
+  }
+  const previewNotices = {
+    write: 'Design preview only — no preset file was saved.',
+    import: 'Design preview only — no preset file was opened.'
+  };
+  $('#write-preset').addEventListener('click', () => notify(previewNotices.write));
+  $('#import-preset').addEventListener('click', () => notify(previewNotices.import));
+  $$('[data-preview-action]').forEach(button => button.addEventListener('click', () => notify(previewNotices[button.dataset.previewAction])));
+  $('#preview-device').addEventListener('click', () => notify('Design preview only — use Options → Audio/MIDI Settings in the standalone app.'));
+
+  function setFormat(format) {
+    state.format = format;
+    $$('[data-format]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.format === format)));
+    $('#keyboard-area').hidden = format !== 'standalone';
+    $('#format-label').textContent = format === 'standalone' ? 'STANDALONE CONCEPT' : 'VST3 CONCEPT';
+    $('#preview-device').disabled = format !== 'standalone';
+    $('#preview-device').title = format === 'standalone' ? 'Design preview only' : 'The DAW controls device settings';
+    $('#device-help').innerHTML = format === 'standalone'
+      ? 'In the standalone app, use <strong>Options → Audio/MIDI Settings</strong> to select an output and enable a MIDI input.'
+      : 'In the VST3, your <strong>DAW controls audio and MIDI</strong> device settings.';
+  }
+  $$('[data-format]').forEach(button => button.addEventListener('click', () => setFormat(button.dataset.format)));
+
+  const keyboard = $('#keyboard');
+  const isBlack = note => [1, 3, 6, 8, 10].includes(note % 12);
+  const whiteNotes = Array.from({ length: 37 }, (_, i) => i + 48).filter(note => !isBlack(note));
+  function setKey(note, pressed) {
+    const key = keyboard.querySelector(`[data-note="${note}"]`);
+    if (key) { key.classList.toggle('pressed', pressed); key.setAttribute('aria-pressed', String(pressed)); }
+  }
+  function makeKey(note, black) {
+    const key = document.createElement('button');
+    key.type = 'button'; key.tabIndex = -1; key.className = black ? 'black-key' : 'white-key'; key.dataset.note = String(note);
+    const names = ['C', 'C sharp', 'D', 'D sharp', 'E', 'F', 'F sharp', 'G', 'G sharp', 'A', 'A sharp', 'B'];
+    key.setAttribute('aria-label', `${names[note % 12]} ${Math.floor(note / 12) - 1}, visual preview only`);
+    key.setAttribute('aria-pressed', 'false');
+    key.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      // Keep the black keys above the white keys and focus the whole keyboard
+      // so a mouse click does not leave an outline on an individual note.
+      keyboard.classList.add('pointer-focus');
+      keyboard.focus({ preventScroll: true });
+      key.setPointerCapture(event.pointerId);
+      setKey(note, true);
+    });
+    key.addEventListener('pointerup', () => setKey(note, false));
+    key.addEventListener('pointercancel', () => setKey(note, false));
+    key.addEventListener('lostpointercapture', () => setKey(note, false));
+    return key;
+  }
+  whiteNotes.forEach(note => keyboard.append(makeKey(note, false)));
+  for (let note = 48; note <= 84; note++) {
+    if (!isBlack(note)) continue;
+    const key = makeKey(note, true);
+    const before = whiteNotes.filter(white => white < note).length;
+    key.style.left = `calc(${before} * 100% / ${whiteNotes.length} - (100% / ${whiteNotes.length} * .61 / 2))`;
+    keyboard.append(key);
+  }
+  // FL Studio-style typing keyboard: Q starts at C4 and each key advances a semitone.
+  const keymap = [
+    'KeyQ', 'Digit2', 'KeyW', 'Digit3', 'KeyE', 'KeyR', 'Digit5', 'KeyT', 'Digit6',
+    'KeyY', 'Digit7', 'KeyU', 'KeyI', 'Digit9', 'KeyO', 'Digit0', 'KeyP'
+  ];
+  keyboard.addEventListener('keydown', () => keyboard.classList.remove('pointer-focus'));
+  keyboard.addEventListener('blur', () => keyboard.classList.remove('pointer-focus'));
+  document.addEventListener('keydown', event => {
+    if (state.format !== 'standalone' || !keyboard.contains(document.activeElement) ||
+        event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    const offset = keymap.indexOf(event.code);
+    if (offset >= 0) { event.preventDefault(); setKey(60 + offset, true); }
+  });
+  document.addEventListener('keyup', event => {
+    const offset = keymap.indexOf(event.code);
+    if (offset >= 0) setKey(60 + offset, false);
+  });
+  window.addEventListener('blur', () => keyboard.querySelectorAll('.pressed').forEach(key => setKey(Number(key.dataset.note), false)));
+
+  // Pattern editors only change this page's visuals; they are not tied to sound or preset files.
+  function makePreviewSteps(container, count, kind) {
+    const steps = [];
+    for (let index = 0; index < count; index++) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.className = kind === 'Arpeggiator' ? 'step-cell' : 'clip-cell';
+      button.setAttribute('aria-label', `${kind} preview step ${index + 1}`);
+      button.setAttribute('aria-pressed', String(kind === 'Arpeggiator' ? index % 4 === 0 || index % 7 === 2 : [0, 4, 7, 10, 16, 19, 23, 27, 32, 36, 40, 43, 48, 52, 55, 59].includes(index)));
+      button.tabIndex = index === 0 ? 0 : -1;
+      if (kind === 'Arpeggiator') {
+        const bar = document.createElement('i'); bar.style.height = `${35 + ((index * 17) % 60)}%`; button.append(bar);
+      }
+      button.addEventListener('focus', () => {
+        steps.forEach(step => { step.tabIndex = step === button ? 0 : -1; });
+      });
+      button.addEventListener('click', () => {
+        button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
+      });
+      button.addEventListener('keydown', event => {
+        const offsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -16, ArrowDown: 16 };
+        if (!(event.key in offsets) && event.key !== 'Home' && event.key !== 'End') return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + offsets[event.key] + count) % count;
+        steps[next].focus();
+      });
+      steps.push(button); container.append(button);
+    }
+  }
+  makePreviewSteps($('#arp-steps'), 32, 'Arpeggiator');
+  makePreviewSteps($('#clip-steps'), 64, 'Clip');
+
+  // A separate sketch of a reorderable multi-instance rack. This never modifies the real FX chain.
+  const fxDrafts = [{ id: 1, name: 'CHORUS' }, { id: 2, name: 'EQ' }, { id: 3, name: 'MULTIBAND COMP' }];
+  let nextFxId = 4;
+  function renderFxDraft(focusId, focusAction) {
+    const rack = $('#fx-draft-rack'); rack.replaceChildren();
+    fxDrafts.forEach((effect, index) => {
+      const row = document.createElement('div'); row.className = 'design-row'; row.dataset.fxId = String(effect.id);
+      const count = document.createElement('small'); count.textContent = String(index + 1).padStart(2, '0');
+      const name = document.createElement('strong'); name.textContent = effect.name;
+      row.append(count, name);
+      [['up', '↑'], ['down', '↓'], ['remove', '×']].forEach(([action, symbol]) => {
+        const button = document.createElement('button'); button.type = 'button'; button.dataset.action = action; button.textContent = symbol;
+        button.setAttribute('aria-label', `${action === 'remove' ? 'Remove' : `Move ${action}`} ${effect.name} module ${index + 1}`);
+        button.disabled = (action === 'up' && index === 0) || (action === 'down' && index === fxDrafts.length - 1);
+        button.addEventListener('click', () => {
+          if (action === 'remove') { fxDrafts.splice(index, 1); renderFxDraft(); $('#fx-add').focus(); return; }
+          const destination = index + (action === 'up' ? -1 : 1);
+          [fxDrafts[index], fxDrafts[destination]] = [fxDrafts[destination], fxDrafts[index]];
+          renderFxDraft(effect.id, action);
+        });
+        row.append(button);
+      });
+      rack.append(row);
+    });
+    $('#fx-add').disabled = fxDrafts.length >= 8;
+    $('#fx-draft-count').textContent = `${fxDrafts.length} / 8 MODULES`;
+    if (focusId) {
+      const row = rack.querySelector(`[data-fx-id="${focusId}"]`);
+      const requested = row && row.querySelector(`[data-action="${focusAction}"]`);
+      const fallback = row && row.querySelector('button:not(:disabled)');
+      (requested && !requested.disabled ? requested : fallback || $('#fx-choice')).focus();
+    }
+  }
+  $('#fx-add').addEventListener('click', () => {
+    if (fxDrafts.length >= 8) return;
+    const effect = { id: nextFxId++, name: $('#fx-choice').value }; fxDrafts.push(effect);
+    renderFxDraft(effect.id, 'up');
+  });
+  renderFxDraft();
+  selectPreset(0); setFormat('standalone');
+  // Open the proposed Effects page first; direct links can open other synth pages.
+  const requestedPage = new URLSearchParams(window.location.search).get('page') || window.location.hash.slice(1) || 'fx';
+  if (['main', 'osc', 'fx', 'mod', 'mixer', 'seq', 'system'].includes(requestedPage)) setPage(requestedPage);
+})();
+</script>
+</body>
+</html>

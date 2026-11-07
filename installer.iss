@@ -1,27 +1,43 @@
-#define AppName "Vanta Beta 0.3"
-#define AppVersion "0.3"
-#define PluginBundle "build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.3.vst3"
+#define AppName "Vanta Beta 0.14"
+#define AppVersion "0.14.0"
+#define CurrentBeta 13
+#define PluginBundle "build\VantaBeta_artefacts\Release\VST3\Vanta Beta 0.13.vst3"
+#define StandaloneExe "build\VantaBeta_artefacts\Release\Standalone\Vanta Beta 0.13.exe"
 
 [Setup]
-AppId={{FC8DD907-A3C0-4DFB-90CC-F4DB3291A0ED}
+; Reuse the 0.13 AppId and paths for safe in-place upgrades.
+AppId={{DD6ACECB-F464-4CE3-82E6-4040DBCBD598}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Vanta
-DefaultDirName={commoncf64}\VST3
-DisableDirPage=yes
+DefaultDirName={autopf}\Vanta\Vanta Beta 0.13
 DisableProgramGroupPage=yes
+DisableStartupPrompt=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 OutputDir=installer-output
-OutputBaseFilename=Vanta-Beta-0.3-Setup
+OutputBaseFilename=Vanta-Beta-0.14-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName={#AppName}
+UninstallDisplayIcon={app}\Vanta Beta 0.13.exe
 
 [Files]
-Source: "{#PluginBundle}\*"; DestDir: "{app}\Vanta Beta 0.3.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PluginBundle}\*"; DestDir: "{commoncf64}\VST3\Vanta Beta 0.13.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StandaloneExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}\Vanta Beta 0.3.vst3"
+[Icons]
+Name: "{commonprograms}\Vanta\Vanta Beta 0.13"; Filename: "{app}\Vanta Beta 0.13.exe"; WorkingDir: "{app}"
+Name: "{commonprograms}\Vanta\Uninstall Vanta Beta 0.13"; Filename: "{uninstallexe}"; Comment: "Uninstall VANTA and optionally remove older VANTA plugin copies"
+
+[Run]
+Filename: "{app}\Vanta Beta 0.13.exe"; Description: "Launch Vanta Beta 0.13"; Flags: nowait postinstall skipifsilent unchecked
+
+; The normal Inno uninstall log removes files installed by this setup. Do NOT
+; recursively delete the VST3 folder: users may have added their own files there.
+
+[Code]
+#include "scripts\vanta-cleanup.iss"
